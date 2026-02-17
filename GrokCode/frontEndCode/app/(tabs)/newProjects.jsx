@@ -29,7 +29,7 @@ const NewProjects = () => {
     setLoading(true);
 
     try {
-      const response = await fetch('http://192.168.5.36:5000/projects', {
+      const response = await fetch('http://buildersync.net', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

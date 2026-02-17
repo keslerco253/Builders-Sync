@@ -3,7 +3,7 @@ import React from 'react';
 export const AuthContext = React.createContext();
 
 // Replace with your actual backend URL
-export const API_BASE = 'http://192.168.5.36:5000';
+export const API_BASE = 'https://buildersync.net';
 
 // Full color superset for both themes
 export const DARK_COLORS = {
