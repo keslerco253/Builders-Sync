@@ -24,7 +24,7 @@ const ProjectsListScreen = () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch('https://buildersync.net', {  // Replace with your backend URL
+      const response = await fetch('https://buildersync.net', {
         method: 'GET',
         headers: { 'Content-Type': 'application/json' },
       });

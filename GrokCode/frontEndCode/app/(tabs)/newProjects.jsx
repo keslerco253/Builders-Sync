@@ -29,7 +29,7 @@ const NewProjects = () => {
     setLoading(true);
 
     try {
-      const response = await fetch('http://buildersync.net', {
+      const response = await fetch('https://buildersync.net', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
