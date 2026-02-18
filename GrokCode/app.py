@@ -645,6 +645,13 @@ def update_theme_preference(user_id):
     return jsonify({'theme_preference': user.theme_preference})
 
 
+@app.route('/users/<int:user_id>', methods=['GET'])
+def get_user(user_id):
+    """Get a single user by ID."""
+    user = LoginInfo.query.get_or_404(user_id)
+    return jsonify(user.to_dict())
+
+
 @app.route('/users/<int:user_id>', methods=['PUT'])
 def update_user(user_id):
     """Update user profile fields (name, company, phone, trades, address, email)."""
