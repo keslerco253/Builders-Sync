@@ -3,12 +3,12 @@
   "WorkspaceRootPath": "C:\\Users\\hyrum\\OneDrive\\Documents\\GitHub\\Builders-Sync\\GrokCode\\",
   "Documents": [
     {
-      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\hyrum\\OneDrive\\Documents\\GitHub\\Builders-Sync\\GrokCode\\app.py||{8B382828-6202-11D1-8870-0000F87579D2}",
-      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:app.py||{8B382828-6202-11D1-8870-0000F87579D2}"
-    },
-    {
       "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\hyrum\\OneDrive\\Documents\\GitHub\\Builders-Sync\\GrokCode\\frontEndCode\\app\\context.jsx||{3B902123-F8A7-4915-9F01-361F908088D0}",
       "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:frontEndCode\\app\\context.jsx||{3B902123-F8A7-4915-9F01-361F908088D0}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\hyrum\\OneDrive\\Documents\\GitHub\\Builders-Sync\\GrokCode\\app.py||{8B382828-6202-11D1-8870-0000F87579D2}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:app.py||{8B382828-6202-11D1-8870-0000F87579D2}"
     },
     {
       "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\hyrum\\OneDrive\\Documents\\GitHub\\Builders-Sync\\GrokCode\\frontEndCode\\app\\(tabs)\\profile.jsx||{3B902123-F8A7-4915-9F01-361F908088D0}",
@@ -94,7 +94,7 @@
       "DocumentGroups": [
         {
           "DockedWidth": 200,
-          "SelectedChildIndex": 3,
+          "SelectedChildIndex": 2,
           "Children": [
             {
               "$type": "Document",
@@ -106,8 +106,7 @@
               "RelativeToolTip": "frontEndCode\\app\\(tabs)\\projects.jsx",
               "ViewState": "AgIAAAAAAAAAAAAAAAAAABoAAAA+AAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003663|",
-              "WhenOpened": "2026-02-17T22:52:35.667Z",
-              "EditorCaption": ""
+              "WhenOpened": "2026-02-17T22:52:35.667Z"
             },
             {
               "$type": "Document",
@@ -119,34 +118,32 @@
               "RelativeToolTip": "frontEndCode\\app\\scheduleBuilder.jsx",
               "ViewState": "AgIAAD4BAAAAAAAAAAAAAHEEAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003663|",
-              "WhenOpened": "2026-02-10T23:02:59.452Z",
-              "EditorCaption": ""
+              "WhenOpened": "2026-02-10T23:02:59.452Z"
             },
             {
               "$type": "Document",
-              "DocumentIndex": 1,
+              "DocumentIndex": 0,
               "Title": "context.jsx",
               "DocumentMoniker": "C:\\Users\\hyrum\\OneDrive\\Documents\\GitHub\\Builders-Sync\\GrokCode\\frontEndCode\\app\\context.jsx",
               "RelativeDocumentMoniker": "frontEndCode\\app\\context.jsx",
               "ToolTip": "C:\\Users\\hyrum\\OneDrive\\Documents\\GitHub\\Builders-Sync\\GrokCode\\frontEndCode\\app\\context.jsx",
               "RelativeToolTip": "frontEndCode\\app\\context.jsx",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAgAAAAcAAAAAAAAAA==",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAUAAAAyAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003663|",
               "WhenOpened": "2026-02-03T17:09:07.539Z",
               "EditorCaption": ""
             },
             {
               "$type": "Document",
-              "DocumentIndex": 0,
+              "DocumentIndex": 1,
               "Title": "app.py",
               "DocumentMoniker": "C:\\Users\\hyrum\\OneDrive\\Documents\\GitHub\\Builders-Sync\\GrokCode\\app.py",
               "RelativeDocumentMoniker": "app.py",
               "ToolTip": "C:\\Users\\hyrum\\OneDrive\\Documents\\GitHub\\Builders-Sync\\GrokCode\\app.py",
               "RelativeToolTip": "app.py",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAsAAABJAAAAAAAAAA==",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAA0AAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001001|",
-              "WhenOpened": "2026-01-22T18:22:07.04Z",
-              "EditorCaption": ""
+              "WhenOpened": "2026-01-22T18:22:07.04Z"
             },
             {
               "$type": "Document",
@@ -158,8 +155,7 @@
               "RelativeToolTip": "frontEndCode\\app\\(tabs)\\profile.jsx",
               "ViewState": "AgIAAA4AAAAAAAAAAAAYwBMAAAA2AAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003663|",
-              "WhenOpened": "2026-02-05T21:25:03.411Z",
-              "EditorCaption": ""
+              "WhenOpened": "2026-02-05T21:25:03.411Z"
             },
             {
               "$type": "Document",
@@ -171,8 +167,7 @@
               "RelativeToolTip": "frontEndCode\\app\\currentProjectViewer.jsx",
               "ViewState": "AgIAACoAAAAAAAAAAAAAAHMBAAAxAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003663|",
-              "WhenOpened": "2026-01-15T22:07:48.95Z",
-              "EditorCaption": ""
+              "WhenOpened": "2026-01-15T22:07:48.95Z"
             },
             {
               "$type": "Document",
@@ -184,8 +179,7 @@
               "RelativeToolTip": "frontEndCode\\app\\register.jsx",
               "ViewState": "AgIAAAAAAAAAAAAAAAAAAAYAAAAwAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003663|",
-              "WhenOpened": "2026-01-20T21:50:03.653Z",
-              "EditorCaption": ""
+              "WhenOpened": "2026-01-20T21:50:03.653Z"
             },
             {
               "$type": "Document",
@@ -197,8 +191,7 @@
               "RelativeToolTip": "frontEndCode\\app\\(tabs)\\subContractors.jsx",
               "ViewState": "AgIAACEAAAAAAAAAAAAAAAwAAAAzAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003663|",
-              "WhenOpened": "2026-01-15T19:33:49.727Z",
-              "EditorCaption": ""
+              "WhenOpened": "2026-01-15T19:33:49.727Z"
             },
             {
               "$type": "Document",
@@ -210,8 +203,7 @@
               "RelativeToolTip": "frontEndCode\\app\\login.jsx",
               "ViewState": "AgIAAAwAAAAAAAAAAAAAAK8AAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003663|",
-              "WhenOpened": "2026-01-27T17:34:31.629Z",
-              "EditorCaption": ""
+              "WhenOpened": "2026-01-27T17:34:31.629Z"
             },
             {
               "$type": "Document",
@@ -223,8 +215,7 @@
               "RelativeToolTip": "frontEndCode\\app\\(tabs)\\newProjects.jsx",
               "ViewState": "AgIAABIAAAAAAAAAAAAAAB8AAAA6AAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003663|",
-              "WhenOpened": "2026-01-15T19:33:21.605Z",
-              "EditorCaption": ""
+              "WhenOpened": "2026-01-15T19:33:21.605Z"
             },
             {
               "$type": "Document",
