@@ -381,13 +381,27 @@ class Documents(db.Model):
     file_size = db.Column(db.Integer, default=0)
     uploaded_by = db.Column(db.String(100), default='')
     created_at = db.Column(db.String(20), default='')
+    file_url = db.Column(db.String(500), default='')
+    template_id = db.Column(db.Integer, nullable=True)
 
     def to_dict(self):
         return {
             'id': self.id, 'job_id': self.job_id, 'name': self.name,
             'category': self.category, 'media_type': self.media_type,
             'file_size': self.file_size, 'uploaded_by': self.uploaded_by,
-            'created_at': self.created_at,
+            'created_at': self.created_at, 'file_url': self.file_url,
+            'template_id': self.template_id,
+        }
+
+
+class DocumentTemplate(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(200), nullable=False)
+    doc_type = db.Column(db.String(20), default='file')  # file | folder
+
+    def to_dict(self):
+        return {
+            'id': self.id, 'name': self.name, 'doc_type': self.doc_type,
         }
 
 
@@ -1205,6 +1219,26 @@ def upload_image():
     return jsonify({'path': f'/uploads/{filename}'}), 201
 
 
+@app.route('/upload-file', methods=['POST'])
+def upload_file():
+    """Accept base64 file data and save to disk"""
+    data = request.get_json()
+    b64 = data.get('file', '')
+    if ',' in b64:
+        b64 = b64.split(',', 1)[1]
+    ext = data.get('ext', 'pdf')
+    original_name = data.get('name', '')
+    filename = f"{uuid.uuid4().hex}.{ext}"
+    filepath = os.path.join(UPLOAD_DIR, filename)
+    try:
+        with open(filepath, 'wb') as f:
+            f.write(base64.b64decode(b64))
+        file_size = os.path.getsize(filepath)
+        return jsonify({'path': f'/uploads/{filename}', 'file_size': file_size, 'original_name': original_name}), 201
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/selection-items', methods=['GET'])
 def get_selection_items():
     items = SelectionItem.query.order_by(SelectionItem.category, SelectionItem.item).all()
@@ -1889,10 +1923,54 @@ def add_document(pid):
         media_type=data.get('media_type', 'document'),
         file_size=data.get('file_size', 0), uploaded_by=data.get('uploaded_by', ''),
         created_at=data.get('created_at', datetime.utcnow().strftime('%Y-%m-%d')),
+        file_url=data.get('file_url', ''),
+        template_id=data.get('template_id', None),
     )
     db.session.add(doc)
     db.session.commit()
     return jsonify(doc.to_dict()), 201
+
+
+@app.route('/documents/<int:doc_id>', methods=['DELETE'])
+def delete_document(doc_id):
+    doc = Documents.query.get_or_404(doc_id)
+    if doc.file_url:
+        fpath = os.path.join(UPLOAD_DIR, doc.file_url.replace('/uploads/', ''))
+        if os.path.exists(fpath):
+            os.remove(fpath)
+    db.session.delete(doc)
+    db.session.commit()
+    return jsonify({'ok': True})
+
+
+# ============================================================
+# DOCUMENT TEMPLATES (universal required documents)
+# ============================================================
+
+@app.route('/document-templates', methods=['GET'])
+def get_document_templates():
+    templates = DocumentTemplate.query.order_by(DocumentTemplate.name).all()
+    return jsonify([t.to_dict() for t in templates])
+
+
+@app.route('/document-templates', methods=['POST'])
+def create_document_template():
+    data = request.get_json()
+    t = DocumentTemplate(
+        name=data.get('name', ''),
+        doc_type=data.get('doc_type', 'file'),
+    )
+    db.session.add(t)
+    db.session.commit()
+    return jsonify(t.to_dict()), 201
+
+
+@app.route('/document-templates/<int:tid>', methods=['DELETE'])
+def delete_document_template(tid):
+    t = DocumentTemplate.query.get_or_404(tid)
+    db.session.delete(t)
+    db.session.commit()
+    return jsonify({'ok': True})
 
 
 # ============================================================
