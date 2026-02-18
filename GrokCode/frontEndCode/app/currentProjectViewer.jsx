@@ -342,7 +342,8 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
   const [localTab, setLocalTab] = useState(activeTab || defaultTab);
   const [localSub, setLocalSub] = useState(activeSub || 'calendar');
   const tab = activeTab !== undefined ? activeTab : localTab;
-  const sub = activeSub !== undefined ? activeSub : localSub;
+  const _sub = activeSub !== undefined ? activeSub : localSub;
+  const sub = _sub === 'list' ? 'calendar' : _sub;
   const setTab = (v) => { if (onTabChange) onTabChange(v); else setLocalTab(v); };
   const setSub = (v) => { if (onSubChange) onSubChange(v); else setLocalSub(v); };
   const [modal, setModal] = useState(null);
@@ -501,7 +502,15 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
   };
 
   // Calendar sub-view: Gantt vs List
-  const [calView, setCalView] = useState('gantt');
+  const [calView, setCalView] = useState(activeSub === 'list' ? 'list' : 'gantt');
+
+  // Handle external navigation to list view (activeSub='list' → sub='calendar' + calView='list')
+  useEffect(() => {
+    if (activeSub === 'list') {
+      setCalView('list');
+      if (onSubChange) onSubChange('calendar');
+    }
+  }, [activeSub]);
 
   const viewToggle = ['gantt', 'taskfirst', 'list'].map(v => (
     <TouchableOpacity key={v} onPress={() => setCalView(v)}
