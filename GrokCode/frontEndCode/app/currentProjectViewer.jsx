@@ -2500,14 +2500,11 @@ const NewChangeOrderModal = ({ project, api, onClose, onCreated, user }) => {
         method: 'POST',
         body: { title, description: desc, amount: amt, due_date: dueDate || null },
       });
-      onCreated(res || {
-        id: Date.now(), job_id: project.id, title, description: desc, amount: amt,
-        status: 'pending_customer', builder_sig: true,
-        builder_sig_date: new Date().toISOString().split('T')[0],
-        customer_sig: false, customer_sig_date: null,
-        created_at: new Date().toISOString().split('T')[0],
-        due_date: dueDate || null,
-      });
+      if (!res) {
+        Alert.alert('Error', 'Failed to create change order. Please try again.');
+        return;
+      }
+      onCreated(res);
     } catch (e) { Alert.alert('Error', e.message); } finally { setLoading(false); }
   };
 
