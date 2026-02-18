@@ -105,7 +105,7 @@ const Badge = ({ status }) => {
   const map = {
     approved: [C.gn, 'Approved'], pending_customer: [C.yl, 'Awaiting Customer'],
     pending_builder: [C.yl, 'Awaiting Builder'], confirmed: [C.gn, 'Confirmed'],
-    pending: [C.yl, 'Pending'], rejected: [C.rd, 'Rejected'],
+    pending: [C.yl, 'Pending'], rejected: [C.rd, 'Rejected'], expired: [C.rd, 'Expired'],
   };
   const [color, label] = map[status] || [C.dm, status || 'Unknown'];
   return (
@@ -656,11 +656,24 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, activeTab, activ
 
   // Sign change order
   const signCO = async (coId, role) => {
-    const res = await api(`/change-orders/${coId}/sign`, { method: 'PUT', body: { role } });
-    if (res) {
-      setChangeOrders(prev => prev.map(c => c.id === coId ? res : c));
+    try {
+      const res = await fetch(`${API_BASE}/change-orders/${coId}/sign`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        Alert.alert('Cannot Sign', data.error || 'Request failed');
+        if (data.co) setChangeOrders(prev => prev.map(c => c.id === coId ? data.co : c));
+        setModal(null);
+        return;
+      }
+      setChangeOrders(prev => prev.map(c => c.id === coId ? data : c));
       Alert.alert('Success', 'Change order signed!');
       setModal(null);
+    } catch (e) {
+      Alert.alert('Error', e.message || 'Failed to sign change order');
     }
   };
 
@@ -1966,7 +1979,12 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, activeTab, activ
         <ScrollView style={{ flex: 1 }} contentContainerStyle={s.scroll}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
             <Text style={s.sectionTitle}>Change Orders</Text>
-            {isB && <Btn onPress={() => setModal('newco')}><Text style={s.btnTxt}>+ New CO</Text></Btn>}
+            {isB && (
+              <TouchableOpacity onPress={() => setModal('newco')} activeOpacity={0.7}
+                style={{ width: 40, height: 40, borderRadius: 10, backgroundColor: C.gd, alignItems: 'center', justifyContent: 'center' }}>
+                <Text style={{ fontSize: 26, fontWeight: '700', color: C.textBold }}>+</Text>
+              </TouchableOpacity>
+            )}
           </View>
           {changeOrders.length === 0 ? <Empty icon="📄" text="No change orders" /> : changeOrders.map(co => (
             <Card key={co.id} onPress={() => setModal({ type: 'co', data: co })} style={{ marginBottom: 10 }}>
@@ -1976,7 +1994,14 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, activeTab, activ
               </View>
               <Text style={{ fontSize: 20, color: C.mt, marginBottom: 8 }} numberOfLines={2}>{co.description}</Text>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Text style={{ fontSize: 18, color: C.dm }}>Created {fD(co.created_at)}</Text>
+                <View>
+                  <Text style={{ fontSize: 18, color: C.dm }}>Created {fD(co.created_at)}</Text>
+                  {co.due_date && (
+                    <Text style={{ fontSize: 18, color: co.due_date && new Date(co.due_date + 'T23:59:59') < new Date() && co.status !== 'approved' ? C.rd : C.dm, marginTop: 2 }}>
+                      Due {fD(co.due_date)}
+                    </Text>
+                  )}
+                </View>
                 <Text style={{ fontSize: 24, fontWeight: '700', color: co.amount >= 0 ? C.yl : C.gn }}>
                   {co.amount >= 0 ? '+' : ''}{f$(co.amount)}
                 </Text>
@@ -2236,8 +2261,9 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, activeTab, activ
     // --- Change Order Detail with Digital Signatures ---
     if (modal?.type === 'co') {
       const co = modal.data;
+      const isExpired = co.due_date && new Date(co.due_date + 'T23:59:59') < new Date();
       const canBuilderSign = isB && !co.builder_sig;
-      const canCustomerSign = isC && !co.customer_sig;
+      const canCustomerSign = isC && !co.customer_sig && !isExpired;
 
       return (
         <ModalSheet visible title="Change Order" onClose={() => setModal(null)}>
@@ -2249,6 +2275,17 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, activeTab, activ
               {co.amount >= 0 ? '+' : ''}{f$(co.amount)}
             </Text>
           </View>
+
+          {co.due_date && (
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+              <Text style={{ color: C.dm, fontSize: 20 }}>Due: {fD(co.due_date)}</Text>
+              {isExpired && co.status !== 'approved' && (
+                <View style={{ backgroundColor: C.rd + '18', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 }}>
+                  <Text style={{ fontSize: 16, fontWeight: '600', color: C.rd }}>Expired</Text>
+                </View>
+              )}
+            </View>
+          )}
 
           <Text style={{ fontSize: 21, fontWeight: '600', color: C.text, marginBottom: 14 }}>Digital Signatures</Text>
 
@@ -2285,17 +2322,28 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, activeTab, activ
               <Btn onPress={() => signCO(co.id, 'customer')} bg={C.gn} style={{ paddingVertical: 8, paddingHorizontal: 14 }}>
                 <Text style={s.btnTxt}>✍ Sign</Text>
               </Btn>
+            ) : isExpired && isC && !co.customer_sig ? (
+              <Text style={{ color: C.rd, fontSize: 18, fontWeight: '600' }}>Expired</Text>
             ) : (
               <Text style={{ color: C.dm, fontSize: 18 }}>Awaiting</Text>
             )}
           </View>
 
           <View style={[s.warnBox, {
-            backgroundColor: co.status === 'approved' ? 'rgba(16,185,129,0.08)' : undefined,
-            borderColor: co.status === 'approved' ? 'rgba(16,185,129,0.2)' : undefined,
+            backgroundColor: co.status === 'approved' ? 'rgba(16,185,129,0.08)'
+              : isExpired && co.status !== 'approved' ? 'rgba(239,68,68,0.08)' : undefined,
+            borderColor: co.status === 'approved' ? 'rgba(16,185,129,0.2)'
+              : isExpired && co.status !== 'approved' ? 'rgba(239,68,68,0.2)' : undefined,
           }]}>
-            <Text style={[s.warnTxt, { color: co.status === 'approved' ? C.gnB : C.yl }]}>
-              {co.status === 'approved' ? '✓ Approved — reflected in Price Summary' : 'Requires both signatures to update Price Summary'}
+            <Text style={[s.warnTxt, {
+              color: co.status === 'approved' ? C.gnB
+                : isExpired && co.status !== 'approved' ? C.rd : C.yl
+            }]}>
+              {co.status === 'approved'
+                ? '✓ Approved — reflected in Price Summary'
+                : isExpired && co.status !== 'approved'
+                  ? 'This change order has expired — the due date has passed'
+                  : 'Requires both signatures to update Price Summary'}
             </Text>
           </View>
         </ModalSheet>
@@ -2304,7 +2352,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, activeTab, activ
 
     // --- New Change Order ---
     if (modal === 'newco') {
-      return <NewChangeOrderModal project={project} api={api} onClose={() => setModal(null)} onCreated={(co) => {
+      return <NewChangeOrderModal project={project} api={api} user={user} onClose={() => setModal(null)} onCreated={(co) => {
         setChangeOrders(prev => [co, ...prev]);
         setModal(null);
         Alert.alert('Success', 'Change order created & signed as builder');
@@ -2404,22 +2452,87 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, activeTab, activ
 // ISOLATED MODAL COMPONENTS
 // ============================================================
 
-const NewChangeOrderModal = ({ project, api, onClose, onCreated }) => {
+const NewChangeOrderModal = ({ project, api, onClose, onCreated, user }) => {
+  const C = React.useContext(ThemeContext);
+  const s = React.useMemo(() => getStyles(C), [C]);
   const [title, setTitle] = useState('');
   const [desc, setDesc] = useState('');
   const [amount, setAmount] = useState('');
   const [isCredit, setIsCredit] = useState(false);
+  const [dueDate, setDueDate] = useState('');
   const [loading, setLoading] = useState(false);
+  const [signStep, setSignStep] = useState(false);
 
   const create = async () => {
-    if (!title || !amount) return Alert.alert('Error', 'Title and amount are required');
     const amt = isCredit ? -Math.abs(parseFloat(amount)) : Math.abs(parseFloat(amount));
     setLoading(true);
     try {
-      const res = await api(`/projects/${project.id}/change-orders`, { method: 'POST', body: { title, description: desc, amount: amt } });
-      onCreated(res || { id: Date.now(), job_id: project.id, title, description: desc, amount: amt, status: 'pending_customer', builder_sig: true, builder_sig_date: new Date().toISOString().split('T')[0], customer_sig: false, customer_sig_date: null, created_at: new Date().toISOString().split('T')[0] });
+      const res = await api(`/projects/${project.id}/change-orders`, {
+        method: 'POST',
+        body: { title, description: desc, amount: amt, due_date: dueDate || null },
+      });
+      onCreated(res || {
+        id: Date.now(), job_id: project.id, title, description: desc, amount: amt,
+        status: 'pending_customer', builder_sig: true,
+        builder_sig_date: new Date().toISOString().split('T')[0],
+        customer_sig: false, customer_sig_date: null,
+        created_at: new Date().toISOString().split('T')[0],
+        due_date: dueDate || null,
+      });
     } catch (e) { Alert.alert('Error', e.message); } finally { setLoading(false); }
   };
+
+  if (signStep) {
+    return (
+      <Modal visible animationType="fade" transparent>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+          <View style={{
+            backgroundColor: C.modalBg, borderRadius: 16, padding: 28, width: '90%', maxWidth: 440,
+            borderWidth: 1, borderColor: C.w10,
+            ...(Platform.OS === 'web' ? { boxShadow: '0 20px 60px rgba(0,0,0,0.4)' } : { elevation: 20 }),
+          }}>
+            <Text style={{ fontSize: 30, fontWeight: '700', color: C.textBold, textAlign: 'center', marginBottom: 8 }}>
+              Sign Change Order
+            </Text>
+            <Text style={{ fontSize: 22, fontWeight: '600', color: C.gd, textAlign: 'center', marginBottom: 16 }}>
+              {title} — {isCredit ? '-' : '+'}{f$(Math.abs(parseFloat(amount || 0)))}
+            </Text>
+
+            <View style={{
+              backgroundColor: C.mode === 'dark' ? C.bH08 : C.bH05,
+              borderWidth: 1, borderColor: C.gd + '30',
+              borderRadius: 10, padding: 16, marginBottom: 24,
+            }}>
+              <Text style={{ fontSize: 21, lineHeight: 33, color: C.mt, textAlign: 'center' }}>
+                By signing, you are submitting this change order to the customer for approval.
+                {dueDate ? `\nDue date: ${fD(dueDate)}` : ''}
+              </Text>
+            </View>
+
+            <View style={{ borderBottomWidth: 1, borderBottomColor: C.w15, marginBottom: 6, paddingBottom: 2 }}>
+              <Text style={{ fontSize: 21, color: C.text, fontWeight: '600' }}>{user?.name || 'Signature'}</Text>
+            </View>
+            <Text style={{ fontSize: 16, color: C.dm, marginBottom: 24 }}>Electronic Signature</Text>
+
+            <View style={{ flexDirection: 'row', gap: 12 }}>
+              <TouchableOpacity onPress={() => setSignStep(false)}
+                style={{ flex: 1, paddingVertical: 13, borderRadius: 8, borderWidth: 1, borderColor: C.w12, alignItems: 'center' }}
+                activeOpacity={0.7}>
+                <Text style={{ fontSize: 21, fontWeight: '600', color: C.mt }}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={create} disabled={loading}
+                style={{ flex: 1, paddingVertical: 13, borderRadius: 8, backgroundColor: C.gd, alignItems: 'center', opacity: loading ? 0.6 : 1 }}
+                activeOpacity={0.8}>
+                <Text style={{ fontSize: 21, fontWeight: '700', color: C.textBold }}>
+                  {loading ? 'Sending...' : 'Sign & Send'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    );
+  }
 
   return (
     <ModalSheet visible title="New Change Order" onClose={onClose}>
@@ -2439,8 +2552,12 @@ const NewChangeOrderModal = ({ project, api, onClose, onCreated }) => {
           </View>
         </View>
       </View>
-      <Btn onPress={create} disabled={loading || !title || !amount}>
-        <Text style={s.btnTxt}>{loading ? 'Creating...' : 'Create & Sign as Builder'}</Text>
+      <DatePicker value={dueDate} onChange={setDueDate} label="DUE DATE" placeholder="Select due date" />
+      <Btn onPress={() => {
+        if (!title || !amount) return Alert.alert('Error', 'Title and amount are required');
+        setSignStep(true);
+      }} disabled={!title || !amount}>
+        <Text style={s.btnTxt}>Sign & Send</Text>
       </Btn>
     </ModalSheet>
   );
