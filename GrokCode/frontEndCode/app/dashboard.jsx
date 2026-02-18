@@ -83,6 +83,14 @@ export default function Dashboard() {
   const [showSettings, setShowSettings] = useState(false);
   const [showTemplateManager, setShowTemplateManager] = useState(false);
   const [showSelectionManager, setShowSelectionManager] = useState(false);
+  const [clientView, setClientView] = useState(false);
+
+  useEffect(() => {
+    if (clientView) {
+      setActiveTab('schedule');
+      setActiveSub('calendar');
+    }
+  }, [clientView]);
 
   const handleProjectUpdate = useCallback((updatedFields) => {
     if (!selectedProject) return;
@@ -350,6 +358,7 @@ export default function Dashboard() {
   const selectProject = (p) => {
     setSelectedProject(p);
     setSelectedSubdivision(null);
+    setClientView(false);
   };
 
   const selectSubdivision = (sd) => {
@@ -623,15 +632,36 @@ export default function Dashboard() {
                       </View>
                     )}
                   </View>
-                  {isBuilder && (
-                    <TouchableOpacity
-                      onPress={(e) => { e.stopPropagation(); setProjectActionMenu(project); }}
-                      style={{ paddingVertical: 12, paddingHorizontal: 10 }}
-                      activeOpacity={0.6}
-                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                    >
-                      <Text style={{ fontSize: 20, color: active ? C.gd : C.dm }}>ⓘ</Text>
-                    </TouchableOpacity>
+                  {(isBuilder || isContractor) && (
+                    <View style={{ justifyContent: 'center', alignItems: 'center', paddingRight: 4 }}>
+                      {isBuilder && (
+                        <TouchableOpacity
+                          onPress={(e) => { e.stopPropagation(); setProjectActionMenu(project); }}
+                          style={{ paddingVertical: 6, paddingHorizontal: 10 }}
+                          activeOpacity={0.6}
+                          hitSlop={{ top: 4, bottom: 4, left: 8, right: 8 }}
+                        >
+                          <Text style={{ fontSize: 20, color: active ? C.gd : C.dm }}>ⓘ</Text>
+                        </TouchableOpacity>
+                      )}
+                      <TouchableOpacity
+                        onPress={(e) => {
+                          e.stopPropagation();
+                          if (selectedProject?.id === project.id) {
+                            setClientView(prev => !prev);
+                          } else {
+                            setSelectedProject(project);
+                            setSelectedSubdivision(null);
+                            setClientView(true);
+                          }
+                        }}
+                        style={{ paddingVertical: 6, paddingHorizontal: 10 }}
+                        activeOpacity={0.6}
+                        hitSlop={{ top: 4, bottom: 4, left: 8, right: 8 }}
+                      >
+                        <Text style={{ fontSize: 18, color: (active && clientView) ? C.gn : active ? C.gd : C.dm }}>🏠</Text>
+                      </TouchableOpacity>
+                    </View>
                   )}
                 </TouchableOpacity>
               );
@@ -2851,7 +2881,15 @@ export default function Dashboard() {
         {/* Main project tabs — inline in header when a project is selected */}
         {(selectedProject || contractorProject) && dashView === 'projects' && (
           <View style={{ flexDirection: 'row', flexShrink: 1, flexGrow: 1, borderBottomWidth: 1, borderBottomColor: C.sw06 }}>
-            {(isBuilder
+            {(clientView
+              ? [
+                  { id: 'schedule', label: 'Schedule', defSub: 'calendar' },
+                  { id: 'info', label: 'Info', defSub: 'price' },
+                  { id: 'changeorders', label: 'Change Orders', defSub: null },
+                  { id: 'selections', label: 'Selections', defSub: null },
+                  { id: 'docs', label: 'Photos', defSub: 'photos' },
+                ]
+              : isBuilder
               ? [
                   { id: 'schedule', label: 'Schedule', defSub: 'calendar' },
                   { id: 'info', label: 'Info', defSub: 'jobinfo' },
@@ -2987,6 +3025,8 @@ export default function Dashboard() {
               key={contractorProject.id}
               embedded
               project={contractorProject}
+              clientView={clientView}
+              onClientViewToggle={() => setClientView(false)}
               onProjectUpdate={handleProjectUpdate}
               onProjectDeleted={handleProjectDeleted}
               scheduleVersion={scheduleVersion}
@@ -3131,15 +3171,36 @@ export default function Dashboard() {
                                 </View>
                               )}
                             </View>
-                            {isBuilder && (
-                              <TouchableOpacity
-                                onPress={(e) => { e.stopPropagation(); setProjectActionMenu(project); }}
-                                style={{ paddingVertical: 12, paddingHorizontal: 10 }}
-                                activeOpacity={0.6}
-                                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                              >
-                                <Text style={{ fontSize: 20, color: active ? C.gd : C.dm }}>ⓘ</Text>
-                              </TouchableOpacity>
+                            {(isBuilder || isContractor) && (
+                              <View style={{ justifyContent: 'center', alignItems: 'center', paddingRight: 4 }}>
+                                {isBuilder && (
+                                  <TouchableOpacity
+                                    onPress={(e) => { e.stopPropagation(); setProjectActionMenu(project); }}
+                                    style={{ paddingVertical: 6, paddingHorizontal: 10 }}
+                                    activeOpacity={0.6}
+                                    hitSlop={{ top: 4, bottom: 4, left: 8, right: 8 }}
+                                  >
+                                    <Text style={{ fontSize: 20, color: active ? C.gd : C.dm }}>ⓘ</Text>
+                                  </TouchableOpacity>
+                                )}
+                                <TouchableOpacity
+                                  onPress={(e) => {
+                                    e.stopPropagation();
+                                    if (selectedProject?.id === project.id) {
+                                      setClientView(prev => !prev);
+                                    } else {
+                                      setSelectedProject(project);
+                                      setSelectedSubdivision(null);
+                                      setClientView(true);
+                                    }
+                                  }}
+                                  style={{ paddingVertical: 6, paddingHorizontal: 10 }}
+                                  activeOpacity={0.6}
+                                  hitSlop={{ top: 4, bottom: 4, left: 8, right: 8 }}
+                                >
+                                  <Text style={{ fontSize: 18, color: (active && clientView) ? C.gn : active ? C.gd : C.dm }}>🏠</Text>
+                                </TouchableOpacity>
+                              </View>
                             )}
                           </TouchableOpacity>
                         );
@@ -3270,6 +3331,8 @@ export default function Dashboard() {
                 <CurrentProjectViewer
                   embedded
                   project={selectedProject}
+                  clientView={clientView}
+                  onClientViewToggle={() => setClientView(false)}
                   activeTab={activeTab}
                   activeSub={activeSub}
                   onTabChange={setActiveTab}
@@ -3304,6 +3367,8 @@ export default function Dashboard() {
             <CurrentProjectViewer
               embedded
               project={selectedProject}
+              clientView={clientView}
+              onClientViewToggle={() => setClientView(false)}
               activeTab={activeTab}
               activeSub={activeSub}
               onTabChange={setActiveTab}
