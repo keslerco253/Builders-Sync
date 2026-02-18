@@ -17,7 +17,7 @@ const app = () => {
 	const { signout } = React.useContext(AuthContext);
 	
 	try {
-	const getUserInfo = fetch('https://buildersync.net', {  // Your backend URL
+	const getUserInfo = fetch('http://buildersync.net', {  // Your backend URL
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({username}),

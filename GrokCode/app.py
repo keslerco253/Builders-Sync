@@ -9,7 +9,7 @@ import os, uuid, base64
 app = Flask(__name__)
 CORS(app)
 
-app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://root:@localhost/liberty_homes'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://root:auth_socket@localhost/liberty_homes'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
@@ -1971,4 +1971,4 @@ def auto_migrate():
 if __name__ == "__main__":
     with app.app_context():
         auto_migrate()
-    app.run(host='192.168.5.36', port=5000, debug=True)
+    app.run(host='0.0.0.0', port=5000, debug=True)
