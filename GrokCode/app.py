@@ -175,6 +175,7 @@ class ChangeOrders(db.Model):
     customer_sig = db.Column(db.Boolean, default=False)
     customer_sig_date = db.Column(db.String(20), nullable=True)
     created_at = db.Column(db.String(20), default='')
+    due_date = db.Column(db.String(20), nullable=True)
 
     def to_dict(self):
         return {
@@ -183,6 +184,7 @@ class ChangeOrders(db.Model):
             'status': self.status, 'builder_sig': self.builder_sig,
             'builder_sig_date': self.builder_sig_date, 'customer_sig': self.customer_sig,
             'customer_sig_date': self.customer_sig_date, 'created_at': self.created_at,
+            'due_date': self.due_date,
         }
 
 
@@ -1116,6 +1118,7 @@ def add_change_order(pid):
         amount=data.get('amount', 0), status='pending_customer',
         builder_sig=True, builder_sig_date=today,
         customer_sig=False, customer_sig_date=None, created_at=today,
+        due_date=data.get('due_date', None),
     )
     db.session.add(co)
     db.session.commit()
@@ -1128,6 +1131,13 @@ def sign_change_order(co_id):
     co = ChangeOrders.query.get_or_404(co_id)
     today = datetime.utcnow().strftime('%Y-%m-%d')
     role = data.get('role', '')
+
+    # Enforce due date for customer signing
+    if role == 'customer' and co.due_date:
+        if today > co.due_date:
+            co.status = 'expired'
+            db.session.commit()
+            return jsonify({'error': 'This change order has expired. The due date has passed.', 'co': co.to_dict()}), 400
 
     if role == 'builder':
         co.builder_sig = True
