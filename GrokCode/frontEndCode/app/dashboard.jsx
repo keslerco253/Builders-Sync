@@ -2,7 +2,7 @@ import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView, RefreshControl,
   Platform, Alert, ActivityIndicator, Modal, KeyboardAvoidingView, TextInput,
-  useWindowDimensions, Image,
+  useWindowDimensions, Image, Linking,
 } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { AuthContext, ThemeContext, API_BASE } from './context';
@@ -56,6 +56,10 @@ export default function Dashboard() {
   const [subdivTab, setSubdivTab] = useState('subs'); // 'subs' | 'docs'
   const [sdSubs, setSdSubs] = useState([]);
   const [sdSubsLoading, setSdSubsLoading] = useState(false);
+  const [sdDocs, setSdDocs] = useState([]);
+  const [sdDocsLoading, setSdDocsLoading] = useState(false);
+  const [sdDocTemplates, setSdDocTemplates] = useState([]);
+  const [sdDocModal, setSdDocModal] = useState(null);
   const [showAddMenu, setShowAddMenu] = useState(false);
   const [sidebarFilter, setSidebarFilter] = useState(null); // null = all, or subdivision id
   const [showSidebarFilter, setShowSidebarFilter] = useState(false);
@@ -404,6 +408,25 @@ export default function Dashboard() {
       setSdSubsLoading(false);
     })();
   };
+
+  const fetchSubdivisionDocs = async (sid) => {
+    setSdDocsLoading(true);
+    try {
+      const [docsRes, tmplRes] = await Promise.all([
+        fetch(`${API_BASE}/subdivisions/${sid}/documents?type=document`),
+        fetch(`${API_BASE}/document-templates?scope=subdivisions`),
+      ]);
+      if (docsRes.ok) setSdDocs(await docsRes.json());
+      if (tmplRes.ok) setSdDocTemplates(await tmplRes.json());
+    } catch (e) { console.warn(e); }
+    setSdDocsLoading(false);
+  };
+
+  useEffect(() => {
+    if (selectedSubdivision && subdivTab === 'docs') {
+      fetchSubdivisionDocs(selectedSubdivision.id);
+    }
+  }, [selectedSubdivision, subdivTab]);
 
   const fetchSubs = async () => {
     setSubsLoading(true);
@@ -824,16 +847,171 @@ export default function Dashboard() {
           </ScrollView>
         )}
 
-        {subdivTab === 'docs' && (
-          <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20 }}>
-            <View style={{ alignItems: 'center', paddingVertical: 60 }}>
-              <Text style={{ fontSize: 48, marginBottom: 12 }}>📄</Text>
-              <Text style={{ fontSize: 21, fontWeight: '600', color: C.textBold }}>Documents</Text>
-              <Text style={{ fontSize: 17, color: C.dm, marginTop: 4, textAlign: 'center' }}>
-                Subdivision documents will appear here.
-              </Text>
-            </View>
-          </ScrollView>
+        {subdivTab === 'docs' && (() => {
+          const openFile = (url) => {
+            const full = url.startsWith('http') ? url : `${API_BASE}${url}`;
+            if (Platform.OS === 'web') window.open(full, '_blank');
+            else Linking.openURL(full);
+          };
+          const deleteDoc = async (docId) => {
+            try {
+              const res = await fetch(`${API_BASE}/documents/${docId}`, { method: 'DELETE' });
+              if (res.ok) setSdDocs(prev => prev.filter(d => d.id !== docId));
+            } catch (e) { Alert.alert('Error', e.message); }
+          };
+          const formatSize = (bytes) => {
+            if (!bytes) return '';
+            if (bytes < 1024) return `${bytes} B`;
+            if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+            return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+          };
+          const docsByTemplate = {};
+          const unlinkedDocs = [];
+          sdDocs.forEach(d => {
+            if (d.template_id) {
+              if (!docsByTemplate[d.template_id]) docsByTemplate[d.template_id] = [];
+              docsByTemplate[d.template_id].push(d);
+            } else {
+              unlinkedDocs.push(d);
+            }
+          });
+
+          return (
+            <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20 }}>
+              {sdDocsLoading ? (
+                <View style={{ alignItems: 'center', paddingVertical: 40 }}>
+                  <ActivityIndicator color={C.gd} size="large" />
+                </View>
+              ) : (
+                <>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                    <Text style={{ fontSize: 22, fontWeight: '700', color: C.textBold }}>Documents</Text>
+                    {isBuilder && (
+                      <TouchableOpacity onPress={() => setSdDocModal('upload')} style={st.addBtn} activeOpacity={0.8}>
+                        <Text style={st.addBtnTxt}>+</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+
+                  {sdDocTemplates.map(tmpl => {
+                    const uploads = docsByTemplate[tmpl.id] || [];
+                    const hasUpload = uploads.length > 0;
+                    return (
+                      <View key={tmpl.id} style={{ marginBottom: 10, backgroundColor: C.card, borderRadius: 12, borderWidth: 1, borderColor: C.w08, overflow: 'hidden' }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', padding: 14, gap: 12 }}>
+                          <Text style={{ fontSize: 24 }}>{tmpl.doc_type === 'folder' ? '📁' : '📄'}</Text>
+                          <View style={{ flex: 1 }}>
+                            <Text style={{ fontSize: 20, fontWeight: '600', color: C.text }}>{tmpl.name}</Text>
+                            <Text style={{ fontSize: 14, color: hasUpload ? C.gn : C.yl, marginTop: 2 }}>
+                              {hasUpload ? `✓ ${uploads.length} file${uploads.length > 1 ? 's' : ''} uploaded` : '⏳ Not yet uploaded'}
+                            </Text>
+                          </View>
+                          {isBuilder && (
+                            <TouchableOpacity
+                              onPress={() => setSdDocModal({ type: 'upload', templateId: tmpl.id, templateName: tmpl.name })}
+                              style={st.addBtn} activeOpacity={0.8}>
+                              <Text style={st.addBtnTxt}>+</Text>
+                            </TouchableOpacity>
+                          )}
+                        </View>
+                        {uploads.map(d => (
+                          <View key={d.id} style={{
+                            flexDirection: 'row', alignItems: 'center', gap: 10,
+                            paddingHorizontal: 14, paddingVertical: 10,
+                            borderTopWidth: 1, borderTopColor: C.w06,
+                            backgroundColor: C.w06 + '40',
+                          }}>
+                            <Text style={{ fontSize: 18 }}>📎</Text>
+                            <View style={{ flex: 1 }}>
+                              <Text style={{ fontSize: 17, fontWeight: '500', color: C.text }} numberOfLines={1}>{d.name}</Text>
+                              <Text style={{ fontSize: 13, color: C.dm }}>
+                                {d.created_at}{d.uploaded_by ? ` · ${d.uploaded_by}` : ''}{d.file_size ? ` · ${formatSize(d.file_size)}` : ''}
+                              </Text>
+                            </View>
+                            {d.file_url ? (
+                              <View style={{ flexDirection: 'row', gap: 6 }}>
+                                <TouchableOpacity onPress={() => openFile(d.file_url)}
+                                  style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 6, backgroundColor: C.bl + '20' }}
+                                  activeOpacity={0.7}>
+                                  <Text style={{ fontSize: 14, fontWeight: '600', color: C.bl }}>View</Text>
+                                </TouchableOpacity>
+                                {isBuilder && (
+                                  <TouchableOpacity onPress={() => deleteDoc(d.id)}
+                                    style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 6, backgroundColor: C.rd + '15' }}
+                                    activeOpacity={0.7}>
+                                    <Text style={{ fontSize: 14, fontWeight: '600', color: C.rd }}>Delete</Text>
+                                  </TouchableOpacity>
+                                )}
+                              </View>
+                            ) : null}
+                          </View>
+                        ))}
+                      </View>
+                    );
+                  })}
+
+                  {unlinkedDocs.length > 0 && (
+                    <>
+                      {sdDocTemplates.length > 0 && (
+                        <Text style={{ fontSize: 18, fontWeight: '600', color: C.dm, marginTop: 16, marginBottom: 8 }}>Other Documents</Text>
+                      )}
+                      {unlinkedDocs.map(d => (
+                        <View key={d.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 8, backgroundColor: C.card, borderRadius: 12, borderWidth: 1, borderColor: C.w08, padding: 14 }}>
+                          <Text style={{ fontSize: 24 }}>📄</Text>
+                          <View style={{ flex: 1 }}>
+                            <Text style={{ fontSize: 20, fontWeight: '600', color: C.text }}>{d.name}</Text>
+                            <Text style={{ fontSize: 15, color: C.dm, marginTop: 2 }}>
+                              {d.category} · {d.created_at}{d.uploaded_by ? ` · ${d.uploaded_by}` : ''}{d.file_size ? ` · ${formatSize(d.file_size)}` : ''}
+                            </Text>
+                          </View>
+                          {d.file_url ? (
+                            <View style={{ flexDirection: 'row', gap: 6 }}>
+                              <TouchableOpacity onPress={() => openFile(d.file_url)}
+                                style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 6, backgroundColor: C.bl + '20' }}
+                                activeOpacity={0.7}>
+                                <Text style={{ fontSize: 14, fontWeight: '600', color: C.bl }}>View</Text>
+                              </TouchableOpacity>
+                              {isBuilder && (
+                                <TouchableOpacity onPress={() => deleteDoc(d.id)}
+                                  style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 6, backgroundColor: C.rd + '15' }}
+                                  activeOpacity={0.7}>
+                                  <Text style={{ fontSize: 14, fontWeight: '600', color: C.rd }}>Delete</Text>
+                                </TouchableOpacity>
+                              )}
+                            </View>
+                          ) : null}
+                        </View>
+                      ))}
+                    </>
+                  )}
+
+                  {sdDocTemplates.length === 0 && sdDocs.length === 0 && (
+                    <View style={{ alignItems: 'center', paddingVertical: 60 }}>
+                      <Text style={{ fontSize: 48, marginBottom: 12 }}>📁</Text>
+                      <Text style={{ fontSize: 21, fontWeight: '600', color: C.textBold }}>No documents</Text>
+                      <Text style={{ fontSize: 17, color: C.dm, marginTop: 4, textAlign: 'center' }}>
+                        {isBuilder ? 'Tap + to upload a document, or add subdivision templates in Document Manager.' : 'No documents have been uploaded yet.'}
+                      </Text>
+                    </View>
+                  )}
+                </>
+              )}
+            </ScrollView>
+          );
+        })()}
+
+        {sdDocModal && (
+          <SubdivisionUploadModal
+            subdivision={selectedSubdivision}
+            user={user}
+            templateId={sdDocModal?.templateId || null}
+            templateName={sdDocModal?.templateName || null}
+            onClose={() => setSdDocModal(null)}
+            onCreated={(doc) => {
+              setSdDocs(prev => [doc, ...prev]);
+              setSdDocModal(null);
+            }}
+          />
         )}
       </View>
     );
@@ -4478,6 +4656,7 @@ const DocumentManagerModal = ({ onClose }) => {
   const [loading, setLoading] = useState(true);
   const [name, setName] = useState('');
   const [docType, setDocType] = useState('file');
+  const [appliesTo, setAppliesTo] = useState('both');
 
   const fetchTemplates = async () => {
     setLoading(true);
@@ -4496,13 +4675,14 @@ const DocumentManagerModal = ({ onClose }) => {
       const res = await fetch(`${API_BASE}/document-templates`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: name.trim(), doc_type: docType }),
+        body: JSON.stringify({ name: name.trim(), doc_type: docType, applies_to: appliesTo }),
       });
       if (res.ok) {
         const t = await res.json();
         setTemplates(prev => [...prev, t].sort((a, b) => a.name.localeCompare(b.name)));
         setName('');
         setDocType('file');
+        setAppliesTo('both');
       }
     } catch (e) { Alert.alert('Error', e.message); }
   };
@@ -4549,6 +4729,21 @@ const DocumentManagerModal = ({ onClose }) => {
                 </TouchableOpacity>
               ))}
             </View>
+            <Text style={{ fontSize: 14, fontWeight: '600', color: C.dm, marginBottom: 6 }}>APPLIES TO</Text>
+            <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
+              {[['projects', 'Projects'], ['subdivisions', 'Subdivisions'], ['both', 'Both']].map(([val, label]) => (
+                <TouchableOpacity key={val} onPress={() => setAppliesTo(val)}
+                  style={[{ flex: 1, paddingVertical: 10, borderRadius: 8, alignItems: 'center', borderWidth: 1 },
+                    appliesTo === val
+                      ? { borderColor: C.gd, backgroundColor: C.bH12 }
+                      : { borderColor: C.w08 }
+                  ]} activeOpacity={0.7}>
+                  <Text style={{ fontSize: 16, fontWeight: '600', color: appliesTo === val ? C.gd : C.mt }}>
+                    {label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
             <TouchableOpacity onPress={addTemplate}
               style={{ backgroundColor: C.gd, paddingVertical: 12, borderRadius: 8, alignItems: 'center' }}
               activeOpacity={0.7}>
@@ -4564,7 +4759,7 @@ const DocumentManagerModal = ({ onClose }) => {
                 <Text style={{ fontSize: 42, marginBottom: 8 }}>📋</Text>
                 <Text style={{ fontSize: 20, fontWeight: '600', color: C.textBold }}>No document templates</Text>
                 <Text style={{ fontSize: 16, color: C.dm, marginTop: 4, textAlign: 'center' }}>
-                  Add required documents above. They will appear on every project.
+                  Add required documents above. Choose where they apply — projects, subdivisions, or both.
                 </Text>
               </View>
             ) : (
@@ -4576,7 +4771,9 @@ const DocumentManagerModal = ({ onClose }) => {
                   <Text style={{ fontSize: 22 }}>{t.doc_type === 'folder' ? '📁' : '📄'}</Text>
                   <View style={{ flex: 1 }}>
                     <Text style={{ fontSize: 18, fontWeight: '600', color: C.text }}>{t.name}</Text>
-                    <Text style={{ fontSize: 14, color: C.dm, marginTop: 2 }}>{t.doc_type === 'folder' ? 'Folder' : 'File'}</Text>
+                    <Text style={{ fontSize: 14, color: C.dm, marginTop: 2 }}>
+                      {t.doc_type === 'folder' ? 'Folder' : 'File'} · {t.applies_to === 'projects' ? 'Projects only' : t.applies_to === 'subdivisions' ? 'Subdivisions only' : 'Projects & Subdivisions'}
+                    </Text>
                   </View>
                   <TouchableOpacity onPress={() => deleteTemplate(t.id)}
                     style={{ padding: 6 }} activeOpacity={0.6}>
@@ -4585,6 +4782,138 @@ const DocumentManagerModal = ({ onClose }) => {
                 </View>
               ))
             )}
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+  );
+};
+
+// ============================================================
+// SUBDIVISION UPLOAD MODAL
+// ============================================================
+
+const SubdivisionUploadModal = ({ subdivision, user, templateId, templateName, onClose, onCreated }) => {
+  const C = React.useContext(ThemeContext);
+  const st = React.useMemo(() => getStyles(C), [C]);
+  const [name, setName] = useState(templateName || '');
+  const [category, setCategory] = useState('General');
+  const [loading, setLoading] = useState(false);
+  const [fileData, setFileData] = useState(null);
+  const docCategories = ['General', 'Permits', 'Contracts', 'Reports', 'Specs', 'Plans'];
+
+  const pickFile = () => {
+    if (Platform.OS !== 'web') return;
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.onchange = (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const ext = file.name.split('.').pop() || 'bin';
+      const reader = new FileReader();
+      reader.onload = () => {
+        setFileData({ b64: reader.result, ext, originalName: file.name, size: file.size });
+        if (!name || name === templateName) setName(file.name.replace(/\.[^/.]+$/, ''));
+      };
+      reader.readAsDataURL(file);
+    };
+    input.click();
+  };
+
+  const upload = async () => {
+    if (!name) return Alert.alert('Error', 'Name is required');
+    if (!fileData) return Alert.alert('Error', 'Please select a file');
+    setLoading(true);
+    try {
+      const uploadRes = await fetch(`${API_BASE}/upload-file`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ file: fileData.b64, ext: fileData.ext, name: fileData.originalName }),
+      });
+      if (!uploadRes.ok) throw new Error('File upload failed');
+      const uploadData = await uploadRes.json();
+
+      const res = await fetch(`${API_BASE}/subdivisions/${subdivision.id}/documents`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name, category, media_type: 'document',
+          file_size: uploadData.file_size || fileData.size || 0,
+          file_url: uploadData.path,
+          uploaded_by: user?.name || '',
+          template_id: templateId || null,
+        }),
+      });
+      if (!res.ok) throw new Error('Failed to save document record');
+      const doc = await res.json();
+      onCreated(doc);
+    } catch (e) { Alert.alert('Error', e.message); } finally { setLoading(false); }
+  };
+
+  return (
+    <Modal visible animationType="slide" transparent>
+      <View style={st.exOverlay}>
+        <View style={[st.exBox, { maxWidth: 500, maxHeight: '90%' }]}>
+          <View style={st.exHeader}>
+            <Text style={st.exTitle}>{templateName ? `Upload: ${templateName}` : 'Upload Document'}</Text>
+            <TouchableOpacity onPress={onClose} style={st.exCloseBtn}>
+              <Text style={st.exCloseTxt}>✕</Text>
+            </TouchableOpacity>
+          </View>
+          <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16 }}>
+            <TouchableOpacity onPress={pickFile} activeOpacity={0.7}
+              style={{
+                borderWidth: 2, borderStyle: 'dashed', borderColor: fileData ? C.gn : C.w10,
+                borderRadius: 12, padding: 30, alignItems: 'center', marginBottom: 16,
+                backgroundColor: fileData ? C.gn + '10' : C.w06,
+              }}>
+              {fileData ? (
+                <View style={{ alignItems: 'center' }}>
+                  <Text style={{ fontSize: 36, marginBottom: 6, color: C.gn }}>✓</Text>
+                  <Text style={{ color: C.gn, fontSize: 18, fontWeight: '600' }}>{fileData.originalName}</Text>
+                  <Text style={{ color: C.dm, fontSize: 15, marginTop: 2 }}>
+                    {fileData.size < 1024 * 1024 ? `${(fileData.size / 1024).toFixed(1)} KB` : `${(fileData.size / (1024 * 1024)).toFixed(1)} MB`}
+                  </Text>
+                  <Text style={{ color: C.bl, fontSize: 15, marginTop: 6 }}>Tap to change file</Text>
+                </View>
+              ) : (
+                <View style={{ alignItems: 'center' }}>
+                  <Text style={{ fontSize: 42, marginBottom: 6 }}>⬆</Text>
+                  <Text style={{ color: C.gd, fontSize: 20, fontWeight: '600' }}>Tap to select file</Text>
+                  <Text style={{ color: C.dm, fontSize: 15, marginTop: 4 }}>Choose a file from your device</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+
+            <Text style={{ fontSize: 14, fontWeight: '600', color: C.dm, marginBottom: 6 }}>DISPLAY NAME</Text>
+            <TextInput value={name} onChangeText={setName} placeholder="Document name"
+              placeholderTextColor={C.ph}
+              style={{ fontSize: 18, color: C.text, backgroundColor: C.inputBg, borderWidth: 1, borderColor: C.w10, borderRadius: 8, padding: 12, marginBottom: 14 }}
+            />
+
+            {!templateId && (
+              <View style={{ marginBottom: 14 }}>
+                <Text style={{ fontSize: 14, fontWeight: '600', color: C.dm, marginBottom: 6 }}>CATEGORY</Text>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                  {docCategories.map(c => (
+                    <TouchableOpacity key={c} onPress={() => setCategory(c)}
+                      style={[{ paddingHorizontal: 14, paddingVertical: 6, borderRadius: 6, borderWidth: 1 },
+                        category === c ? { borderColor: C.gd, backgroundColor: C.bH12 } : { borderColor: C.w08 }
+                      ]} activeOpacity={0.7}>
+                      <Text style={{ fontSize: 18, color: category === c ? C.gd : C.mt }}>{c}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            )}
+
+            <TouchableOpacity onPress={upload} disabled={loading || !name || !fileData}
+              style={{ backgroundColor: (loading || !name || !fileData) ? C.w10 : C.gd, paddingVertical: 14, borderRadius: 8, alignItems: 'center' }}
+              activeOpacity={0.8}>
+              <Text style={{ fontSize: 18, fontWeight: '700', color: (loading || !name || !fileData) ? C.dm : '#000' }}>
+                {loading ? 'Uploading...' : 'Upload'}
+              </Text>
+            </TouchableOpacity>
           </ScrollView>
         </View>
       </View>

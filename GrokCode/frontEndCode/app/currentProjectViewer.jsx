@@ -541,7 +541,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
     if (tab === 'docs') {
       if (sub === 'documents') {
         api(`/projects/${pid}/documents?type=document`).then(d => d && setDocuments(d));
-        api(`/document-templates`).then(d => d && setDocTemplates(d));
+        api(`/document-templates?scope=projects`).then(d => d && setDocTemplates(d));
       }
       if (sub === 'photos') api(`/projects/${pid}/documents?type=photo`).then(d => d && setPhotos(d));
       if (sub === 'videos') api(`/projects/${pid}/documents?type=video`).then(d => d && setVideos(d));

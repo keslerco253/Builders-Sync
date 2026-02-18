@@ -374,7 +374,8 @@ class Todos(db.Model):
 
 class Documents(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    job_id = db.Column(db.Integer, db.ForeignKey('projects.id'), nullable=False)
+    job_id = db.Column(db.Integer, db.ForeignKey('projects.id'), nullable=True)
+    subdivision_id = db.Column(db.Integer, db.ForeignKey('subdivision.id'), nullable=True)
     name = db.Column(db.String(200), default='')
     category = db.Column(db.String(100), default='General')
     media_type = db.Column(db.String(20), default='document')   # document | photo | video
@@ -386,11 +387,12 @@ class Documents(db.Model):
 
     def to_dict(self):
         return {
-            'id': self.id, 'job_id': self.job_id, 'name': self.name,
-            'category': self.category, 'media_type': self.media_type,
-            'file_size': self.file_size, 'uploaded_by': self.uploaded_by,
-            'created_at': self.created_at, 'file_url': self.file_url,
-            'template_id': self.template_id,
+            'id': self.id, 'job_id': self.job_id,
+            'subdivision_id': self.subdivision_id,
+            'name': self.name, 'category': self.category,
+            'media_type': self.media_type, 'file_size': self.file_size,
+            'uploaded_by': self.uploaded_by, 'created_at': self.created_at,
+            'file_url': self.file_url, 'template_id': self.template_id,
         }
 
 
@@ -398,10 +400,12 @@ class DocumentTemplate(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(200), nullable=False)
     doc_type = db.Column(db.String(20), default='file')  # file | folder
+    applies_to = db.Column(db.String(20), default='both')  # projects | subdivisions | both
 
     def to_dict(self):
         return {
             'id': self.id, 'name': self.name, 'doc_type': self.doc_type,
+            'applies_to': self.applies_to,
         }
 
 
@@ -1944,12 +1948,48 @@ def delete_document(doc_id):
 
 
 # ============================================================
+# SUBDIVISION DOCUMENTS
+# ============================================================
+
+@app.route('/subdivisions/<int:sid>/documents', methods=['GET'])
+def get_subdivision_documents(sid):
+    media_type = request.args.get('type', None)
+    q = Documents.query.filter_by(subdivision_id=sid)
+    if media_type:
+        q = q.filter_by(media_type=media_type)
+    docs = q.order_by(Documents.created_at.desc()).all()
+    return jsonify([d.to_dict() for d in docs])
+
+
+@app.route('/subdivisions/<int:sid>/documents', methods=['POST'])
+def add_subdivision_document(sid):
+    data = request.get_json()
+    doc = Documents(
+        subdivision_id=sid, name=data.get('name', ''), category=data.get('category', 'General'),
+        media_type=data.get('media_type', 'document'),
+        file_size=data.get('file_size', 0), uploaded_by=data.get('uploaded_by', ''),
+        created_at=data.get('created_at', datetime.utcnow().strftime('%Y-%m-%d')),
+        file_url=data.get('file_url', ''),
+        template_id=data.get('template_id', None),
+    )
+    db.session.add(doc)
+    db.session.commit()
+    return jsonify(doc.to_dict()), 201
+
+
+# ============================================================
 # DOCUMENT TEMPLATES (universal required documents)
 # ============================================================
 
 @app.route('/document-templates', methods=['GET'])
 def get_document_templates():
-    templates = DocumentTemplate.query.order_by(DocumentTemplate.name).all()
+    scope = request.args.get('scope', None)  # 'projects' | 'subdivisions' | None (all)
+    q = DocumentTemplate.query
+    if scope:
+        q = q.filter(
+            (DocumentTemplate.applies_to == scope) | (DocumentTemplate.applies_to == 'both')
+        )
+    templates = q.order_by(DocumentTemplate.name).all()
     return jsonify([t.to_dict() for t in templates])
 
 
@@ -1959,6 +1999,7 @@ def create_document_template():
     t = DocumentTemplate(
         name=data.get('name', ''),
         doc_type=data.get('doc_type', 'file'),
+        applies_to=data.get('applies_to', 'both'),
     )
     db.session.add(t)
     db.session.commit()
@@ -2052,6 +2093,13 @@ def auto_migrate():
                     changes.append(f"ADD COLUMN {table_name}.{col_name} ({sql_type})")
                 except Exception as e:
                     print(f"  ⚠ Failed: {stmt} — {e}")
+
+    # Make documents.job_id nullable for subdivision documents
+    try:
+        db.session.execute(text("ALTER TABLE documents MODIFY COLUMN job_id INTEGER NULL"))
+        changes.append("MODIFY documents.job_id to NULLABLE")
+    except Exception:
+        pass  # Already nullable or column doesn't exist
 
     if changes:
         db.session.commit()
