@@ -84,13 +84,23 @@ export default function Dashboard() {
   const [showTemplateManager, setShowTemplateManager] = useState(false);
   const [showSelectionManager, setShowSelectionManager] = useState(false);
   const [clientView, setClientView] = useState(false);
+  const [subView, setSubView] = useState(false);
 
   useEffect(() => {
     if (clientView) {
+      setSubView(false);
       setActiveTab('schedule');
       setActiveSub('calendar');
     }
   }, [clientView]);
+
+  useEffect(() => {
+    if (subView) {
+      setClientView(false);
+      setActiveTab('schedule');
+      setActiveSub('calendar');
+    }
+  }, [subView]);
 
   const handleProjectUpdate = useCallback((updatedFields) => {
     if (!selectedProject) return;
@@ -359,6 +369,7 @@ export default function Dashboard() {
     setSelectedProject(p);
     setSelectedSubdivision(null);
     setClientView(false);
+    setSubView(false);
   };
 
   const selectSubdivision = (sd) => {
@@ -661,6 +672,25 @@ export default function Dashboard() {
                       >
                         <Text style={{ fontSize: 18, color: (active && clientView) ? C.gn : active ? C.gd : C.dm }}>🏠</Text>
                       </TouchableOpacity>
+                      {isBuilder && (
+                        <TouchableOpacity
+                          onPress={(e) => {
+                            e.stopPropagation();
+                            if (selectedProject?.id === project.id) {
+                              setSubView(prev => !prev);
+                            } else {
+                              setSelectedProject(project);
+                              setSelectedSubdivision(null);
+                              setSubView(true);
+                            }
+                          }}
+                          style={{ paddingVertical: 6, paddingHorizontal: 10 }}
+                          activeOpacity={0.6}
+                          hitSlop={{ top: 4, bottom: 4, left: 8, right: 8 }}
+                        >
+                          <Text style={{ fontSize: 18, color: (active && subView) ? C.gd : active ? C.gd : C.dm }}>🛠️</Text>
+                        </TouchableOpacity>
+                      )}
                     </View>
                   )}
                 </TouchableOpacity>
@@ -2881,7 +2911,12 @@ export default function Dashboard() {
         {/* Main project tabs — inline in header when a project is selected */}
         {(selectedProject || contractorProject) && dashView === 'projects' && (
           <View style={{ flexDirection: 'row', flexShrink: 1, flexGrow: 1, borderBottomWidth: 1, borderBottomColor: C.sw06 }}>
-            {(clientView
+            {(subView
+              ? [
+                  { id: 'schedule', label: 'Schedule', defSub: 'calendar' },
+                  { id: 'info', label: 'Info', defSub: 'jobinfo' },
+                ]
+              : clientView
               ? [
                   { id: 'schedule', label: 'Schedule', defSub: 'calendar' },
                   { id: 'info', label: 'Info', defSub: 'price' },
@@ -3027,6 +3062,8 @@ export default function Dashboard() {
               project={contractorProject}
               clientView={clientView}
               onClientViewToggle={() => setClientView(false)}
+              subView={subView}
+              onSubViewToggle={() => setSubView(false)}
               onProjectUpdate={handleProjectUpdate}
               onProjectDeleted={handleProjectDeleted}
               scheduleVersion={scheduleVersion}
@@ -3200,6 +3237,25 @@ export default function Dashboard() {
                                 >
                                   <Text style={{ fontSize: 18, color: (active && clientView) ? C.gn : active ? C.gd : C.dm }}>🏠</Text>
                                 </TouchableOpacity>
+                                {isBuilder && (
+                                  <TouchableOpacity
+                                    onPress={(e) => {
+                                      e.stopPropagation();
+                                      if (selectedProject?.id === project.id) {
+                                        setSubView(prev => !prev);
+                                      } else {
+                                        setSelectedProject(project);
+                                        setSelectedSubdivision(null);
+                                        setSubView(true);
+                                      }
+                                    }}
+                                    style={{ paddingVertical: 6, paddingHorizontal: 10 }}
+                                    activeOpacity={0.6}
+                                    hitSlop={{ top: 4, bottom: 4, left: 8, right: 8 }}
+                                  >
+                                    <Text style={{ fontSize: 18, color: (active && subView) ? C.gd : active ? C.gd : C.dm }}>🛠️</Text>
+                                  </TouchableOpacity>
+                                )}
                               </View>
                             )}
                           </TouchableOpacity>
@@ -3333,6 +3389,8 @@ export default function Dashboard() {
                   project={selectedProject}
                   clientView={clientView}
                   onClientViewToggle={() => setClientView(false)}
+                  subView={subView}
+                  onSubViewToggle={() => setSubView(false)}
                   activeTab={activeTab}
                   activeSub={activeSub}
                   onTabChange={setActiveTab}
@@ -3369,6 +3427,8 @@ export default function Dashboard() {
               project={selectedProject}
               clientView={clientView}
               onClientViewToggle={() => setClientView(false)}
+              subView={subView}
+              onSubViewToggle={() => setSubView(false)}
               activeTab={activeTab}
               activeSub={activeSub}
               onTabChange={setActiveTab}
