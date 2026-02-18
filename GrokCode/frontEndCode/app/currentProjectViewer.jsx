@@ -195,7 +195,7 @@ const HoverTab = ({ onPress, active, style, activeStyle, children }) => {
 // ============================================================
 // MAIN COMPONENT
 // ============================================================
-const CurrentProjectViewer = ({ embedded, project: projectProp, activeTab, activeSub, onTabChange, onSubChange, onProjectUpdate, onProjectDeleted, scheduleVersion, onScheduleChange, syncRef, calYear, calMonth, onMonthChange, subdivisions = [] }) => {
+const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onClientViewToggle, activeTab, activeSub, onTabChange, onSubChange, onProjectUpdate, onProjectDeleted, scheduleVersion, onScheduleChange, syncRef, calYear, calMonth, onMonthChange, subdivisions = [] }) => {
   const C = React.useContext(ThemeContext);
   const s = React.useMemo(() => getStyles(C), [C]);
   const bl = React.useMemo(() => getBLStyles(C), [C]);
@@ -204,9 +204,9 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, activeTab, activ
   const { user } = React.useContext(AuthContext);
   const project = projectProp || route?.params?.project;
 
-  const isB = user?.role === 'builder';
-  const isC = user?.role === 'customer';
-  const isCon = user?.role === 'contractor';
+  const isB = clientView ? false : user?.role === 'builder';
+  const isC = clientView ? true  : user?.role === 'customer';
+  const isCon = clientView ? false : user?.role === 'contractor';
 
   // Editable info fields (builder only)
   const INFO_DEFAULTS = {
@@ -2397,6 +2397,35 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, activeTab, activ
   return (
     <View style={{ flex: 1, backgroundColor: C.bg, minHeight: 0 }}>
       {renderModal()}
+
+      {/* Client View banner */}
+      {clientView && (
+        <View style={{
+          backgroundColor: C.gn + '18',
+          borderBottomWidth: 1,
+          borderBottomColor: C.gn + '40',
+          paddingVertical: 10,
+          paddingHorizontal: 16,
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+        }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <Text style={{ fontSize: 18 }}>🏠</Text>
+            <Text style={{ fontSize: 16, fontWeight: '600', color: C.gn }}>Client View</Text>
+            <Text style={{ fontSize: 14, color: C.dm }}>— Viewing as customer</Text>
+          </View>
+          {onClientViewToggle && (
+            <TouchableOpacity
+              onPress={onClientViewToggle}
+              style={{ paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6, backgroundColor: C.gn + '25' }}
+              activeOpacity={0.7}
+            >
+              <Text style={{ fontSize: 14, fontWeight: '600', color: C.gn }}>Exit</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
 
       {/* Header — hidden when embedded in dashboard */}
       {!embedded && (
