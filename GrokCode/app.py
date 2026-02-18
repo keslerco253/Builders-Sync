@@ -1139,33 +1139,40 @@ def sign_change_order(co_id):
     # Enforce due date for customer signing
     if role == 'customer' and co.due_date:
         if today > co.due_date:
-            co.status = 'expired'
-            db.session.commit()
+            try:
+                co.status = 'expired'
+                db.session.commit()
+            except Exception:
+                db.session.rollback()
             return jsonify({'error': 'This change order has expired. The due date has passed.', 'co': co.to_dict()}), 400
 
-    if role == 'builder':
-        co.builder_sig = True
-        co.builder_sig_date = today
-    elif role == 'customer':
-        co.customer_sig = True
-        co.customer_sig_date = today
+    try:
+        if role == 'builder':
+            co.builder_sig = True
+            co.builder_sig_date = today
+        elif role == 'customer':
+            co.customer_sig = True
+            co.customer_sig_date = today
 
-    if co.builder_sig and co.customer_sig:
-        co.status = 'approved'
-        # Update project contract price
-        project = Projects.query.get(co.job_id)
-        if project:
-            approved = ChangeOrders.query.filter_by(job_id=co.job_id, status='approved').all()
-            # Include this one since we just set it
-            total = project.original_price + sum(c.amount for c in approved)
-            if co not in approved:
-                total += co.amount
-            project.contract_price = total
-    else:
-        co.status = 'pending_customer' if co.builder_sig else 'pending_builder'
+        if co.builder_sig and co.customer_sig:
+            co.status = 'approved'
+            # Update project contract price
+            project = Projects.query.get(co.job_id)
+            if project:
+                approved = ChangeOrders.query.filter_by(job_id=co.job_id, status='approved').all()
+                # Include this one since we just set it
+                total = (project.original_price or 0) + sum(c.amount for c in approved)
+                if co not in approved:
+                    total += co.amount
+                project.contract_price = total
+        else:
+            co.status = 'pending_customer' if co.builder_sig else 'pending_builder'
 
-    db.session.commit()
-    return jsonify(co.to_dict())
+        db.session.commit()
+        return jsonify(co.to_dict())
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
 
 
 # ============================================================
