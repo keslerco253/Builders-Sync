@@ -1142,14 +1142,11 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
     // --- INFO: PRICE SUMMARY ---
     if (tab === 'info' && sub === 'price') {
       const approved = changeOrders.filter(c => c.status === 'approved');
-      const adds = approved.filter(c => c.amount > 0);
-      const credits = approved.filter(c => c.amount < 0);
       const pending = changeOrders.filter(c => c.status !== 'approved');
       const coTotal = approved.reduce((sum, c) => sum + c.amount, 0);
       const origPrice = parseFloat(editContractPrice) || 0;
       const reconciliation = parseFloat(editReconciliation) || 0;
       const baseContract = origPrice + reconciliation;
-      const contractTotal = baseContract + coTotal;
 
       // Confirmed selections with upgrade prices
       const confirmedSels = selections.filter(sl => sl.status === 'confirmed' && sl.selected);
@@ -1160,7 +1157,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
         return { item: sel.item, selected: sel.selected, price };
       });
       const selectionTotal = selectionLines.reduce((sum, l) => sum + l.price, 0);
-      const grandTotal = contractTotal + selectionTotal;
+      const grandTotal = baseContract + coTotal + selectionTotal;
 
       return (
         <ScrollView style={{ flex: 1 }} contentContainerStyle={s.scroll}>
@@ -1182,37 +1179,38 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
               </View>
             )}
 
-            {adds.length > 0 && (
-              <>
-                <View style={[s.priceRow, { backgroundColor: C.bH05 }]}>
-                  <Text style={[s.lbl, { color: C.gd, marginBottom: 0 }]}>CHANGE ORDER ADDITIONS</Text>
-                </View>
-                {adds.map(co => (
-                  <View key={co.id} style={s.priceRow}>
-                    <Text style={s.priceLbl}>{co.title}</Text>
-                    <Text style={[s.priceAmt, { color: C.yl }]}>+{f$(co.amount)}</Text>
-                  </View>
-                ))}
-              </>
+            {reconciliation !== 0 && (
+              <View style={[s.priceRow, { borderTopWidth: 2, borderTopColor: C.gd + '40' }]}>
+                <Text style={{ fontSize: 24, fontWeight: '700', color: C.text }}>Base Contract</Text>
+                <Text style={{ fontSize: 30, fontWeight: '700', color: C.gd }}>{f$(baseContract)}</Text>
+              </View>
             )}
+          </Card>
 
-            {credits.length > 0 && (
-              <>
-                <View style={[s.priceRow, { backgroundColor: 'rgba(16,185,129,0.05)' }]}>
-                  <Text style={[s.lbl, { color: C.gn, marginBottom: 0 }]}>CREDITS</Text>
+          {/* Change Orders section */}
+          <Card style={{ padding: 0, overflow: 'hidden', marginTop: 16 }}>
+            <View style={[s.priceRow, { backgroundColor: C.bH05 }]}>
+              <Text style={[s.lbl, { color: C.gd, marginBottom: 0 }]}>CHANGE ORDERS</Text>
+            </View>
+            {approved.length === 0 ? (
+              <View style={[s.priceRow, { justifyContent: 'center' }]}>
+                <Text style={{ fontSize: 20, color: C.dm, fontStyle: 'italic' }}>No approved change orders yet</Text>
+              </View>
+            ) : (
+              approved.map(co => (
+                <View key={co.id} style={s.priceRow}>
+                  <Text style={[s.priceLbl, { flex: 1 }]} numberOfLines={1}>{co.title}</Text>
+                  <Text style={[s.priceAmt, { color: co.amount >= 0 ? C.yl : C.gn }]}>
+                    {co.amount >= 0 ? `+${f$(co.amount)}` : f$(co.amount)}
+                  </Text>
                 </View>
-                {credits.map(co => (
-                  <View key={co.id} style={s.priceRow}>
-                    <Text style={s.priceLbl}>{co.title}</Text>
-                    <Text style={[s.priceAmt, { color: C.gn }]}>{f$(co.amount)}</Text>
-                  </View>
-                ))}
-              </>
+              ))
             )}
-
-            <View style={[s.priceRow, { borderTopWidth: 2, borderTopColor: C.gd + '40' }]}>
-              <Text style={{ fontSize: 24, fontWeight: '700', color: C.text }}>Contract Total</Text>
-              <Text style={{ fontSize: 30, fontWeight: '700', color: C.gd }}>{f$(contractTotal)}</Text>
+            <View style={[s.priceRow, { borderTopWidth: 1, borderTopColor: C.w10 }]}>
+              <Text style={{ fontSize: 21, fontWeight: '700', color: C.text }}>Change Orders Total</Text>
+              <Text style={{ fontSize: 24, fontWeight: '700', color: coTotal > 0 ? C.yl : coTotal < 0 ? C.gn : C.mt }}>
+                {coTotal > 0 ? `+${f$(coTotal)}` : f$(coTotal)}
+              </Text>
             </View>
           </Card>
 
@@ -1244,8 +1242,14 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
           {/* Grand total */}
           <Card style={{ padding: 0, overflow: 'hidden', marginTop: 16 }}>
             <View style={s.priceRow}>
-              <Text style={s.priceLbl}>Contract Total</Text>
-              <Text style={s.priceAmt}>{f$(contractTotal)}</Text>
+              <Text style={s.priceLbl}>Base Contract</Text>
+              <Text style={s.priceAmt}>{f$(baseContract)}</Text>
+            </View>
+            <View style={s.priceRow}>
+              <Text style={s.priceLbl}>Change Orders</Text>
+              <Text style={[s.priceAmt, { color: coTotal > 0 ? C.yl : coTotal < 0 ? C.gn : C.mt }]}>
+                {coTotal > 0 ? `+${f$(coTotal)}` : f$(coTotal)}
+              </Text>
             </View>
             <View style={s.priceRow}>
               <Text style={s.priceLbl}>Selection Upgrades</Text>
