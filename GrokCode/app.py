@@ -1113,16 +1113,20 @@ def get_change_orders(pid):
 def add_change_order(pid):
     data = request.get_json()
     today = datetime.utcnow().strftime('%Y-%m-%d')
-    co = ChangeOrders(
-        job_id=pid, title=data['title'], description=data.get('description', ''),
-        amount=data.get('amount', 0), status='pending_customer',
-        builder_sig=True, builder_sig_date=today,
-        customer_sig=False, customer_sig_date=None, created_at=today,
-        due_date=data.get('due_date', None),
-    )
-    db.session.add(co)
-    db.session.commit()
-    return jsonify(co.to_dict()), 201
+    try:
+        co = ChangeOrders(
+            job_id=pid, title=data['title'], description=data.get('description', ''),
+            amount=data.get('amount', 0), status='pending_customer',
+            builder_sig=True, builder_sig_date=today,
+            customer_sig=False, customer_sig_date=None, created_at=today,
+            due_date=data.get('due_date', None),
+        )
+        db.session.add(co)
+        db.session.commit()
+        return jsonify(co.to_dict()), 201
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
 
 
 @app.route('/change-orders/<int:co_id>/sign', methods=['PUT'])
