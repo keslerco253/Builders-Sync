@@ -405,7 +405,7 @@ class DocumentTemplate(db.Model):
     def to_dict(self):
         return {
             'id': self.id, 'name': self.name, 'doc_type': self.doc_type,
-            'applies_to': self.applies_to,
+            'applies_to': self.applies_to or 'both',
         }
 
 
@@ -1983,12 +1983,15 @@ def add_subdivision_document(sid):
 
 @app.route('/document-templates', methods=['GET'])
 def get_document_templates():
+    from sqlalchemy import or_
     scope = request.args.get('scope', None)  # 'projects' | 'subdivisions' | None (all)
     q = DocumentTemplate.query
     if scope:
-        q = q.filter(
-            (DocumentTemplate.applies_to == scope) | (DocumentTemplate.applies_to == 'both')
-        )
+        q = q.filter(or_(
+            DocumentTemplate.applies_to == scope,
+            DocumentTemplate.applies_to == 'both',
+            DocumentTemplate.applies_to.is_(None),
+        ))
     templates = q.order_by(DocumentTemplate.name).all()
     return jsonify([t.to_dict() for t in templates])
 
@@ -2100,6 +2103,14 @@ def auto_migrate():
         changes.append("MODIFY documents.job_id to NULLABLE")
     except Exception:
         pass  # Already nullable or column doesn't exist
+
+    # Backfill NULL applies_to values to 'both'
+    try:
+        result = db.session.execute(text("UPDATE document_template SET applies_to = 'both' WHERE applies_to IS NULL"))
+        if result.rowcount > 0:
+            changes.append(f"BACKFILL document_template.applies_to: {result.rowcount} rows set to 'both'")
+    except Exception:
+        pass
 
     if changes:
         db.session.commit()
