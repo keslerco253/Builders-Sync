@@ -1984,7 +1984,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
             <Text style={s.sectionTitle}>Change Orders</Text>
             {isB && (
-              <TouchableOpacity onPress={() => setModal('newco')} activeOpacity={0.7}
+              <TouchableOpacity onPress={() => setModal('coTypePicker')} activeOpacity={0.7}
                 style={{ width: 40, height: 40, borderRadius: 10, backgroundColor: C.gd, alignItems: 'center', justifyContent: 'center' }}>
                 <Text style={{ fontSize: 26, fontWeight: '700', color: C.textBold }}>+</Text>
               </TouchableOpacity>
@@ -2354,6 +2354,45 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
       );
     }
 
+    // --- Change Order Type Picker ---
+    if (modal === 'coTypePicker') {
+      return (
+        <Modal visible animationType="fade" transparent>
+          <TouchableOpacity style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 20 }} activeOpacity={1} onPress={() => setModal(null)}>
+            <TouchableOpacity activeOpacity={1} onPress={e => e.stopPropagation()}>
+              <View style={{
+                backgroundColor: C.modalBg, borderRadius: 16, width: 320, overflow: 'hidden',
+                borderWidth: 1, borderColor: C.w10,
+                ...(Platform.OS === 'web' ? { boxShadow: '0 20px 60px rgba(0,0,0,0.4)' } : { elevation: 20 }),
+              }}>
+                <View style={{ padding: 18, borderBottomWidth: 1, borderBottomColor: C.w06 }}>
+                  <Text style={{ fontSize: 22, fontWeight: '700', color: C.textBold, textAlign: 'center' }}>New Change Order</Text>
+                </View>
+                <TouchableOpacity onPress={() => setModal('newco')}
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 18, paddingHorizontal: 20, borderBottomWidth: 1, borderBottomColor: C.w06 }}
+                  activeOpacity={0.7}>
+                  <Text style={{ fontSize: 28 }}>📝</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 20, fontWeight: '600', color: C.text }}>Custom Change Order</Text>
+                    <Text style={{ fontSize: 16, color: C.dm, marginTop: 2 }}>Enter title, description & cost</Text>
+                  </View>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => setModal('newselco')}
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 18, paddingHorizontal: 20 }}
+                  activeOpacity={0.7}>
+                  <Text style={{ fontSize: 28 }}>🔄</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 20, fontWeight: '600', color: C.text }}>Selection Change Order</Text>
+                    <Text style={{ fontSize: 16, color: C.dm, marginTop: 2 }}>Change an existing selection</Text>
+                  </View>
+                </TouchableOpacity>
+              </View>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </Modal>
+      );
+    }
+
     // --- New Change Order ---
     if (modal === 'newco') {
       return <NewChangeOrderModal project={project} api={api} user={user} onClose={() => setModal(null)} onCreated={(co) => {
@@ -2361,6 +2400,18 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
         setModal(null);
         Alert.alert('Success', 'Change order created & signed as builder');
       }} />;
+    }
+
+    // --- Selection Change Order ---
+    if (modal === 'newselco') {
+      return <SelectionChangeOrderModal project={project} api={api} selections={selections} user={user}
+        onClose={() => setModal(null)}
+        onCreated={(co) => {
+          setChangeOrders(prev => [co, ...prev]);
+          setModal(null);
+          Alert.alert('Success', 'Selection change order created & signed');
+        }}
+      />;
     }
 
     // --- New Schedule Item ---
@@ -2589,6 +2640,224 @@ const NewChangeOrderModal = ({ project, api, onClose, onCreated, user }) => {
       }} disabled={!title || !amount}>
         <Text style={s.btnTxt}>Sign & Send</Text>
       </Btn>
+    </ModalSheet>
+  );
+};
+
+const SelectionChangeOrderModal = ({ project, api, selections, onClose, onCreated, user }) => {
+  const C = React.useContext(ThemeContext);
+  const s = React.useMemo(() => getStyles(C), [C]);
+  const [selectedItem, setSelectedItem] = useState(null);
+  const [newOption, setNewOption] = useState(null);
+  const [dueDate, setDueDate] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [signStep, setSignStep] = useState(false);
+
+  const getOptPrice = (options, optName) => {
+    const opt = (options || []).find(o => (typeof o === 'object' ? o.name : o) === optName);
+    if (!opt || typeof opt !== 'object') return 0;
+    return opt.comes_standard ? 0 : (opt.price || 0);
+  };
+
+  const currentPrice = selectedItem ? getOptPrice(selectedItem.options, selectedItem.selected) : 0;
+  const newPrice = newOption ? getOptPrice(selectedItem?.options, newOption) : 0;
+  const priceDiff = newPrice - currentPrice;
+  const coTitle = selectedItem && newOption ? `Selection Change: ${selectedItem.item} — ${selectedItem.selected} → ${newOption}` : '';
+  const coDesc = selectedItem && newOption ? `Changed ${selectedItem.item} from ${selectedItem.selected} to ${newOption}` : '';
+
+  const create = async () => {
+    setLoading(true);
+    try {
+      const res = await api(`/projects/${project.id}/change-orders`, {
+        method: 'POST',
+        body: { title: coTitle, description: coDesc, amount: priceDiff, due_date: dueDate || null },
+      });
+      if (!res) {
+        Alert.alert('Error', 'Failed to create change order. Please try again.');
+        return;
+      }
+      onCreated(res);
+    } catch (e) { Alert.alert('Error', e.message); } finally { setLoading(false); }
+  };
+
+  // Available selections (those with a current choice)
+  const available = selections.filter(sel => sel.selected);
+
+  if (signStep) {
+    return (
+      <Modal visible animationType="fade" transparent>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+          <View style={{
+            backgroundColor: C.modalBg, borderRadius: 16, padding: 28, width: '90%', maxWidth: 440,
+            borderWidth: 1, borderColor: C.w10,
+            ...(Platform.OS === 'web' ? { boxShadow: '0 20px 60px rgba(0,0,0,0.4)' } : { elevation: 20 }),
+          }}>
+            <Text style={{ fontSize: 30, fontWeight: '700', color: C.textBold, textAlign: 'center', marginBottom: 8 }}>
+              Sign Change Order
+            </Text>
+            <Text style={{ fontSize: 20, fontWeight: '600', color: C.gd, textAlign: 'center', marginBottom: 16 }} numberOfLines={2}>
+              {selectedItem?.item}: {selectedItem?.selected} → {newOption}
+            </Text>
+
+            <View style={{
+              backgroundColor: C.mode === 'dark' ? C.bH08 : C.bH05,
+              borderWidth: 1, borderColor: C.gd + '30',
+              borderRadius: 10, padding: 16, marginBottom: 16,
+            }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+                <Text style={{ fontSize: 18, color: C.dm }}>Price difference</Text>
+                <Text style={{ fontSize: 22, fontWeight: '700', color: priceDiff >= 0 ? C.yl : C.gn }}>
+                  {priceDiff >= 0 ? '+' : ''}{f$(priceDiff)}
+                </Text>
+              </View>
+              <Text style={{ fontSize: 18, lineHeight: 28, color: C.mt, textAlign: 'center' }}>
+                By signing, you are submitting this selection change order to the customer for approval.
+                {dueDate ? `\nDue date: ${fD(dueDate)}` : ''}
+              </Text>
+            </View>
+
+            <View style={{ borderBottomWidth: 1, borderBottomColor: C.w15, marginBottom: 6, paddingBottom: 2 }}>
+              <Text style={{ fontSize: 21, color: C.text, fontWeight: '600' }}>{user?.name || 'Signature'}</Text>
+            </View>
+            <Text style={{ fontSize: 16, color: C.dm, marginBottom: 24 }}>Electronic Signature</Text>
+
+            <View style={{ flexDirection: 'row', gap: 12 }}>
+              <TouchableOpacity onPress={() => setSignStep(false)}
+                style={{ flex: 1, paddingVertical: 13, borderRadius: 8, borderWidth: 1, borderColor: C.w12, alignItems: 'center' }}
+                activeOpacity={0.7}>
+                <Text style={{ fontSize: 21, fontWeight: '600', color: C.mt }}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={create} disabled={loading}
+                style={{ flex: 1, paddingVertical: 13, borderRadius: 8, backgroundColor: C.gd, alignItems: 'center', opacity: loading ? 0.6 : 1 }}
+                activeOpacity={0.8}>
+                <Text style={{ fontSize: 21, fontWeight: '700', color: C.textBold }}>
+                  {loading ? 'Sending...' : 'Sign & Send'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    );
+  }
+
+  return (
+    <ModalSheet visible title="Selection Change Order" onClose={onClose}>
+      {/* Step 1: Pick a selection */}
+      {!selectedItem && (
+        <>
+          <Lbl>SELECT ITEM TO CHANGE</Lbl>
+          {available.length === 0 ? (
+            <Text style={{ fontSize: 20, color: C.dm, fontStyle: 'italic', textAlign: 'center', paddingVertical: 20 }}>
+              No selections with a current choice
+            </Text>
+          ) : (
+            available.map(sel => (
+              <TouchableOpacity key={sel.project_selection_id || sel.id} onPress={() => setSelectedItem(sel)}
+                style={{
+                  flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+                  paddingVertical: 14, paddingHorizontal: 16, marginBottom: 8,
+                  borderRadius: 10, borderWidth: 1, borderColor: C.bd, backgroundColor: C.mode === 'dark' ? C.w06 : '#fff',
+                }}
+                activeOpacity={0.7}>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 20, fontWeight: '600', color: C.text }}>{sel.item}</Text>
+                  <Text style={{ fontSize: 17, color: C.dm, marginTop: 2 }}>Currently: {sel.selected}</Text>
+                </View>
+                <Text style={{ fontSize: 20, color: C.dm }}>›</Text>
+              </TouchableOpacity>
+            ))
+          )}
+        </>
+      )}
+
+      {/* Step 2: Show current + pick new option */}
+      {selectedItem && !newOption && (
+        <>
+          <TouchableOpacity onPress={() => setSelectedItem(null)} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 14 }}>
+            <Text style={{ fontSize: 20, color: C.gd }}>‹</Text>
+            <Text style={{ fontSize: 18, color: C.gd, fontWeight: '600' }}>Back</Text>
+          </TouchableOpacity>
+
+          <View style={{
+            borderRadius: 10, borderWidth: 1, borderColor: C.gd + '40', backgroundColor: C.bH05,
+            padding: 14, marginBottom: 16,
+          }}>
+            <Text style={{ fontSize: 16, color: C.dm, fontWeight: '600', marginBottom: 4 }}>CURRENT SELECTION</Text>
+            <Text style={{ fontSize: 22, fontWeight: '700', color: C.text }}>{selectedItem.item}</Text>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 6 }}>
+              <Text style={{ fontSize: 20, color: C.gd, fontWeight: '600' }}>{selectedItem.selected}</Text>
+              <Text style={{ fontSize: 18, color: currentPrice > 0 ? C.yl : C.gn, fontWeight: '600' }}>
+                {currentPrice > 0 ? f$(currentPrice) : 'Standard'}
+              </Text>
+            </View>
+          </View>
+
+          <Lbl>CHOOSE NEW OPTION</Lbl>
+          {(selectedItem.options || []).filter(opt => {
+            const optName = typeof opt === 'object' ? opt.name : opt;
+            return optName !== selectedItem.selected;
+          }).map((opt, i) => {
+            const isObj = typeof opt === 'object';
+            const optName = isObj ? opt.name : opt;
+            const price = isObj ? (opt.comes_standard ? 0 : (opt.price || 0)) : 0;
+            const standard = isObj ? opt.comes_standard : false;
+            const diff = price - currentPrice;
+            return (
+              <TouchableOpacity key={i} onPress={() => setNewOption(optName)}
+                style={{
+                  flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+                  paddingVertical: 14, paddingHorizontal: 16, marginBottom: 8,
+                  borderRadius: 10, borderWidth: 1, borderColor: C.bd, backgroundColor: C.mode === 'dark' ? C.w06 : '#fff',
+                }}
+                activeOpacity={0.7}>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 20, fontWeight: '600', color: C.text }}>{optName}</Text>
+                  <Text style={{ fontSize: 16, color: standard ? C.gn : C.dm, marginTop: 2 }}>
+                    {standard ? 'Standard' : price > 0 ? f$(price) : 'Included'}
+                  </Text>
+                </View>
+                <Text style={{ fontSize: 20, fontWeight: '700', color: diff > 0 ? C.yl : diff < 0 ? C.gn : C.dm }}>
+                  {diff > 0 ? `+${f$(diff)}` : diff < 0 ? f$(diff) : '$0'}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </>
+      )}
+
+      {/* Step 3: Review + due date + sign */}
+      {selectedItem && newOption && (
+        <>
+          <TouchableOpacity onPress={() => setNewOption(null)} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 14 }}>
+            <Text style={{ fontSize: 20, color: C.gd }}>‹</Text>
+            <Text style={{ fontSize: 18, color: C.gd, fontWeight: '600' }}>Back</Text>
+          </TouchableOpacity>
+
+          <View style={{
+            borderRadius: 10, borderWidth: 1, borderColor: C.bd, backgroundColor: C.mode === 'dark' ? C.w06 : '#fff',
+            padding: 16, marginBottom: 16,
+          }}>
+            <Text style={{ fontSize: 18, fontWeight: '700', color: C.text, marginBottom: 10 }}>{selectedItem.item}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+              <Text style={{ fontSize: 18, color: C.dm, textDecorationLine: 'line-through' }}>{selectedItem.selected}</Text>
+              <Text style={{ fontSize: 18, color: C.dm }}>→</Text>
+              <Text style={{ fontSize: 18, color: C.gd, fontWeight: '600' }}>{newOption}</Text>
+            </View>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8, paddingTop: 10, borderTopWidth: 1, borderTopColor: C.w10 }}>
+              <Text style={{ fontSize: 18, color: C.dm }}>Price difference</Text>
+              <Text style={{ fontSize: 24, fontWeight: '700', color: priceDiff >= 0 ? C.yl : C.gn }}>
+                {priceDiff >= 0 ? '+' : ''}{f$(priceDiff)}
+              </Text>
+            </View>
+          </View>
+
+          <DatePicker value={dueDate} onChange={setDueDate} label="DUE DATE" placeholder="Select due date" />
+          <Btn onPress={() => setSignStep(true)}>
+            <Text style={s.btnTxt}>Sign & Send</Text>
+          </Btn>
+        </>
+      )}
     </ModalSheet>
   );
 };
