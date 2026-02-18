@@ -211,6 +211,8 @@ export default function Dashboard() {
   const [taskActionPopup, setTaskActionPopup] = useState(null); // { task, project }
   const [taskActionDate, setTaskActionDate] = useState('');
   const [taskActionSaving, setTaskActionSaving] = useState(false);
+  const [subTaskFilter, setSubTaskFilter] = useState(null); // task name string or null
+  const [subTaskFilterOpen, setSubTaskFilterOpen] = useState(false);
   const [subDraggedId, setSubDraggedId] = useState(null);
   const [subEditing, setSubEditing] = useState(false);
   const [subEditFields, setSubEditFields] = useState({});
@@ -452,6 +454,8 @@ export default function Dashboard() {
     setSubTab('calendar');
     setSubEditing(false);
     setShowDeleteSub(false);
+    setSubTaskFilter(null);
+    setSubTaskFilterOpen(false);
     try {
       const [projRes, taskRes, empRes] = await Promise.all([
         fetch(`${API_BASE}/users/${sub.id}/projects`),
@@ -1610,6 +1614,7 @@ export default function Dashboard() {
       }) : subTasks;
       return items
         .filter(t => t.start_date && t.end_date && t.start_date <= wkEnd && t.end_date >= wkStart)
+        .filter(t => !subTaskFilter || t.task === subTaskFilter)
         .map(t => {
           const tStart = t.start_date < wkStart ? wkStart : t.start_date;
           const tEnd = t.end_date > wkEnd ? wkEnd : t.end_date;
@@ -1631,7 +1636,7 @@ export default function Dashboard() {
         const ov = subPreviewMap[t.id];
         return ov ? { ...t, start_date: ov.start_date, end_date: ov.end_date } : t;
       }) : subTasks;
-      return items.filter(t => t.start_date === ds);
+      return items.filter(t => t.start_date === ds).filter(t => !subTaskFilter || t.task === subTaskFilter);
     };
 
     const subShortDate = (dateStr) => {
@@ -2067,10 +2072,77 @@ export default function Dashboard() {
               ))}
             </View>
 
-            {/* Company name */}
-            <View style={{ alignItems: 'center', paddingTop: 10, paddingBottom: 2 }}>
-              <Text style={{ fontSize: 22, fontWeight: '700', color: C.textBold }}>{selectedSub?.company_name || selectedSub?.name || ''}</Text>
+            {/* Company name + filter */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingTop: 10, paddingBottom: 2, paddingHorizontal: 12 }}>
+              <View style={{ width: 36 }} />
+              <Text style={{ fontSize: 22, fontWeight: '700', color: C.textBold, flex: 1, textAlign: 'center' }}>{selectedSub?.company_name || selectedSub?.name || ''}</Text>
+              <TouchableOpacity
+                onPress={() => setSubTaskFilterOpen(p => !p)}
+                style={{ width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center',
+                  backgroundColor: subTaskFilter ? C.bH12 : C.w06,
+                  borderWidth: 1, borderColor: subTaskFilter ? C.gd + '40' : 'transparent',
+                }}
+                activeOpacity={0.7}
+              >
+                <Text style={{ fontSize: 18, color: subTaskFilter ? C.gd : C.dm }}>🔍</Text>
+              </TouchableOpacity>
             </View>
+
+            {/* Task name filter dropdown */}
+            {subTaskFilterOpen && (() => {
+              const uniqueTasks = [...new Set(subTasks.map(t => t.task).filter(Boolean))].sort();
+              return (
+                <View style={{ marginHorizontal: 12, marginBottom: 8, backgroundColor: C.w04, borderRadius: 10, borderWidth: 1, borderColor: C.w08, overflow: 'hidden' }}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: C.w06 }}>
+                    <Text style={{ fontSize: 13, fontWeight: '700', color: C.dm, letterSpacing: 0.8 }}>FILTER BY TASK</Text>
+                    {subTaskFilter && (
+                      <TouchableOpacity onPress={() => { setSubTaskFilter(null); setSubTaskFilterOpen(false); }} activeOpacity={0.7}>
+                        <Text style={{ fontSize: 14, fontWeight: '600', color: C.bl }}>Clear</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                  <ScrollView style={{ maxHeight: 240 }}>
+                    {uniqueTasks.length === 0 ? (
+                      <View style={{ padding: 16, alignItems: 'center' }}>
+                        <Text style={{ fontSize: 15, color: C.dm }}>No tasks found</Text>
+                      </View>
+                    ) : uniqueTasks.map(name => {
+                      const isActive = subTaskFilter === name;
+                      const count = subTasks.filter(t => t.task === name).length;
+                      return (
+                        <TouchableOpacity key={name}
+                          onPress={() => { setSubTaskFilter(isActive ? null : name); setSubTaskFilterOpen(false); }}
+                          style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 10, paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: C.w04,
+                            backgroundColor: isActive ? C.bH12 : 'transparent',
+                          }}
+                          activeOpacity={0.7}
+                        >
+                          <Text style={{ fontSize: 16, fontWeight: isActive ? '700' : '500', color: isActive ? C.gd : C.text, flex: 1 }} numberOfLines={1}>{name}</Text>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                            <Text style={{ fontSize: 13, color: C.dm }}>{count}</Text>
+                            {isActive && <Text style={{ fontSize: 14, color: C.gd }}>✓</Text>}
+                          </View>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </ScrollView>
+                </View>
+              );
+            })()}
+
+            {/* Active filter badge */}
+            {subTaskFilter && !subTaskFilterOpen && (
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 4 }}>
+                <TouchableOpacity
+                  onPress={() => setSubTaskFilter(null)}
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20, backgroundColor: C.bH12, borderWidth: 1, borderColor: C.gd + '40' }}
+                  activeOpacity={0.7}
+                >
+                  <Text style={{ fontSize: 14, fontWeight: '600', color: C.gd }} numberOfLines={1}>{subTaskFilter}</Text>
+                  <Text style={{ fontSize: 16, color: C.gd, fontWeight: '700' }}>×</Text>
+                </TouchableOpacity>
+              </View>
+            )}
 
             {/* Month nav */}
             <View style={st.subCalNav}>
