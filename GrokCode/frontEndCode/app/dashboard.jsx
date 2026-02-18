@@ -88,6 +88,9 @@ export default function Dashboard() {
   const [showTemplateManager, setShowTemplateManager] = useState(false);
   const [showSelectionManager, setShowSelectionManager] = useState(false);
   const [showDocumentManager, setShowDocumentManager] = useState(false);
+  const [showTradeManager, setShowTradeManager] = useState(false);
+  const [builderTrades, setBuilderTrades] = useState(DEFAULT_TRADES);
+  const [newTradeName, setNewTradeName] = useState('');
   const [clientView, setClientView] = useState(false);
   const [subView, setSubView] = useState(false);
 
@@ -353,7 +356,18 @@ export default function Dashboard() {
       fetchOwnSubProfile();
     } else {
       fetchProjects();
-      if (isBuilder) fetchSubdivisions();
+      if (isBuilder) {
+        fetchSubdivisions();
+        // Load builder's saved trade list
+        fetch(`${API_BASE}/users/${user.id}`)
+          .then(r => r.json())
+          .then(data => {
+            if (data.trades && data.trades.trim()) {
+              setBuilderTrades(data.trades.split(',').map(t => t.trim()).filter(Boolean));
+            }
+          })
+          .catch(() => {});
+      }
     }
     // Fetch company logo (builder's own logo, or find a builder's logo for other roles)
     if (user?.id) {
@@ -667,7 +681,7 @@ export default function Dashboard() {
                       </View>
                     )}
                   </View>
-                  {(isBuilder || isContractor) && (
+                  {active && (isBuilder || isContractor) && (
                     <View style={{ justifyContent: 'center', alignItems: 'center', paddingRight: 4 }}>
                       {isBuilder && (
                         <TouchableOpacity
@@ -676,7 +690,7 @@ export default function Dashboard() {
                           activeOpacity={0.6}
                           hitSlop={{ top: 4, bottom: 4, left: 8, right: 8 }}
                         >
-                          <Text style={{ fontSize: 20, color: active ? C.gd : C.dm }}>ⓘ</Text>
+                          <Text style={{ fontSize: 20, color: C.gd }}>ⓘ</Text>
                         </TouchableOpacity>
                       )}
                       <TouchableOpacity
@@ -694,7 +708,7 @@ export default function Dashboard() {
                         activeOpacity={0.6}
                         hitSlop={{ top: 4, bottom: 4, left: 8, right: 8 }}
                       >
-                        <Text style={{ fontSize: 18, color: (active && clientView) ? C.gn : active ? C.gd : C.dm }}>🏠</Text>
+                        <Text style={{ fontSize: 18, color: clientView ? C.gn : C.gd }}>🏠</Text>
                       </TouchableOpacity>
                     </View>
                   )}
@@ -1092,18 +1106,20 @@ export default function Dashboard() {
                     </View>
                   )}
                 </View>
-                <TouchableOpacity
-                  onPress={(e) => {
-                    e.stopPropagation();
-                    selectSub(sub);
-                    setSubView(prev => (selectedSub?.id === sub.id) ? !prev : true);
-                  }}
-                  style={{ justifyContent: 'center', paddingHorizontal: 10 }}
-                  activeOpacity={0.6}
-                  hitSlop={{ top: 4, bottom: 4, left: 8, right: 8 }}
-                >
-                  <Text style={{ fontSize: 18, color: (active && subView) ? C.gd : C.dm }}>🛠️</Text>
-                </TouchableOpacity>
+                {active && (
+                  <TouchableOpacity
+                    onPress={(e) => {
+                      e.stopPropagation();
+                      selectSub(sub);
+                      setSubView(prev => (selectedSub?.id === sub.id) ? !prev : true);
+                    }}
+                    style={{ justifyContent: 'center', paddingHorizontal: 10 }}
+                    activeOpacity={0.6}
+                    hitSlop={{ top: 4, bottom: 4, left: 8, right: 8 }}
+                  >
+                    <Text style={{ fontSize: 18, color: subView ? C.gd : C.dm }}>🛠️</Text>
+                  </TouchableOpacity>
+                )}
               </TouchableOpacity>
             );
           })}
@@ -1869,7 +1885,7 @@ export default function Dashboard() {
                 <Text style={[st.subSectionLbl, { marginBottom: 6 }]}>TRADES</Text>
                 {subEditing ? (
                   <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
-                    {DEFAULT_TRADES.concat(tradesArr.filter(t => !DEFAULT_TRADES.includes(t))).map(trade => {
+                    {builderTrades.concat(tradesArr.filter(t => !builderTrades.includes(t))).map(trade => {
                       const on = subEditTrades.includes(trade);
                       return (
                         <TouchableOpacity key={trade} onPress={() => setSubEditTrades(prev => on ? prev.filter(t => t !== trade) : [...prev, trade])}
@@ -2891,6 +2907,99 @@ export default function Dashboard() {
         <DocumentManagerModal onClose={() => setShowDocumentManager(false)} />
       )}
 
+      {/* Manage Trades Modal */}
+      {showTradeManager && (
+        <Modal visible animationType="fade" transparent>
+          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }}>
+            <View style={{ width: isWide ? 460 : '92%', maxHeight: '80%', backgroundColor: C.bg, borderRadius: 16, overflow: 'hidden' }}>
+              {/* Header */}
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 18, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: C.bd }}>
+                <Text style={{ fontSize: 20, fontWeight: '700', color: C.textBold }}>Manage Trades</Text>
+                <TouchableOpacity onPress={() => { setShowTradeManager(false); setNewTradeName(''); }} activeOpacity={0.7}>
+                  <Text style={{ fontSize: 28, color: C.dm, fontWeight: '300' }}>×</Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Add new trade */}
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 18, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: C.bd }}>
+                <TextInput
+                  value={newTradeName}
+                  onChangeText={setNewTradeName}
+                  placeholder="Add new trade..."
+                  placeholderTextColor={C.dm}
+                  style={{ flex: 1, fontSize: 16, color: C.text, backgroundColor: C.w04, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, borderWidth: 1, borderColor: C.w08 }}
+                  onSubmitEditing={() => {
+                    const t = newTradeName.trim();
+                    if (t && !builderTrades.includes(t)) {
+                      const updated = [...builderTrades, t];
+                      setBuilderTrades(updated);
+                      setNewTradeName('');
+                      fetch(`${API_BASE}/users/${user.id}`, {
+                        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ trades: updated.join(', ') }),
+                      }).catch(() => {});
+                    } else { setNewTradeName(''); }
+                  }}
+                />
+                <TouchableOpacity
+                  onPress={() => {
+                    const t = newTradeName.trim();
+                    if (t && !builderTrades.includes(t)) {
+                      const updated = [...builderTrades, t];
+                      setBuilderTrades(updated);
+                      setNewTradeName('');
+                      fetch(`${API_BASE}/users/${user.id}`, {
+                        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ trades: updated.join(', ') }),
+                      }).catch(() => {});
+                    } else { setNewTradeName(''); }
+                  }}
+                  style={{ backgroundColor: C.gd, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 8 }}
+                  activeOpacity={0.7}
+                >
+                  <Text style={{ fontSize: 16, fontWeight: '600', color: '#fff' }}>Add</Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Trade list */}
+              <ScrollView style={{ maxHeight: 400 }} contentContainerStyle={{ paddingVertical: 4 }}>
+                {builderTrades.map((trade, idx) => (
+                  <View key={trade} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 18, paddingVertical: 12,
+                    borderBottomWidth: idx < builderTrades.length - 1 ? 1 : 0, borderBottomColor: C.w04,
+                  }}>
+                    <Text style={{ fontSize: 17, fontWeight: '500', color: C.text }}>{trade}</Text>
+                    <TouchableOpacity
+                      onPress={() => {
+                        Alert.alert('Delete Trade', `Remove "${trade}" from your trade list?`, [
+                          { text: 'Cancel', style: 'cancel' },
+                          { text: 'Delete', style: 'destructive', onPress: () => {
+                            const updated = builderTrades.filter(t => t !== trade);
+                            setBuilderTrades(updated);
+                            fetch(`${API_BASE}/users/${user.id}`, {
+                              method: 'PUT', headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ trades: updated.join(', ') }),
+                            }).catch(() => {});
+                          }},
+                        ]);
+                      }}
+                      activeOpacity={0.7}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      <Text style={{ fontSize: 20, color: '#ef4444' }}>🗑</Text>
+                    </TouchableOpacity>
+                  </View>
+                ))}
+                {builderTrades.length === 0 && (
+                  <View style={{ padding: 24, alignItems: 'center' }}>
+                    <Text style={{ fontSize: 16, color: C.dm }}>No trades added yet</Text>
+                  </View>
+                )}
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
+      )}
+
       {/* Builder Calendar Modal */}
       {showBuilderCal && (
         <Modal visible animationType="fade" transparent>
@@ -3269,6 +3378,7 @@ export default function Dashboard() {
       {modal === 'newsub' && (
         <NewSubModal
           onClose={() => setModal(null)}
+          tradesList={builderTrades}
           onCreated={(newSub) => {
             setSubs(prev => [...prev, newSub].sort((a, b) => (a.name || '').localeCompare(b.name || '')));
             setSelectedSub(newSub);
@@ -3394,6 +3504,14 @@ export default function Dashboard() {
                   >
                     <Text style={st.settingsItemIcon}>📄</Text>
                     <Text style={st.settingsItemTxt}>Manage Documents</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => { setShowSettings(false); setShowTradeManager(true); }}
+                    style={st.settingsItem}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={st.settingsItemIcon}>🔧</Text>
+                    <Text style={st.settingsItemTxt}>Manage Trades</Text>
                   </TouchableOpacity>
                 </View>
               )}
@@ -4637,7 +4755,7 @@ const DEFAULT_TRADES = [
   'Doors', 'Sheetrock', 'Insulation', 'Gravel',
 ];
 
-const NewSubModal = ({ onClose, onCreated }) => {
+const NewSubModal = ({ onClose, onCreated, tradesList }) => {
   const C = React.useContext(ThemeContext);
   const st = React.useMemo(() => getStyles(C), [C]);
   const [companyName, setCompanyName] = useState('');
@@ -4651,7 +4769,7 @@ const NewSubModal = ({ onClose, onCreated }) => {
   const [zip, setZip] = useState('');
   const [selectedTrades, setSelectedTrades] = useState([]);
   const [customTrade, setCustomTrade] = useState('');
-  const [allTrades, setAllTrades] = useState(DEFAULT_TRADES);
+  const [allTrades, setAllTrades] = useState(tradesList || DEFAULT_TRADES);
   const [showStateDropdown, setShowStateDropdown] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
