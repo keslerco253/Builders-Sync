@@ -7,7 +7,7 @@ import {
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { AuthContext, ThemeContext, API_BASE } from './context';
 import CurrentProjectViewer, { calcTaskProgress, fPhone } from './currentProjectViewer';
-import ScheduleBuilder, { cascadeAll, calcEndDate, calcFromPredecessor } from './scheduleBuilder';
+import ScheduleBuilder, { cascadeAll, calcEndDate, calcFromPredecessor, TEMPLATE_TRADES } from './scheduleBuilder';
 import DatePicker from './datePicker';
 import { cascadeDates, buildDepMap, getAllDependents } from './scheduleCalendar';
 
@@ -2356,6 +2356,18 @@ export default function Dashboard() {
                       <Text style={{ fontSize: 18, fontWeight: '600', color: C.text }}>Job Schedule</Text>
                       <Text style={{ marginLeft: 'auto', fontSize: 18, color: C.dm }}>›</Text>
                     </TouchableOpacity>
+                    <TouchableOpacity onPress={() => taskActionNav(taskActionPopup.project, 'schedule', 'list')}
+                      style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: C.w06 }} activeOpacity={0.7}>
+                      <Text style={{ fontSize: 22 }}>📋</Text>
+                      <Text style={{ fontSize: 18, fontWeight: '600', color: C.text }}>Job Schedule Report</Text>
+                      <Text style={{ marginLeft: 'auto', fontSize: 18, color: C.dm }}>›</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: C.w06, opacity: 0.5 }} activeOpacity={1}>
+                      <Text style={{ fontSize: 22 }}>📐</Text>
+                      <Text style={{ fontSize: 18, fontWeight: '600', color: C.text }}>Job Specifications</Text>
+                      <Text style={{ marginLeft: 'auto', fontSize: 14, color: C.dm }}>Coming Soon</Text>
+                    </TouchableOpacity>
                     <TouchableOpacity onPress={() => taskActionNav(taskActionPopup.project, 'docs', 'documents')}
                       style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, paddingHorizontal: 16, borderBottomWidth: taskActionPopup.project.subdivision_id ? 1 : 0, borderBottomColor: C.w06 }} activeOpacity={0.7}>
                       <Text style={{ fontSize: 22 }}>📄</Text>
@@ -4098,6 +4110,7 @@ const NewProjectModal = ({ onClose, onCreated, subdivisions = [] }) => {
   const [showAddrState, setShowAddrState] = useState(false);
   const [showReview, setShowReview] = useState(false);
   const [reviewTasks, setReviewTasks] = useState([]);
+  const [tradeDropdownIdx, setTradeDropdownIdx] = useState(null);
   const [reviewTmplInfo, setReviewTmplInfo] = useState(null);
   const [appliedTemplate, setAppliedTemplate] = useState(null);
   const [showSubdivPicker, setShowSubdivPicker] = useState(false);
@@ -4350,14 +4363,16 @@ const NewProjectModal = ({ onClose, onCreated, subdivisions = [] }) => {
                           placeholderTextColor={C.ph}
                           style={{ flex: 3, fontSize: 17, color: C.text, backgroundColor: C.inputBg, borderWidth: 1, borderColor: C.w08, borderRadius: 6, paddingVertical: 5, paddingHorizontal: 8 }}
                         />
-                        {/* Trade */}
-                        <TextInput
-                          value={task.trade || ''}
-                          onChangeText={v => setReviewTasks(prev => prev.map((t, i) => i === idx ? { ...t, trade: v } : t))}
-                          placeholder="Trade"
-                          placeholderTextColor={C.ph}
-                          style={{ flex: 2, fontSize: 17, color: C.bl, backgroundColor: C.inputBg, borderWidth: 1, borderColor: C.w08, borderRadius: 6, paddingVertical: 5, paddingHorizontal: 8, marginLeft: 6 }}
-                        />
+                        {/* Trade dropdown */}
+                        <TouchableOpacity
+                          onPress={() => setTradeDropdownIdx(tradeDropdownIdx === idx ? null : idx)}
+                          style={{ flex: 2, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: C.inputBg, borderWidth: 1, borderColor: C.w08, borderRadius: 6, paddingVertical: 5, paddingHorizontal: 8, marginLeft: 6 }}
+                          activeOpacity={0.7}>
+                          <Text style={{ fontSize: 17, color: task.trade ? C.bl : C.ph, flex: 1 }} numberOfLines={1}>
+                            {task.trade || 'Trade'}
+                          </Text>
+                          <Text style={{ fontSize: 13, color: C.dm }}>▾</Text>
+                        </TouchableOpacity>
                         {/* Workdays */}
                         <TextInput
                           value={String(task.workdays || '1')}
@@ -4470,6 +4485,47 @@ const NewProjectModal = ({ onClose, onCreated, subdivisions = [] }) => {
                     );
                   })}
                 </ScrollView>
+
+                {/* Trade dropdown modal */}
+                {tradeDropdownIdx !== null && (
+                  <Modal visible transparent animationType="fade">
+                    <TouchableOpacity style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', alignItems: 'center' }} activeOpacity={1} onPress={() => setTradeDropdownIdx(null)}>
+                      <TouchableOpacity activeOpacity={1} onPress={e => e.stopPropagation()}>
+                        <View style={{ width: 320, backgroundColor: C.modalBg, borderRadius: 12, borderWidth: 1, borderColor: C.w12, overflow: 'hidden', maxHeight: 420,
+                          ...(Platform.OS === 'web' ? { boxShadow: '0 8px 30px rgba(0,0,0,0.3)' } : { elevation: 20 }) }}>
+                          <View style={{ paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: C.w08 }}>
+                            <Text style={{ fontSize: 18, fontWeight: '700', color: C.textBold }}>Select Trade</Text>
+                          </View>
+                          <ScrollView style={{ maxHeight: 320 }}>
+                            {TEMPLATE_TRADES.map(trade => {
+                              const isActive = reviewTasks[tradeDropdownIdx]?.trade === trade;
+                              return (
+                                <TouchableOpacity key={trade} onPress={() => {
+                                  setReviewTasks(prev => prev.map((t, i) => i === tradeDropdownIdx ? { ...t, trade } : t));
+                                  setTradeDropdownIdx(null);
+                                }}
+                                  style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 11, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: C.w04,
+                                    ...(isActive ? { backgroundColor: 'rgba(59,130,246,0.12)' } : {}) }} activeOpacity={0.7}>
+                                  <Text style={{ fontSize: 17, color: isActive ? C.bl : C.text, fontWeight: isActive ? '600' : '400' }}>{trade}</Text>
+                                  {isActive && <Text style={{ fontSize: 19, color: C.bl }}>✓</Text>}
+                                </TouchableOpacity>
+                              );
+                            })}
+                          </ScrollView>
+                          {reviewTasks[tradeDropdownIdx]?.trade && (
+                            <TouchableOpacity onPress={() => {
+                              setReviewTasks(prev => prev.map((t, i) => i === tradeDropdownIdx ? { ...t, trade: '' } : t));
+                              setTradeDropdownIdx(null);
+                            }}
+                              style={{ paddingVertical: 12, alignItems: 'center', borderTopWidth: 1, borderTopColor: C.w08 }}>
+                              <Text style={{ fontSize: 16, color: C.rd, fontWeight: '600' }}>Remove Trade</Text>
+                            </TouchableOpacity>
+                          )}
+                        </View>
+                      </TouchableOpacity>
+                    </TouchableOpacity>
+                  </Modal>
+                )}
 
                 {/* Footer */}
                 <View style={{ flexDirection: 'row', gap: 10, padding: 20, borderTopWidth: 1, borderTopColor: C.bd }}>
