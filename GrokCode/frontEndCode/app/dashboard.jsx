@@ -94,10 +94,6 @@ export default function Dashboard() {
     }
   }, [clientView]);
 
-  useEffect(() => {
-    if (dashView !== 'subs') setSubView(false);
-  }, [dashView]);
-
   const handleProjectUpdate = useCallback((updatedFields) => {
     if (!selectedProject) return;
     const updated = { ...selectedProject, ...updatedFields };
@@ -193,6 +189,9 @@ export default function Dashboard() {
 
   const [showExemptions, setShowExemptions] = useState(false);
   const [dashView, setDashView] = useState('projects'); // 'projects' | 'subs'
+  useEffect(() => {
+    if (dashView !== 'subs') setSubView(false);
+  }, [dashView]);
   const [subs, setSubs] = useState([]);
   const [selectedSub, setSelectedSub] = useState(null);
   const [subProjects, setSubProjects] = useState([]);
