@@ -3718,7 +3718,7 @@ export default function Dashboard() {
                                 </View>
                               )}
                             </View>
-                            {(isBuilder || isContractor) && (
+                            {active && (isBuilder || isContractor) && (
                               <View style={{ justifyContent: 'center', alignItems: 'center', paddingRight: 4 }}>
                                 {isBuilder && (
                                   <TouchableOpacity
@@ -3727,7 +3727,7 @@ export default function Dashboard() {
                                     activeOpacity={0.6}
                                     hitSlop={{ top: 4, bottom: 4, left: 8, right: 8 }}
                                   >
-                                    <Text style={{ fontSize: 20, color: active ? C.gd : C.dm }}>ⓘ</Text>
+                                    <Text style={{ fontSize: 20, color: C.gd }}>ⓘ</Text>
                                   </TouchableOpacity>
                                 )}
                                 <TouchableOpacity
@@ -3745,7 +3745,7 @@ export default function Dashboard() {
                                   activeOpacity={0.6}
                                   hitSlop={{ top: 4, bottom: 4, left: 8, right: 8 }}
                                 >
-                                  <Text style={{ fontSize: 18, color: (active && clientView) ? C.gn : active ? C.gd : C.dm }}>🏠</Text>
+                                  <Text style={{ fontSize: 18, color: clientView ? C.gn : C.gd }}>🏠</Text>
                                 </TouchableOpacity>
                               </View>
                             )}
