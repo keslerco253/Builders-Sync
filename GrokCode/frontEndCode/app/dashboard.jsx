@@ -208,6 +208,9 @@ export default function Dashboard() {
   const [subEditDuration, setSubEditDuration] = useState('');
   const [subEditReason, setSubEditReason] = useState('');
   const [subEditSaving, setSubEditSaving] = useState(false);
+  const [taskActionPopup, setTaskActionPopup] = useState(null); // { task, project }
+  const [taskActionDate, setTaskActionDate] = useState('');
+  const [taskActionSaving, setTaskActionSaving] = useState(false);
   const [subDraggedId, setSubDraggedId] = useState(null);
   const [subEditing, setSubEditing] = useState(false);
   const [subEditFields, setSubEditFields] = useState({});
@@ -1278,6 +1281,52 @@ export default function Dashboard() {
 
   const closeSubEditPopup = () => { setSubEditPopup(null); setSubEditDuration(''); setSubEditReason(''); setSubEditSaving(false); };
 
+  // Task action popup helpers
+  const closeTaskActionPopup = () => { setTaskActionPopup(null); setTaskActionDate(''); setTaskActionSaving(false); };
+  const taskActionNav = (proj, tab, sub) => {
+    closeTaskActionPopup();
+    if (isContractor) { setContractorProject(proj); setSubTab('projects'); }
+    else { setDashView('projects'); setSelectedProject(proj); }
+    if (tab) setActiveTab(tab);
+    if (sub) setActiveSub(sub);
+  };
+  const handleMoveTaskDate = async () => {
+    if (!taskActionPopup || !taskActionDate) return;
+    const { task, project } = taskActionPopup;
+    if (project.go_live) return;
+    const dur = subWorkdayCount(task.start_date, task.end_date);
+    const newEnd = subCalcEnd(taskActionDate, dur);
+    setTaskActionSaving(true);
+    try {
+      const res = await fetch(`${API_BASE}/schedule/${task.id}/edit`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          start_date: taskActionDate, end_date: newEnd,
+          reason: 'Task date moved from subcontractor view',
+          edited_by: user?.firstName ? `${user.firstName} ${user.lastName}` : 'Unknown',
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        Alert.alert('Error', err.error || 'Failed to move task date');
+        return;
+      }
+      const cascaded = await res.json();
+      if (Array.isArray(cascaded)) {
+        setSubTasks(prev => prev.map(t => {
+          const updated = cascaded.find(c => c.id === t.id);
+          return updated ? { ...t, ...updated } : t;
+        }));
+      }
+      closeTaskActionPopup();
+    } catch (e) {
+      Alert.alert('Error', 'Network error');
+    } finally {
+      setTaskActionSaving(false);
+    }
+  };
+
   const saveSubEdit = async () => {
     if (!subEditPopup || !subEditReason.trim() || subEditSaving) return;
     const task = subEditPopup.task;
@@ -2112,10 +2161,7 @@ export default function Dashboard() {
                             activeOpacity={0.7}
                             onPress={() => {
                               const proj = projects.find(pr => pr.id === task.job_id);
-                              if (proj) {
-                                if (isContractor) { setContractorProject(proj); setSubTab('projects'); }
-                                else { setDashView('projects'); setSelectedProject(proj); }
-                              }
+                              if (proj) { setTaskActionPopup({ task, project: proj }); setTaskActionDate(''); }
                             }}
                             style={[st.subCalTaskBar, {
                               left: leftPct, width: widthPct, top: laneTop,
@@ -2185,10 +2231,7 @@ export default function Dashboard() {
                                 activeOpacity={0.7}
                                 onPress={() => {
                                   const proj = projects.find(pr => pr.id === task.job_id);
-                                  if (proj) {
-                                    if (isContractor) { setContractorProject(proj); setSubTab('projects'); }
-                                    else { setDashView('projects'); setSelectedProject(proj); }
-                                  }
+                                  if (proj) { setTaskActionPopup({ task, project: proj }); setTaskActionDate(''); }
                                 }}
                                 style={[{
                                   flexDirection: 'column', gap: 2, marginTop: 4, marginRight: 4,
@@ -2285,6 +2328,71 @@ export default function Dashboard() {
                       <Text style={{ fontSize: 20, color: C.textBold, fontWeight: '700' }}>{subEditSaving ? 'Saving...' : 'Save'}</Text>
                     </TouchableOpacity>
                   </View>
+                </View>
+              </View>
+            )}
+
+            {/* Task action popup */}
+            {taskActionPopup && (
+              <View style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 1000, alignItems: 'center', justifyContent: 'center' }}>
+                <TouchableOpacity style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)' }} activeOpacity={1} onPress={closeTaskActionPopup} />
+                <View style={{ width: 380, zIndex: 1001, backgroundColor: C.modalBg, borderRadius: 12, borderWidth: 1, borderColor: C.w12, overflow: 'hidden',
+                  ...(Platform.OS === 'web' ? { boxShadow: '0 12px 40px rgba(0,0,0,0.3)' } : { elevation: 20 }) }}>
+                  {/* Header */}
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: C.w08, backgroundColor: C.w03 }}>
+                    <View style={{ flex: 1, marginRight: 8 }}>
+                      <Text style={{ fontSize: 21, fontWeight: '700', color: C.textBold }} numberOfLines={1}>{taskActionPopup.task.task}</Text>
+                      <Text style={{ fontSize: 15, color: C.dm, marginTop: 2 }} numberOfLines={1}>{taskActionPopup.project.name}</Text>
+                    </View>
+                    <TouchableOpacity onPress={closeTaskActionPopup} style={{ width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center', backgroundColor: C.w06 }}>
+                      <Text style={{ fontSize: 27, color: C.mt, marginTop: -1 }}>×</Text>
+                    </TouchableOpacity>
+                  </View>
+                  {/* Navigation options */}
+                  <View style={{ borderBottomWidth: taskActionPopup.project.go_live ? 0 : 1, borderBottomColor: C.w06 }}>
+                    <TouchableOpacity onPress={() => taskActionNav(taskActionPopup.project, 'schedule', 'calendar')}
+                      style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: C.w06 }} activeOpacity={0.7}>
+                      <Text style={{ fontSize: 22 }}>📅</Text>
+                      <Text style={{ fontSize: 18, fontWeight: '600', color: C.text }}>Job Schedule</Text>
+                      <Text style={{ marginLeft: 'auto', fontSize: 18, color: C.dm }}>›</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => taskActionNav(taskActionPopup.project, 'docs', 'documents')}
+                      style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, paddingHorizontal: 16, borderBottomWidth: taskActionPopup.project.subdivision_id ? 1 : 0, borderBottomColor: C.w06 }} activeOpacity={0.7}>
+                      <Text style={{ fontSize: 22 }}>📄</Text>
+                      <Text style={{ fontSize: 18, fontWeight: '600', color: C.text }}>Documents</Text>
+                      <Text style={{ marginLeft: 'auto', fontSize: 18, color: C.dm }}>›</Text>
+                    </TouchableOpacity>
+                    {taskActionPopup.project.subdivision_id && (
+                      <TouchableOpacity onPress={() => {
+                        const sd = subdivisions.find(s => s.id === taskActionPopup.project.subdivision_id);
+                        if (sd) { closeTaskActionPopup(); setDashView('projects'); setSelectedProject(null); selectSubdivision(sd); setSubdivTab('docs'); }
+                      }}
+                        style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, paddingHorizontal: 16 }} activeOpacity={0.7}>
+                        <Text style={{ fontSize: 22 }}>🏘️</Text>
+                        <Text style={{ fontSize: 18, fontWeight: '600', color: C.text }}>Subdivision Documents</Text>
+                        <Text style={{ marginLeft: 'auto', fontSize: 18, color: C.dm }}>›</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                  {/* Move Task Date — only if NOT live */}
+                  {!taskActionPopup.project.go_live && (
+                    <View style={{ padding: 16 }}>
+                      <Text style={{ fontSize: 15, fontWeight: '700', color: C.dm, letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 8 }}>MOVE TASK DATE</Text>
+                      <Text style={{ fontSize: 14, color: C.dm, marginBottom: 8 }}>Current: {taskActionPopup.task.start_date} → {taskActionPopup.task.end_date}</Text>
+                      <DatePicker value={taskActionDate} onChange={setTaskActionDate} label="NEW START DATE" placeholder="Select new start date" />
+                      {taskActionDate ? (
+                        <Text style={{ fontSize: 14, color: C.gd, marginTop: 6 }}>
+                          New range: {taskActionDate} → {subCalcEnd(taskActionDate, subWorkdayCount(taskActionPopup.task.start_date, taskActionPopup.task.end_date))}
+                        </Text>
+                      ) : null}
+                      <TouchableOpacity onPress={handleMoveTaskDate} disabled={!taskActionDate || taskActionSaving}
+                        style={{ marginTop: 12, backgroundColor: taskActionDate ? C.gd : C.w10, paddingVertical: 12, borderRadius: 8, alignItems: 'center', opacity: taskActionDate ? 1 : 0.5 }} activeOpacity={0.8}>
+                        <Text style={{ fontSize: 16, fontWeight: '700', color: taskActionDate ? '#000' : C.dm }}>
+                          {taskActionSaving ? 'Moving...' : 'Move Task Date'}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
                 </View>
               </View>
             )}
