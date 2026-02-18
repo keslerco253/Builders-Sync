@@ -2910,7 +2910,7 @@ export default function Dashboard() {
 
         {/* Main project tabs — inline in header when a project is selected */}
         {(selectedProject || contractorProject) && dashView === 'projects' && (
-          <View style={{ flexDirection: 'row', flexShrink: 1, flexGrow: 1, borderBottomWidth: 1, borderBottomColor: C.sw06 }}>
+          <View style={{ flexDirection: 'row', flexShrink: 1, flexGrow: 1, alignSelf: 'flex-end', marginBottom: -12 }}>
             {(subView
               ? [
                   { id: 'schedule', label: 'Schedule', defSub: 'calendar' },
@@ -2956,7 +2956,7 @@ export default function Dashboard() {
                 <TouchableOpacity
                   key={t.id}
                   onPress={() => { setActiveTab(t.id); setActiveSub(t.defSub); }}
-                  style={{ flex: 1, paddingVertical: 12, alignItems: 'center', borderBottomWidth: active ? 2 : 0, borderBottomColor: C.gd }}
+                  style={{ flex: 1, paddingTop: 4, paddingBottom: 10, alignItems: 'center', borderBottomWidth: active ? 2 : 0, borderBottomColor: C.gd }}
                   activeOpacity={0.7}
                 >
                   <Text style={{ fontSize: 21, fontWeight: active ? '600' : '500', color: active ? C.chromeTxt : C.chromeDm }}>{t.label}</Text>
