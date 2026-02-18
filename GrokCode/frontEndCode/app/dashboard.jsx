@@ -83,6 +83,7 @@ export default function Dashboard() {
   const [showSettings, setShowSettings] = useState(false);
   const [showTemplateManager, setShowTemplateManager] = useState(false);
   const [showSelectionManager, setShowSelectionManager] = useState(false);
+  const [showDocumentManager, setShowDocumentManager] = useState(false);
   const [clientView, setClientView] = useState(false);
   const [subView, setSubView] = useState(false);
 
@@ -2516,6 +2517,11 @@ export default function Dashboard() {
         <SelectionManagerModal onClose={() => setShowSelectionManager(false)} />
       )}
 
+      {/* Document Manager Modal */}
+      {showDocumentManager && (
+        <DocumentManagerModal onClose={() => setShowDocumentManager(false)} />
+      )}
+
       {/* Builder Calendar Modal */}
       {showBuilderCal && (
         <Modal visible animationType="fade" transparent>
@@ -3011,6 +3017,14 @@ export default function Dashboard() {
                   >
                     <Text style={st.settingsItemIcon}>🎨</Text>
                     <Text style={st.settingsItemTxt}>Manage Selections</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => { setShowSettings(false); setShowDocumentManager(true); }}
+                    style={st.settingsItem}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={st.settingsItemIcon}>📄</Text>
+                    <Text style={st.settingsItemTxt}>Manage Documents</Text>
                   </TouchableOpacity>
                 </View>
               )}
@@ -4453,6 +4467,134 @@ const NewSubModal = ({ onClose, onCreated }) => {
 
 // ============================================================
 // SELECTION MANAGER MODAL (global catalog)
+// ============================================================
+
+// ============================================================
+// DOCUMENT MANAGER MODAL
+// ============================================================
+const DocumentManagerModal = ({ onClose }) => {
+  const C = React.useContext(ThemeContext);
+  const st = React.useMemo(() => getStyles(C), [C]);
+  const [templates, setTemplates] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [name, setName] = useState('');
+  const [docType, setDocType] = useState('file');
+
+  const fetchTemplates = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/document-templates`);
+      if (res.ok) setTemplates(await res.json());
+    } catch (e) { console.warn(e); }
+    setLoading(false);
+  };
+
+  React.useEffect(() => { fetchTemplates(); }, []);
+
+  const addTemplate = async () => {
+    if (!name.trim()) return Alert.alert('Error', 'Document name is required');
+    try {
+      const res = await fetch(`${API_BASE}/document-templates`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: name.trim(), doc_type: docType }),
+      });
+      if (res.ok) {
+        const t = await res.json();
+        setTemplates(prev => [...prev, t].sort((a, b) => a.name.localeCompare(b.name)));
+        setName('');
+        setDocType('file');
+      }
+    } catch (e) { Alert.alert('Error', e.message); }
+  };
+
+  const deleteTemplate = async (id) => {
+    try {
+      const res = await fetch(`${API_BASE}/document-templates/${id}`, { method: 'DELETE' });
+      if (res.ok) setTemplates(prev => prev.filter(t => t.id !== id));
+    } catch (e) { Alert.alert('Error', e.message); }
+  };
+
+  return (
+    <Modal visible animationType="slide" transparent>
+      <View style={st.exOverlay}>
+        <View style={[st.exBox, { maxWidth: 560, maxHeight: '94%' }]}>
+          <View style={st.exHeader}>
+            <Text style={st.exTitle}>📄 Manage Documents</Text>
+            <TouchableOpacity onPress={onClose} style={st.exCloseBtn}>
+              <Text style={st.exCloseTxt}>✕</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={{ padding: 16, borderBottomWidth: 1, borderBottomColor: C.sw06 }}>
+            <Text style={{ fontSize: 16, fontWeight: '600', color: C.dm, marginBottom: 10 }}>ADD REQUIRED DOCUMENT</Text>
+            <TextInput
+              value={name}
+              onChangeText={setName}
+              placeholder="Document name (e.g., Building Permit)"
+              placeholderTextColor={C.ph}
+              style={{ fontSize: 18, color: C.text, backgroundColor: C.inputBg, borderWidth: 1, borderColor: C.w10, borderRadius: 8, padding: 12, marginBottom: 10 }}
+            />
+            <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
+              {['file', 'folder'].map(t => (
+                <TouchableOpacity key={t} onPress={() => setDocType(t)}
+                  style={[{ flex: 1, paddingVertical: 10, borderRadius: 8, alignItems: 'center', borderWidth: 1 },
+                    docType === t
+                      ? { borderColor: C.gd, backgroundColor: C.bH12 }
+                      : { borderColor: C.w08 }
+                  ]} activeOpacity={0.7}>
+                  <Text style={{ fontSize: 20, marginBottom: 2 }}>{t === 'file' ? '📄' : '📁'}</Text>
+                  <Text style={{ fontSize: 16, fontWeight: '600', color: docType === t ? C.gd : C.mt }}>
+                    {t === 'file' ? 'File' : 'Folder'}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <TouchableOpacity onPress={addTemplate}
+              style={{ backgroundColor: C.gd, paddingVertical: 12, borderRadius: 8, alignItems: 'center' }}
+              activeOpacity={0.7}>
+              <Text style={{ fontSize: 18, fontWeight: '700', color: '#000' }}>+ Add Document</Text>
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16 }}>
+            {loading ? (
+              <ActivityIndicator color={C.gd} style={{ marginTop: 30 }} />
+            ) : templates.length === 0 ? (
+              <View style={{ alignItems: 'center', paddingVertical: 40 }}>
+                <Text style={{ fontSize: 42, marginBottom: 8 }}>📋</Text>
+                <Text style={{ fontSize: 20, fontWeight: '600', color: C.textBold }}>No document templates</Text>
+                <Text style={{ fontSize: 16, color: C.dm, marginTop: 4, textAlign: 'center' }}>
+                  Add required documents above. They will appear on every project.
+                </Text>
+              </View>
+            ) : (
+              templates.map(t => (
+                <View key={t.id} style={{
+                  flexDirection: 'row', alignItems: 'center', gap: 12,
+                  backgroundColor: C.w06, borderRadius: 10, padding: 14, marginBottom: 8,
+                }}>
+                  <Text style={{ fontSize: 22 }}>{t.doc_type === 'folder' ? '📁' : '📄'}</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 18, fontWeight: '600', color: C.text }}>{t.name}</Text>
+                    <Text style={{ fontSize: 14, color: C.dm, marginTop: 2 }}>{t.doc_type === 'folder' ? 'Folder' : 'File'}</Text>
+                  </View>
+                  <TouchableOpacity onPress={() => deleteTemplate(t.id)}
+                    style={{ padding: 6 }} activeOpacity={0.6}>
+                    <Text style={{ fontSize: 18, color: C.rd }}>🗑</Text>
+                  </TouchableOpacity>
+                </View>
+              ))
+            )}
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+  );
+};
+
+// ============================================================
+// SELECTION MANAGER MODAL
 // ============================================================
 const SELECTION_CATEGORIES = ['Countertops', 'Flooring', 'Cabinets', 'Tile', 'Lighting', 'Plumbing Fixtures', 'Appliances', 'Paint', 'Hardware', 'Exterior', 'Landscaping', 'Other'];
 

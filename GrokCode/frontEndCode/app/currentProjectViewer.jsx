@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Linking,
   TextInput, Alert, ActivityIndicator, Modal, KeyboardAvoidingView, Dimensions, Image, AppState,
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
@@ -364,6 +364,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
   const [changeOrders, setChangeOrders] = useState([]);
   const [selections, setSelections] = useState([]);
   const [documents, setDocuments] = useState([]);
+  const [docTemplates, setDocTemplates] = useState([]);
   const [photos, setPhotos] = useState([]);
   const [videos, setVideos] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -538,7 +539,10 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
       api(`/projects/${pid}/selections`).then(d => d && setSelections(d));
     }
     if (tab === 'docs') {
-      if (sub === 'documents') api(`/projects/${pid}/documents?type=document`).then(d => d && setDocuments(d));
+      if (sub === 'documents') {
+        api(`/projects/${pid}/documents?type=document`).then(d => d && setDocuments(d));
+        api(`/document-templates`).then(d => d && setDocTemplates(d));
+      }
       if (sub === 'photos') api(`/projects/${pid}/documents?type=photo`).then(d => d && setPhotos(d));
       if (sub === 'videos') api(`/projects/${pid}/documents?type=video`).then(d => d && setVideos(d));
     }
@@ -2185,21 +2189,142 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
     // --- DOCUMENTS ---
     if (tab === 'docs') {
       if (sub === 'documents') {
+        // Group uploaded docs by template_id
+        const docsByTemplate = {};
+        const unlinkedDocs = [];
+        documents.forEach(d => {
+          if (d.template_id) {
+            if (!docsByTemplate[d.template_id]) docsByTemplate[d.template_id] = [];
+            docsByTemplate[d.template_id].push(d);
+          } else {
+            unlinkedDocs.push(d);
+          }
+        });
+
+        const openFile = (url) => {
+          const full = url.startsWith('http') ? url : `${API_BASE}${url}`;
+          if (Platform.OS === 'web') {
+            window.open(full, '_blank');
+          } else {
+            Linking.openURL(full);
+          }
+        };
+
+        const deleteDoc = async (docId) => {
+          try {
+            const res = await fetch(`${API_BASE}/documents/${docId}`, { method: 'DELETE' });
+            if (res.ok) setDocuments(prev => prev.filter(d => d.id !== docId));
+          } catch (e) { Alert.alert('Error', e.message); }
+        };
+
+        const formatSize = (bytes) => {
+          if (!bytes) return '';
+          if (bytes < 1024) return `${bytes} B`;
+          if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+          return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+        };
+
         return (
           <ScrollView style={{ flex: 1 }} contentContainerStyle={s.scroll}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
               <Text style={s.sectionTitle}>Documents</Text>
               {(isB || isCon) && <Btn onPress={() => setModal('uploaddoc')}><Text style={s.btnTxt}>⬆ Upload</Text></Btn>}
             </View>
-            {documents.length === 0 ? <Empty icon="📁" text="No documents uploaded" /> : documents.map(d => (
-              <Card key={d.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 8 }}>
-                <View style={s.docIcon}><Text style={{ fontSize: 24 }}>📄</Text></View>
-                <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 21, fontWeight: '600', color: C.text }}>{d.name}</Text>
-                  <Text style={{ fontSize: 16, color: C.dm, marginTop: 2 }}>{d.category} · {fD(d.created_at)} · {d.uploaded_by}</Text>
-                </View>
-              </Card>
-            ))}
+
+            {/* Required documents from templates */}
+            {docTemplates.map(tmpl => {
+              const uploads = docsByTemplate[tmpl.id] || [];
+              const hasUpload = uploads.length > 0;
+              return (
+                <Card key={tmpl.id} style={{ marginBottom: 10, padding: 0, overflow: 'hidden' }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', padding: 14, gap: 12 }}>
+                    <Text style={{ fontSize: 24 }}>{tmpl.doc_type === 'folder' ? '📁' : '📄'}</Text>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 20, fontWeight: '600', color: C.text }}>{tmpl.name}</Text>
+                      <Text style={{ fontSize: 14, color: hasUpload ? C.gn : C.yl, marginTop: 2 }}>
+                        {hasUpload ? `✓ ${uploads.length} file${uploads.length > 1 ? 's' : ''} uploaded` : '⏳ Not yet uploaded'}
+                      </Text>
+                    </View>
+                    {(isB || isCon) && (
+                      <TouchableOpacity
+                        onPress={() => setModal({ type: 'uploaddoc', templateId: tmpl.id, templateName: tmpl.name })}
+                        style={{ backgroundColor: C.gd, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8 }}
+                        activeOpacity={0.7}>
+                        <Text style={{ fontSize: 16, fontWeight: '700', color: '#000' }}>⬆ Upload</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                  {uploads.map(d => (
+                    <View key={d.id} style={{
+                      flexDirection: 'row', alignItems: 'center', gap: 10,
+                      paddingHorizontal: 14, paddingVertical: 10,
+                      borderTopWidth: 1, borderTopColor: C.w06,
+                      backgroundColor: C.w06 + '40',
+                    }}>
+                      <Text style={{ fontSize: 18 }}>📎</Text>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 17, fontWeight: '500', color: C.text }} numberOfLines={1}>{d.name}</Text>
+                        <Text style={{ fontSize: 13, color: C.dm }}>{fD(d.created_at)}{d.uploaded_by ? ` · ${d.uploaded_by}` : ''}{d.file_size ? ` · ${formatSize(d.file_size)}` : ''}</Text>
+                      </View>
+                      {d.file_url ? (
+                        <View style={{ flexDirection: 'row', gap: 6 }}>
+                          <TouchableOpacity onPress={() => openFile(d.file_url)}
+                            style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 6, backgroundColor: C.bl + '20' }}
+                            activeOpacity={0.7}>
+                            <Text style={{ fontSize: 14, fontWeight: '600', color: C.bl }}>View</Text>
+                          </TouchableOpacity>
+                          {(isB || isCon) && (
+                            <TouchableOpacity onPress={() => deleteDoc(d.id)}
+                              style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 6, backgroundColor: C.rd + '15' }}
+                              activeOpacity={0.7}>
+                              <Text style={{ fontSize: 14, fontWeight: '600', color: C.rd }}>Delete</Text>
+                            </TouchableOpacity>
+                          )}
+                        </View>
+                      ) : null}
+                    </View>
+                  ))}
+                </Card>
+              );
+            })}
+
+            {/* Unlinked documents (uploaded without a template) */}
+            {unlinkedDocs.length > 0 && (
+              <>
+                {docTemplates.length > 0 && (
+                  <Text style={{ fontSize: 18, fontWeight: '600', color: C.dm, marginTop: 16, marginBottom: 8 }}>Other Documents</Text>
+                )}
+                {unlinkedDocs.map(d => (
+                  <Card key={d.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+                    <View style={s.docIcon}><Text style={{ fontSize: 24 }}>📄</Text></View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 20, fontWeight: '600', color: C.text }}>{d.name}</Text>
+                      <Text style={{ fontSize: 15, color: C.dm, marginTop: 2 }}>{d.category} · {fD(d.created_at)}{d.uploaded_by ? ` · ${d.uploaded_by}` : ''}{d.file_size ? ` · ${formatSize(d.file_size)}` : ''}</Text>
+                    </View>
+                    {d.file_url ? (
+                      <View style={{ flexDirection: 'row', gap: 6 }}>
+                        <TouchableOpacity onPress={() => openFile(d.file_url)}
+                          style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 6, backgroundColor: C.bl + '20' }}
+                          activeOpacity={0.7}>
+                          <Text style={{ fontSize: 14, fontWeight: '600', color: C.bl }}>View</Text>
+                        </TouchableOpacity>
+                        {(isB || isCon) && (
+                          <TouchableOpacity onPress={() => deleteDoc(d.id)}
+                            style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 6, backgroundColor: C.rd + '15' }}
+                            activeOpacity={0.7}>
+                            <Text style={{ fontSize: 14, fontWeight: '600', color: C.rd }}>Delete</Text>
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                    ) : null}
+                  </Card>
+                ))}
+              </>
+            )}
+
+            {docTemplates.length === 0 && documents.length === 0 && (
+              <Empty icon="📁" text="No documents uploaded" />
+            )}
           </ScrollView>
         );
       }
@@ -2428,10 +2553,14 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
     }
 
     // --- Upload Document / Photo / Video ---
-    if (modal === 'uploaddoc' || modal === 'uploadphoto' || modal === 'uploadvideo') {
+    const isUploadModal = modal === 'uploaddoc' || modal === 'uploadphoto' || modal === 'uploadvideo' || (modal && modal.type === 'uploaddoc');
+    if (isUploadModal) {
       const mediaType = modal === 'uploadphoto' ? 'photo' : modal === 'uploadvideo' ? 'video' : 'document';
+      const templateId = modal?.templateId || null;
+      const templateName = modal?.templateName || null;
       return <UploadModal
         project={project} user={user} api={api} mediaType={mediaType}
+        templateId={templateId} templateName={templateName}
         onClose={() => setModal(null)}
         onCreated={(doc) => {
           if (mediaType === 'photo') setPhotos(prev => [doc, ...prev]);
@@ -2942,36 +3071,91 @@ const NewScheduleModal = ({ project, user, api, onClose, onCreated, prefillDate 
 };
 
 
-const UploadModal = ({ project, user, api, mediaType, onClose, onCreated }) => {
-  const [name, setName] = useState('');
+const UploadModal = ({ project, user, api, mediaType, templateId, templateName, onClose, onCreated }) => {
+  const C = React.useContext(ThemeContext);
+  const s = React.useMemo(() => getStyles(C), [C]);
+  const [name, setName] = useState(templateName || '');
   const [category, setCategory] = useState('General');
   const [loading, setLoading] = useState(false);
+  const [fileData, setFileData] = useState(null); // { b64, ext, originalName, size }
   const docCategories = ['General', 'Plans', 'Permits', 'Contracts', 'Reports', 'Specs'];
+
+  const pickFile = () => {
+    if (Platform.OS !== 'web') return;
+    const input = document.createElement('input');
+    input.type = 'file';
+    if (mediaType === 'photo') input.accept = 'image/*';
+    else if (mediaType === 'video') input.accept = 'video/*';
+    input.onchange = (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const ext = file.name.split('.').pop() || 'bin';
+      const reader = new FileReader();
+      reader.onload = () => {
+        setFileData({ b64: reader.result, ext, originalName: file.name, size: file.size });
+        if (!name || name === templateName) setName(file.name.replace(/\.[^/.]+$/, ''));
+      };
+      reader.readAsDataURL(file);
+    };
+    input.click();
+  };
 
   const upload = async () => {
     if (!name) return Alert.alert('Error', 'Name is required');
+    if (!fileData) return Alert.alert('Error', 'Please select a file');
     setLoading(true);
     try {
+      // Upload the actual file
+      const uploadRes = await fetch(`${API_BASE}/upload-file`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ file: fileData.b64, ext: fileData.ext, name: fileData.originalName }),
+      });
+      if (!uploadRes.ok) throw new Error('File upload failed');
+      const uploadData = await uploadRes.json();
+
+      // Create document record with file_url
       const body = {
         name, category, media_type: mediaType,
-        file_size: Math.floor(Math.random() * 2e6) + 1e5,
+        file_size: uploadData.file_size || fileData.size || 0,
+        file_url: uploadData.path,
         uploaded_by: user?.name || '',
+        template_id: templateId || null,
       };
       const res = await api(`/projects/${project.id}/documents`, { method: 'POST', body });
-      onCreated(res || { id: Date.now(), job_id: project.id, ...body, created_at: new Date().toISOString().split('T')[0] });
+      if (!res) {
+        Alert.alert('Error', 'Failed to save document record');
+        return;
+      }
+      onCreated(res);
     } catch (e) { Alert.alert('Error', e.message); } finally { setLoading(false); }
   };
 
   const typeLabel = mediaType.charAt(0).toUpperCase() + mediaType.slice(1);
 
   return (
-    <ModalSheet visible title={`Upload ${typeLabel}`} onClose={onClose}>
-      <View style={s.uploadZone}>
-        <Text style={{ fontSize: 42, marginBottom: 6 }}>⬆</Text>
-        <Text style={{ color: C.mt, fontSize: 20 }}>File selection (simulated)</Text>
-      </View>
+    <ModalSheet visible title={templateName ? `Upload: ${templateName}` : `Upload ${typeLabel}`} onClose={onClose}>
+      <TouchableOpacity onPress={pickFile} activeOpacity={0.7}
+        style={[s.uploadZone, fileData && { borderColor: C.gn, backgroundColor: C.gn + '10' }]}>
+        {fileData ? (
+          <>
+            <Text style={{ fontSize: 36, marginBottom: 6 }}>✓</Text>
+            <Text style={{ color: C.gn, fontSize: 18, fontWeight: '600' }}>{fileData.originalName}</Text>
+            <Text style={{ color: C.dm, fontSize: 15, marginTop: 2 }}>
+              {fileData.size < 1024 * 1024 ? `${(fileData.size / 1024).toFixed(1)} KB` : `${(fileData.size / (1024 * 1024)).toFixed(1)} MB`}
+            </Text>
+            <Text style={{ color: C.bl, fontSize: 15, marginTop: 6 }}>Tap to change file</Text>
+          </>
+        ) : (
+          <>
+            <Text style={{ fontSize: 42, marginBottom: 6 }}>⬆</Text>
+            <Text style={{ color: C.gd, fontSize: 20, fontWeight: '600' }}>Tap to select file</Text>
+            <Text style={{ color: C.dm, fontSize: 15, marginTop: 4 }}>Choose a file from your device</Text>
+          </>
+        )}
+      </TouchableOpacity>
       <Inp label="DISPLAY NAME" value={name} onChange={setName} placeholder={`${typeLabel} name`} />
-      {mediaType === 'document' && (
+      {mediaType === 'document' && !templateId && (
         <View style={{ marginBottom: 14 }}>
           <Lbl>CATEGORY</Lbl>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
@@ -2989,7 +3173,7 @@ const UploadModal = ({ project, user, api, mediaType, onClose, onCreated }) => {
         </View>
       )}
       {mediaType === 'photo' && <Inp label="CATEGORY" value={category} onChange={setCategory} placeholder="e.g., Foundation, Framing" />}
-      <Btn onPress={upload} disabled={loading || !name}>
+      <Btn onPress={upload} disabled={loading || !name || !fileData}>
         <Text style={s.btnTxt}>{loading ? 'Uploading...' : 'Upload'}</Text>
       </Btn>
     </ModalSheet>
