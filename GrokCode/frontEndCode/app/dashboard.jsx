@@ -4858,22 +4858,23 @@ const SelectionManagerModal = ({ onClose }) => {
 
                   {/* Image upload */}
                   <Text style={st.formLbl}>IMAGE</Text>
-                  <TouchableOpacity onPress={() => pickImage(idx)} activeOpacity={0.7}
-                    style={{
-                      height: 100, borderRadius: 10, borderWidth: 1, borderColor: C.w10, borderStyle: 'dashed',
-                      backgroundColor: C.w03, alignItems: 'center', justifyContent: 'center', marginBottom: 14, overflow: 'hidden',
-                    }}>
-                    {opt.image_b64 ? (
-                      <Image source={{ uri: opt.image_b64 }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
-                    ) : opt.image_path ? (
-                      <Image source={{ uri: `${API_BASE}${opt.image_path}` }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
-                    ) : (
-                      <View style={{ alignItems: 'center' }}>
-                        <Text style={{ fontSize: 36, marginBottom: 4 }}>📷</Text>
-                        <Text style={{ fontSize: 18, color: C.dm }}>Tap to upload image</Text>
-                      </View>
-                    )}
-                  </TouchableOpacity>
+                  {opt.image_b64 || opt.image_path ? (
+                    <TouchableOpacity onPress={() => pickImage(idx)} activeOpacity={0.7}
+                      style={{
+                        height: 100, borderRadius: 10, borderWidth: 1, borderColor: C.w10,
+                        backgroundColor: C.w03, alignItems: 'center', justifyContent: 'center', marginBottom: 14, overflow: 'hidden',
+                      }}>
+                      <Image source={{ uri: opt.image_b64 || `${API_BASE}${opt.image_path}` }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                    </TouchableOpacity>
+                  ) : (
+                    <TouchableOpacity onPress={() => pickImage(idx)} activeOpacity={0.7}
+                      style={{
+                        width: 40, height: 40, borderRadius: 20, backgroundColor: C.w10,
+                        alignItems: 'center', justifyContent: 'center', marginBottom: 14,
+                      }}>
+                      <Text style={{ fontSize: 24, color: C.text, fontWeight: '300' }}>+</Text>
+                    </TouchableOpacity>
+                  )}
 
                   {/* Comes Standard checkbox */}
                   <TouchableOpacity onPress={() => updateOption(idx, 'comes_standard', !opt.comes_standard)}
