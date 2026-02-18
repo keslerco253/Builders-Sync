@@ -2228,7 +2228,13 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
           <ScrollView style={{ flex: 1 }} contentContainerStyle={s.scroll}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
               <Text style={s.sectionTitle}>Documents</Text>
-              {(isB || isCon) && <Btn onPress={() => setModal('uploaddoc')}><Text style={s.btnTxt}>⬆ Upload</Text></Btn>}
+              {(isB || isCon) && (
+                <TouchableOpacity onPress={() => setModal('uploaddoc')}
+                  style={{ width: 42, height: 42, borderRadius: 11, backgroundColor: C.gd, alignItems: 'center', justifyContent: 'center' }}
+                  activeOpacity={0.8}>
+                  <Text style={{ fontSize: 27, color: C.chromeTxt, fontWeight: '600', marginTop: -1 }}>+</Text>
+                </TouchableOpacity>
+              )}
             </View>
 
             {/* Required documents from templates */}
@@ -2248,9 +2254,9 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
                     {(isB || isCon) && (
                       <TouchableOpacity
                         onPress={() => setModal({ type: 'uploaddoc', templateId: tmpl.id, templateName: tmpl.name })}
-                        style={{ backgroundColor: C.gd, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8 }}
-                        activeOpacity={0.7}>
-                        <Text style={{ fontSize: 16, fontWeight: '700', color: '#000' }}>⬆ Upload</Text>
+                        style={{ width: 42, height: 42, borderRadius: 11, backgroundColor: C.gd, alignItems: 'center', justifyContent: 'center' }}
+                        activeOpacity={0.8}>
+                        <Text style={{ fontSize: 27, color: C.chromeTxt, fontWeight: '600', marginTop: -1 }}>+</Text>
                       </TouchableOpacity>
                     )}
                   </View>
