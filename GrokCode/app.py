@@ -1989,7 +1989,9 @@ def auto_migrate():
         print("✅ Database schema up to date — no changes needed")
 
 
+# Run auto_migrate on startup (works with both direct run and Gunicorn)
+with app.app_context():
+    auto_migrate()
+
 if __name__ == "__main__":
-    with app.app_context():
-        auto_migrate()
     app.run(host='0.0.0.0', port=5000, debug=True)
