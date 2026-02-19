@@ -104,7 +104,8 @@ const Badge = ({ status }) => {
   const s = React.useMemo(() => getStyles(C), [C]);
   const map = {
     approved: [C.gn, 'Approved'], pending_customer: [C.yl, 'Awaiting Customer'],
-    pending_builder: [C.yl, 'Awaiting Builder'], confirmed: [C.gn, 'Confirmed'],
+    pending_builder: [C.yl, 'Awaiting Builder'], pending_sub: [C.bl, 'Awaiting Sub'],
+    confirmed: [C.gn, 'Confirmed'],
     pending: [C.yl, 'Pending'], rejected: [C.rd, 'Rejected'], expired: [C.rd, 'Expired'],
   };
   const [color, label] = map[status] || [C.dm, status || 'Unknown'];
@@ -3001,7 +3002,22 @@ const NewChangeOrderModal = ({ project, api, onClose, onCreated, user, schedule 
   const [showTaskPicker, setShowTaskPicker] = useState(false);
   const [extensionDays, setExtensionDays] = useState('');
   const [subInfo, setSubInfo] = useState(null); // { id, name }
+  const [showSubPicker, setShowSubPicker] = useState(false);
+  const [subsList, setSubsList] = useState([]);
+  const [subsLoading, setSubsLoading] = useState(false);
   const [attachments, setAttachments] = useState([]); // [{ b64, ext, originalName, size, docName, docDesc }]
+
+  // Fetch subcontractors list on mount
+  useEffect(() => {
+    setSubsLoading(true);
+    fetch(`${API_BASE}/users`)
+      .then(r => r.json())
+      .then(data => {
+        if (Array.isArray(data)) setSubsList(data.filter(u => (u.role === 'contractor' || u.role === 'builder') && u.active !== false));
+      })
+      .catch(() => {})
+      .finally(() => setSubsLoading(false));
+  }, []);
 
   const pickAttachment = () => {
     if (Platform.OS !== 'web') return;
@@ -3023,23 +3039,20 @@ const NewChangeOrderModal = ({ project, api, onClose, onCreated, user, schedule 
     input.click();
   };
 
-  // When a task is selected, look up the subcontractor
-  const onTaskSelect = async (task) => {
+  // When a task is selected, look up the subcontractor from already-fetched list
+  const onTaskSelect = (task) => {
     setSelectedTask(task);
     setShowTaskPicker(false);
-    setSubInfo(null);
     if (task.contractor && task.contractor.trim()) {
-      try {
-        const res = await fetch(`${API_BASE}/users`);
-        const users = await res.json();
-        if (Array.isArray(users)) {
-          const match = users.find(u =>
-            `${u.firstName} ${u.lastName}` === task.contractor ||
-            u.companyName === task.contractor
-          );
-          if (match) setSubInfo({ id: match.id, name: match.companyName || `${match.firstName} ${match.lastName}` });
-        }
-      } catch {}
+      const match = subsList.find(u =>
+        `${u.firstName} ${u.lastName}` === task.contractor ||
+        u.companyName === task.contractor
+      );
+      if (match) setSubInfo({ id: match.id, name: match.companyName || `${match.firstName} ${match.lastName}` });
+      else setSubInfo(null);
+    } else {
+      // Don't clear sub if user manually selected one
+      // Only clear if task had no contractor
     }
   };
 
@@ -3193,7 +3206,7 @@ const NewChangeOrderModal = ({ project, api, onClose, onCreated, user, schedule 
             {selectedTask ? selectedTask.task : 'Select a task...'}
           </Text>
           {selectedTask ? (
-            <TouchableOpacity onPress={() => { setSelectedTask(null); setSubInfo(null); setExtensionDays(''); }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <TouchableOpacity onPress={() => { setSelectedTask(null); setExtensionDays(''); }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
               <Text style={{ fontSize: 18, color: C.dm }}>✕</Text>
             </TouchableOpacity>
           ) : (
@@ -3225,13 +3238,70 @@ const NewChangeOrderModal = ({ project, api, onClose, onCreated, user, schedule 
         </View>
       )}
 
-      {/* Subcontractor info */}
-      {selectedTask && subInfo && (
-        <View style={{ marginBottom: 14, backgroundColor: 'rgba(59,130,246,0.08)', borderRadius: 10, padding: 14, borderWidth: 1, borderColor: 'rgba(59,130,246,0.2)' }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-            <Text style={{ fontSize: 18 }}>👷</Text>
-            <Text style={{ fontSize: 18, fontWeight: '600', color: C.text }}>{subInfo.name}</Text>
+      {/* Subcontractor dropdown */}
+      <View style={{ marginBottom: 14 }}>
+        <Lbl>SUBCONTRACTOR (OPTIONAL)</Lbl>
+        <TouchableOpacity
+          onPress={() => setShowSubPicker(true)}
+          style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+            backgroundColor: C.w04, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 12,
+            borderWidth: 1, borderColor: subInfo ? 'rgba(59,130,246,0.4)' : C.bd,
+          }}
+          activeOpacity={0.7}
+        >
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
+            {subInfo && <Text style={{ fontSize: 18 }}>👷</Text>}
+            <Text style={{ fontSize: 18, color: subInfo ? C.text : C.dm }} numberOfLines={1}>
+              {subInfo ? subInfo.name : 'Select a subcontractor...'}
+            </Text>
           </View>
+          {subInfo ? (
+            <TouchableOpacity onPress={() => setSubInfo(null)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Text style={{ fontSize: 18, color: C.dm }}>✕</Text>
+            </TouchableOpacity>
+          ) : (
+            <Text style={{ fontSize: 16, color: C.dm }}>▼</Text>
+          )}
+        </TouchableOpacity>
+      </View>
+
+      {/* Sub picker dropdown */}
+      {showSubPicker && (
+        <View style={{ marginBottom: 14, backgroundColor: C.w04, borderRadius: 10, borderWidth: 1, borderColor: C.w08, maxHeight: 220, overflow: 'hidden' }}>
+          <ScrollView>
+            {subsLoading ? (
+              <View style={{ padding: 16, alignItems: 'center' }}>
+                <Text style={{ fontSize: 16, color: C.dm }}>Loading...</Text>
+              </View>
+            ) : subsList.length === 0 ? (
+              <View style={{ padding: 16, alignItems: 'center' }}>
+                <Text style={{ fontSize: 16, color: C.dm }}>No subcontractors found</Text>
+              </View>
+            ) : subsList.map(u => (
+              <TouchableOpacity key={u.id} onPress={() => {
+                setSubInfo({ id: u.id, name: u.companyName || `${u.firstName} ${u.lastName}` });
+                setShowSubPicker(false);
+              }}
+                style={{ paddingVertical: 10, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: C.w04,
+                  backgroundColor: subInfo?.id === u.id ? 'rgba(59,130,246,0.1)' : 'transparent',
+                }}
+                activeOpacity={0.7}
+              >
+                <Text style={{ fontSize: 17, fontWeight: '500', color: C.text }}>
+                  {u.companyName || `${u.firstName} ${u.lastName}`}
+                </Text>
+                {u.companyName && u.firstName ? (
+                  <Text style={{ fontSize: 14, color: C.dm, marginTop: 2 }}>{u.firstName} {u.lastName}</Text>
+                ) : null}
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+      )}
+
+      {/* Sub assignment info */}
+      {subInfo && (
+        <View style={{ marginBottom: 14, backgroundColor: 'rgba(59,130,246,0.08)', borderRadius: 10, padding: 14, borderWidth: 1, borderColor: 'rgba(59,130,246,0.2)' }}>
           <Text style={{ fontSize: 15, color: C.dm }}>This subcontractor will be required to sign the change order</Text>
         </View>
       )}
