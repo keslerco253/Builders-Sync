@@ -2816,6 +2816,15 @@ const ChangeOrderDetailModal = ({ co, isB, isC, isCon, signCO, onClose, user }) 
           )}
         </View>
       )}
+      {!co.task_name && co.sub_name && (
+        <View style={{ backgroundColor: C.w04, borderRadius: 10, padding: 14, marginBottom: 16, borderWidth: 1, borderColor: C.w08 }}>
+          <Text style={{ fontSize: 14, fontWeight: '700', color: C.dm, letterSpacing: 0.5, marginBottom: 6 }}>SUBCONTRACTOR</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <Text style={{ fontSize: 16 }}>👷</Text>
+            <Text style={{ fontSize: 16, fontWeight: '500', color: C.bl }}>{co.sub_name}</Text>
+          </View>
+        </View>
+      )}
 
       {/* Documents section */}
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
@@ -3324,7 +3333,7 @@ const SubChangeOrderModal = ({ project, api, user, task: initialTask, schedule, 
         sub_id: user?.id || null,
         sub_name: user?.company_name || user?.name || '',
         task_id: task.id,
-        task_name: task.task,
+        task_name: task.task || null,
       };
       const res = await api(`/projects/${project.id}/change-orders`, { method: 'POST', body });
       if (!res) {
