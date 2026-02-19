@@ -3045,10 +3045,10 @@ const NewChangeOrderModal = ({ project, api, onClose, onCreated, user, schedule 
     setShowTaskPicker(false);
     if (task.contractor && task.contractor.trim()) {
       const match = subsList.find(u =>
-        `${u.firstName} ${u.lastName}` === task.contractor ||
-        u.companyName === task.contractor
+        u.name === task.contractor ||
+        u.company_name === task.contractor
       );
-      if (match) setSubInfo({ id: match.id, name: match.companyName || `${match.firstName} ${match.lastName}` });
+      if (match) setSubInfo({ id: match.id, name: match.company_name || match.name });
       else setSubInfo(null);
     } else {
       // Don't clear sub if user manually selected one
@@ -3279,7 +3279,7 @@ const NewChangeOrderModal = ({ project, api, onClose, onCreated, user, schedule 
               </View>
             ) : subsList.map(u => (
               <TouchableOpacity key={u.id} onPress={() => {
-                setSubInfo({ id: u.id, name: u.companyName || `${u.firstName} ${u.lastName}` });
+                setSubInfo({ id: u.id, name: u.company_name || u.name });
                 setShowSubPicker(false);
               }}
                 style={{ paddingVertical: 10, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: C.w04,
@@ -3288,10 +3288,10 @@ const NewChangeOrderModal = ({ project, api, onClose, onCreated, user, schedule 
                 activeOpacity={0.7}
               >
                 <Text style={{ fontSize: 17, fontWeight: '500', color: C.text }}>
-                  {u.companyName || `${u.firstName} ${u.lastName}`}
+                  {u.company_name || u.name}
                 </Text>
-                {u.companyName && u.firstName ? (
-                  <Text style={{ fontSize: 14, color: C.dm, marginTop: 2 }}>{u.firstName} {u.lastName}</Text>
+                {u.company_name && u.first_name ? (
+                  <Text style={{ fontSize: 14, color: C.dm, marginTop: 2 }}>{u.name}</Text>
                 ) : null}
               </TouchableOpacity>
             ))}
