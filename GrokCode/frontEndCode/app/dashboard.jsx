@@ -357,6 +357,12 @@ export default function Dashboard() {
   useFocusEffect(useCallback(() => {
     if (isContractor) {
       fetchOwnSubProfile();
+      if (user?.id) {
+        fetch(`${API_BASE}/users/${user.id}/change-orders`)
+          .then(r => r.json())
+          .then(data => { if (Array.isArray(data)) setSubChangeOrders(data); })
+          .catch(() => {});
+      }
     } else {
       fetchProjects();
       if (isBuilder) {
@@ -3601,7 +3607,15 @@ export default function Dashboard() {
             </TouchableOpacity>
           )}
           {showingContractorProject && (
-            <TouchableOpacity onPress={() => setContractorProject(null)} style={st.backBtn} activeOpacity={0.7}>
+            <TouchableOpacity onPress={() => {
+              setContractorProject(null);
+              if (user?.id) {
+                fetch(`${API_BASE}/users/${user.id}/change-orders`)
+                  .then(r => r.json())
+                  .then(data => { if (Array.isArray(data)) setSubChangeOrders(data); })
+                  .catch(() => {});
+              }
+            }} style={st.backBtn} activeOpacity={0.7}>
               <Text style={st.backBtnTxt}>‹</Text>
             </TouchableOpacity>
           )}
@@ -3768,7 +3782,15 @@ export default function Dashboard() {
           <View style={{ flex: 1, minHeight: 0 }}>
             {isWide && (
               <TouchableOpacity
-                onPress={() => setContractorProject(null)}
+                onPress={() => {
+                  setContractorProject(null);
+                  if (user?.id) {
+                    fetch(`${API_BASE}/users/${user.id}/change-orders`)
+                      .then(r => r.json())
+                      .then(data => { if (Array.isArray(data)) setSubChangeOrders(data); })
+                      .catch(() => {});
+                  }
+                }}
                 style={{ flexDirection: 'row', alignItems: 'center', gap: 6, padding: 12, borderBottomWidth: 1, borderBottomColor: C.bd }}
               >
                 <Text style={{ fontSize: 27, color: C.gd }}>‹</Text>
