@@ -1916,12 +1916,14 @@ export default function Dashboard() {
                     <View style={{ paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6, marginLeft: 8,
                       backgroundColor: co.status === 'approved' ? 'rgba(16,185,129,0.12)'
                         : co.status === 'expired' ? 'rgba(239,68,68,0.12)'
+                        : co.status === 'pending_sub' ? 'rgba(59,130,246,0.12)'
                         : 'rgba(245,158,11,0.12)',
                     }}>
                       <Text style={{ fontSize: 13, fontWeight: '700',
                         color: co.status === 'approved' ? '#10b981'
-                          : co.status === 'expired' ? '#ef4444' : '#f59e0b',
-                      }}>{co.status === 'approved' ? 'Approved' : co.status === 'expired' ? 'Expired' : 'Pending'}</Text>
+                          : co.status === 'expired' ? '#ef4444'
+                          : co.status === 'pending_sub' ? '#3b82f6' : '#f59e0b',
+                      }}>{co.status === 'approved' ? 'Approved' : co.status === 'expired' ? 'Expired' : co.status === 'pending_sub' ? 'Awaiting Your Signature' : 'Pending'}</Text>
                     </View>
                   </View>
                   {co.project_name && (
