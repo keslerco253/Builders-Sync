@@ -90,6 +90,7 @@ export const calcTaskProgress = (item) => {
 };
 
 const SCREEN_W = Dimensions.get('window').width;
+const IS_WIDE = SCREEN_W > 800;
 
 // ============================================================
 // SHARED COMPONENTS
@@ -833,7 +834,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
       };
 
       return (
-        <ScrollView style={{ flex: 1 }} contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled">
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={[s.scroll, { maxWidth: 1200 }]} keyboardShouldPersistTaps="handled">
           <View style={{ alignItems: 'center', marginBottom: 24 }}>
             <View style={s.avatar}><Text style={s.avatarTxt}>{ini(editInfo.name || project.name)}</Text></View>
             {isB ? (
@@ -900,346 +901,328 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
             );
           })()}
 
-          {/* Contract Price Card */}
-          <Card style={{ marginBottom: 14 }}>
-            <Lbl>CONTRACT PRICE</Lbl>
-            {isB ? (
-              <TextInput
-                value={editInfo.original_price}
-                onChangeText={v => setField('original_price', v)}
-                keyboardType="numeric"
-                style={{ fontSize: 30, fontWeight: '700', color: C.text, backgroundColor: C.inputBg, borderWidth: 1, borderColor: C.w10, borderRadius: 8, padding: 10, marginBottom: 12 }}
-                placeholder="0"
-                placeholderTextColor={C.ph}
-              />
-            ) : (
-              <Text style={{ fontSize: 30, fontWeight: '700', color: C.text, marginBottom: 12 }}>{f$(parseFloat(editInfo.original_price) || 0)}</Text>
-            )}
-
-            <Lbl>RECONCILIATION AFTER DRAFTING</Lbl>
-            {isB ? (
-              <TextInput
-                value={editInfo.reconciliation}
-                onChangeText={v => setField('reconciliation', v)}
-                keyboardType="numeric"
-                style={{ fontSize: 30, fontWeight: '700', color: C.text, backgroundColor: C.inputBg, borderWidth: 1, borderColor: C.w10, borderRadius: 8, padding: 10, marginBottom: 12 }}
-                placeholder="0"
-                placeholderTextColor={C.ph}
-              />
-            ) : (
-              <Text style={{ fontSize: 30, fontWeight: '700', color: C.text, marginBottom: 12 }}>{f$(parseFloat(editInfo.reconciliation) || 0)}</Text>
-            )}
-
-            <View style={{ borderTopWidth: 1, borderTopColor: C.w10, paddingTop: 12, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Text style={{ fontSize: 21, fontWeight: '700', color: C.mt }}>Contract Total</Text>
-              <Text style={{ fontSize: 30, fontWeight: '700', color: C.gd }}>{f$((parseFloat(editInfo.original_price) || 0) + (parseFloat(editInfo.reconciliation) || 0))}</Text>
-            </View>
-          </Card>
-
-          {/* Project Details Card */}
-          <Card>
-            <Text style={s.cardTitle}>Project Details</Text>
-
-            {/* Subdivision */}
-            {subdivisions.length > 0 && (
-              <View style={{ marginBottom: 14, zIndex: 20 }}>
-                <Text style={s.infoLbl}>SUBDIVISION</Text>
+          {/* === Two-Column Layout: Job Info Cards === */}
+          {(() => {
+            const contractPriceCard = (
+              <Card style={{ marginBottom: 14 }}>
+                <Lbl>CONTRACT PRICE</Lbl>
                 {isB ? (
-                  <>
-                    <TouchableOpacity onPress={() => setShowSubdivPicker(p => !p)}
-                      style={{ backgroundColor: C.inputBg, borderWidth: 1, borderColor: C.w10, borderRadius: 8, padding: 10, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <Text style={{ fontSize: 22, color: editInfo.subdivision_id ? C.text : C.ph }}>
-                        {editInfo.subdivision_id ? (subdivisions.find(sd => sd.id === editInfo.subdivision_id)?.name || 'Unknown') : 'None'}
-                      </Text>
-                      <Text style={{ fontSize: 15, color: C.dm }}>▼</Text>
-                    </TouchableOpacity>
-                    {showSubdivPicker && (
-                      <Modal visible transparent animationType="fade">
-                        <TouchableOpacity style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', alignItems: 'center' }} activeOpacity={1} onPress={() => setShowSubdivPicker(false)}>
-                          <TouchableOpacity activeOpacity={1} onPress={e => e.stopPropagation()}>
-                            <View style={{ width: 280, maxHeight: 350, backgroundColor: C.cardBg || C.card, borderRadius: 12, borderWidth: 1, borderColor: C.w10, overflow: 'hidden', ...(Platform.OS === 'web' ? { boxShadow: '0 10px 30px rgba(0,0,0,0.5)' } : { elevation: 20 }) }}>
-                              <View style={{ padding: 14, borderBottomWidth: 1, borderBottomColor: C.w06 }}>
-                                <Text style={{ fontSize: 22, fontWeight: '700', color: C.textBold }}>Subdivision</Text>
-                              </View>
-                              <ScrollView style={{ maxHeight: 300 }} nestedScrollEnabled keyboardShouldPersistTaps="handled">
-                                <TouchableOpacity onPress={() => { setField('subdivision_id', null); setShowSubdivPicker(false); }}
-                                  style={{ paddingVertical: 10, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: C.w06, backgroundColor: !editInfo.subdivision_id ? C.gd + '22' : 'transparent' }}>
-                                  <Text style={{ fontSize: 21, color: !editInfo.subdivision_id ? C.gd : C.text }}>None</Text>
-                                </TouchableOpacity>
-                                {subdivisions.map(sd => (
-                                  <TouchableOpacity key={sd.id} onPress={() => { setField('subdivision_id', sd.id); setShowSubdivPicker(false); }}
-                                    style={{ paddingVertical: 10, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: C.w06, backgroundColor: editInfo.subdivision_id === sd.id ? C.gd + '22' : 'transparent' }}>
-                                    <Text style={{ fontSize: 21, color: editInfo.subdivision_id === sd.id ? C.gd : C.text }}>📁 {sd.name}</Text>
-                                  </TouchableOpacity>
-                                ))}
-                              </ScrollView>
-                            </View>
-                          </TouchableOpacity>
-                        </TouchableOpacity>
-                      </Modal>
-                    )}
-                  </>
+                  <TextInput value={editInfo.original_price} onChangeText={v => setField('original_price', v)} keyboardType="numeric"
+                    style={{ fontSize: 30, fontWeight: '700', color: C.text, backgroundColor: C.inputBg, borderWidth: 1, borderColor: C.w10, borderRadius: 8, padding: 10, marginBottom: 12 }}
+                    placeholder="0" placeholderTextColor={C.ph} />
                 ) : (
-                  <Text style={s.infoVal}>{editInfo.subdivision_id ? (subdivisions.find(sd => sd.id === editInfo.subdivision_id)?.name || '—') : '—'}</Text>
+                  <Text style={{ fontSize: 30, fontWeight: '700', color: C.text, marginBottom: 12 }}>{f$(parseFloat(editInfo.original_price) || 0)}</Text>
                 )}
-              </View>
-            )}
-
-            <View style={{ marginBottom: 14 }}>
-              <Text style={s.infoLbl}>PROJECT NUMBER</Text>
-              <Text style={s.infoVal}>{editInfo.number || '—'}</Text>
-            </View>
-            <View style={{ flexDirection: 'row', gap: 12 }}>
-              <View style={{ flex: 1 }}>{infoField("FIRST NAME", "customer_first_name", undefined, "Jane")}</View>
-              <View style={{ flex: 1 }}>{infoField("LAST NAME", "customer_last_name", undefined, "Parker")}</View>
-            </View>
-            {infoField("PHONE", "customer_phone", "phone-pad", "(208) 555-1234")}
-            {infoField("EMAIL", "email", "email-address", "client@email.com")}
-            {infoField("STREET ADDRESS", "street_address", undefined, "1245 Oakwood Dr")}
-            <View style={{ flexDirection: 'row', gap: 12, zIndex: 10 }}>
-              <View style={{ flex: 2 }}>{infoField("CITY", "city", undefined, "Eagle")}</View>
-              <View style={{ flex: 1, marginBottom: 14 }}>
-                <Text style={s.infoLbl}>STATE</Text>
+                <Lbl>RECONCILIATION AFTER DRAFTING</Lbl>
                 {isB ? (
-                  <>
-                    <TouchableOpacity onPress={() => setShowAddrState(p => !p)}
-                      style={{ backgroundColor: C.inputBg, borderWidth: 1, borderColor: C.w10, borderRadius: 8, padding: 10, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <Text style={{ fontSize: 22, color: editInfo.addr_state ? C.text : C.ph }}>{editInfo.addr_state || 'ST'}</Text>
-                      <Text style={{ fontSize: 15, color: C.dm }}>▼</Text>
-                    </TouchableOpacity>
-                    <Modal visible={showAddrState} transparent animationType="fade">
-                      <TouchableOpacity style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', alignItems: 'center' }} activeOpacity={1} onPress={() => setShowAddrState(false)}>
-                        <TouchableOpacity activeOpacity={1} onPress={e => e.stopPropagation()}>
-                          <View style={{ width: 220, maxHeight: 350, backgroundColor: C.cardBg || C.card, borderRadius: 12, borderWidth: 1, borderColor: C.w10, overflow: 'hidden', ...(Platform.OS === 'web' ? { boxShadow: '0 10px 30px rgba(0,0,0,0.5)' } : { elevation: 20 }) }}>
-                            <View style={{ padding: 14, borderBottomWidth: 1, borderBottomColor: C.w06 }}>
-                              <Text style={{ fontSize: 22, fontWeight: '700', color: C.textBold }}>Select State</Text>
-                            </View>
-                            <ScrollView style={{ maxHeight: 300 }} nestedScrollEnabled keyboardShouldPersistTaps="handled">
-                              {['AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA','KS','KY','LA','ME','MD',
-                                'MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ','NM','NY','NC','ND','OH','OK','OR','PA','RI','SC',
-                                'SD','TN','TX','UT','VT','VA','WA','WV','WI','WY'].map(s2 => (
-                                <TouchableOpacity key={s2} onPress={() => { setField('addr_state', s2); setShowAddrState(false); }}
-                                  style={{ paddingVertical: 10, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: C.w06, backgroundColor: editInfo.addr_state === s2 ? C.gd + '22' : 'transparent' }}>
-                                  <Text style={{ fontSize: 21, color: editInfo.addr_state === s2 ? C.gd : C.text }}>{s2}</Text>
-                                </TouchableOpacity>
-                              ))}
-                            </ScrollView>
-                          </View>
-                        </TouchableOpacity>
-                      </TouchableOpacity>
-                    </Modal>
-                  </>
+                  <TextInput value={editInfo.reconciliation} onChangeText={v => setField('reconciliation', v)} keyboardType="numeric"
+                    style={{ fontSize: 30, fontWeight: '700', color: C.text, backgroundColor: C.inputBg, borderWidth: 1, borderColor: C.w10, borderRadius: 8, padding: 10, marginBottom: 12 }}
+                    placeholder="0" placeholderTextColor={C.ph} />
                 ) : (
-                  <Text style={s.infoVal}>{editInfo.addr_state || '—'}</Text>
+                  <Text style={{ fontSize: 30, fontWeight: '700', color: C.text, marginBottom: 12 }}>{f$(parseFloat(editInfo.reconciliation) || 0)}</Text>
                 )}
-              </View>
-              <View style={{ flex: 1 }}>{infoField("ZIP", "zip_code", "numeric", "83616")}</View>
-            </View>
-            <View style={s.divider} />
-
-            <View style={{ marginBottom: 14 }}>
-              <Text style={s.infoLbl}>CONTRACT DATE</Text>
-              <Text style={s.infoVal}>{project.date ? (() => {
-                try { return new Date(project.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); }
-                catch { return '--'; }
-              })() : '--'}</Text>
-            </View>
-            <View style={{ marginBottom: 14 }}>
-              <Text style={s.infoLbl}>START DATE</Text>
-              <Text style={s.infoVal}>{fD(editInfo.start_date) || '—'}</Text>
-            </View>
-            <View style={{ marginBottom: 14 }}>
-              <Text style={s.infoLbl}>ESTIMATED COMPLETION</Text>
-              <Text style={s.infoVal}>{(() => {
-                if (!editInfo.start_date) return '—';
-                try {
-                  const d = new Date(editInfo.start_date + 'T00:00:00');
-                  if (isNaN(d.getTime())) return '—';
-                  d.setFullYear(d.getFullYear() + 1);
-                  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-                } catch { return '—'; }
-              })()}</Text>
-              {editInfo.start_date ? (
-                <Text style={{ fontSize: 13, color: C.dm, fontStyle: 'italic', marginTop: 2 }}>1 year from start date</Text>
-              ) : null}
-            </View>
-            <View style={{ marginBottom: 14 }}>
-              <Text style={s.infoLbl}>CURRENT COMPLETION</Text>
-              <Text style={s.infoVal}>{(() => {
-                const ends = schedule.filter(t => t.end_date).map(t => t.end_date).sort();
-                if (ends.length === 0) return '—';
-                return fD(ends[ends.length - 1]);
-              })()}</Text>
-              <Text style={{ fontSize: 13, color: C.dm, fontStyle: 'italic', marginTop: 2 }}>Based on last scheduled task</Text>
-            </View>
-            <View style={s.divider} />
-
-            <Text style={s.cardTitle}>House Specs</Text>
-
-            <View style={{ flexDirection: 'row', gap: 12 }}>
-              <View style={{ flex: 1 }}>{infoField("TOTAL SQUARE FT", "sqft", "numeric", "0")}</View>
-              <View style={{ flex: 1 }}>
-                <View style={{ marginBottom: 14 }}>
-                  <Text style={s.infoLbl}>STORIES</Text>
-                  {isB ? (
-                    <TextInput
-                      value={editInfo.stories}
-                      onChangeText={v => {
-                        const num = parseInt(v) || 0;
-                        const prev = editInfo.story_details || [];
-                        const details = [...prev];
-                        while (details.length < num) details.push({ title: '', sqft: '' });
-                        if (details.length > num) details.length = num;
-                        setEditInfo(p => ({ ...p, stories: v, story_details: details }));
-                        setInfoDirty(true);
-                      }}
-                      keyboardType="numeric"
-                      style={{ fontSize: 22, color: C.text, backgroundColor: C.inputBg, borderWidth: 1, borderColor: C.w10, borderRadius: 8, padding: 10 }}
-                      placeholder="0"
-                      placeholderTextColor={C.ph}
-                    />
-                  ) : (
-                    <Text style={s.infoVal}>{editInfo.stories || '—'}</Text>
-                  )}
+                <View style={{ borderTopWidth: 1, borderTopColor: C.w10, paddingTop: 12, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Text style={{ fontSize: 21, fontWeight: '700', color: C.mt }}>Contract Total</Text>
+                  <Text style={{ fontSize: 30, fontWeight: '700', color: C.gd }}>{f$((parseFloat(editInfo.original_price) || 0) + (parseFloat(editInfo.reconciliation) || 0))}</Text>
                 </View>
-              </View>
-            </View>
+              </Card>
+            );
 
-            {/* Per-story breakdown */}
-            {(() => {
-              const numStories = parseInt(editInfo.stories) || 0;
-              if (numStories < 1) return null;
-              const STORY_TITLES = ['Main Level', '2nd Story', 'Basement'];
-              const details = editInfo.story_details || [];
-              const totalSqft = parseInt(editInfo.sqft) || 0;
-              const garageSqft = parseInt(editInfo.garage_sqft) || 0;
-              const storySqft = details.reduce((sum, d) => sum + (parseInt(d.sqft) || 0), 0);
-              const usedSqft = storySqft + garageSqft;
-              const remaining = totalSqft - usedSqft;
-
-              return (
-                <View style={{ marginBottom: 14, gap: 8 }}>
-                  {details.map((story, i) => (
-                    <View key={i} style={{ flexDirection: 'row', gap: 8, alignItems: 'flex-end' }}>
-                      <View style={{ flex: 2 }}>
-                        <Text style={[s.infoLbl, { marginBottom: 4 }]}>STORY {i + 1}</Text>
-                        {isB ? (
-                          <View>
-                            <TouchableOpacity
-                              onPress={() => {
-                                const updated = [...details];
-                                updated[i] = { ...updated[i], _showPicker: !updated[i]._showPicker };
-                                setField('story_details', updated);
-                              }}
-                              style={{ backgroundColor: C.inputBg, borderWidth: 1, borderColor: C.w10, borderRadius: 8, padding: 10, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                              <Text style={{ fontSize: 20, color: story.title ? C.text : C.ph }}>{story.title || 'Select level'}</Text>
-                              <Text style={{ fontSize: 15, color: C.dm }}>▾</Text>
+            const projectDetailsCard = (
+              <Card style={{ marginBottom: 14 }}>
+                <Text style={s.cardTitle}>Project Details</Text>
+                {subdivisions.length > 0 && (
+                  <View style={{ marginBottom: 14, zIndex: 20 }}>
+                    <Text style={s.infoLbl}>SUBDIVISION</Text>
+                    {isB ? (
+                      <>
+                        <TouchableOpacity onPress={() => setShowSubdivPicker(p => !p)}
+                          style={{ backgroundColor: C.inputBg, borderWidth: 1, borderColor: C.w10, borderRadius: 8, padding: 10, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <Text style={{ fontSize: 22, color: editInfo.subdivision_id ? C.text : C.ph }}>
+                            {editInfo.subdivision_id ? (subdivisions.find(sd => sd.id === editInfo.subdivision_id)?.name || 'Unknown') : 'None'}
+                          </Text>
+                          <Text style={{ fontSize: 15, color: C.dm }}>▼</Text>
+                        </TouchableOpacity>
+                        {showSubdivPicker && (
+                          <Modal visible transparent animationType="fade">
+                            <TouchableOpacity style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', alignItems: 'center' }} activeOpacity={1} onPress={() => setShowSubdivPicker(false)}>
+                              <TouchableOpacity activeOpacity={1} onPress={e => e.stopPropagation()}>
+                                <View style={{ width: 280, maxHeight: 350, backgroundColor: C.cardBg || C.card, borderRadius: 12, borderWidth: 1, borderColor: C.w10, overflow: 'hidden', ...(Platform.OS === 'web' ? { boxShadow: '0 10px 30px rgba(0,0,0,0.5)' } : { elevation: 20 }) }}>
+                                  <View style={{ padding: 14, borderBottomWidth: 1, borderBottomColor: C.w06 }}>
+                                    <Text style={{ fontSize: 22, fontWeight: '700', color: C.textBold }}>Subdivision</Text>
+                                  </View>
+                                  <ScrollView style={{ maxHeight: 300 }} nestedScrollEnabled keyboardShouldPersistTaps="handled">
+                                    <TouchableOpacity onPress={() => { setField('subdivision_id', null); setShowSubdivPicker(false); }}
+                                      style={{ paddingVertical: 10, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: C.w06, backgroundColor: !editInfo.subdivision_id ? C.gd + '22' : 'transparent' }}>
+                                      <Text style={{ fontSize: 21, color: !editInfo.subdivision_id ? C.gd : C.text }}>None</Text>
+                                    </TouchableOpacity>
+                                    {subdivisions.map(sd => (
+                                      <TouchableOpacity key={sd.id} onPress={() => { setField('subdivision_id', sd.id); setShowSubdivPicker(false); }}
+                                        style={{ paddingVertical: 10, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: C.w06, backgroundColor: editInfo.subdivision_id === sd.id ? C.gd + '22' : 'transparent' }}>
+                                        <Text style={{ fontSize: 21, color: editInfo.subdivision_id === sd.id ? C.gd : C.text }}>📁 {sd.name}</Text>
+                                      </TouchableOpacity>
+                                    ))}
+                                  </ScrollView>
+                                </View>
+                              </TouchableOpacity>
                             </TouchableOpacity>
-                            {story._showPicker && (
-                              <View style={{ backgroundColor: C.inputBg, borderWidth: 1, borderColor: C.w10, borderRadius: 8, marginTop: 4, overflow: 'hidden' }}>
-                                {STORY_TITLES.map(t => (
-                                  <TouchableOpacity key={t} onPress={() => {
-                                    const updated = [...details];
-                                    updated[i] = { title: t, sqft: updated[i].sqft };
-                                    setField('story_details', updated);
-                                  }}
-                                    style={{ paddingVertical: 10, paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: C.w06, backgroundColor: story.title === t ? C.gd + '22' : 'transparent' }}>
-                                    <Text style={{ fontSize: 18, color: story.title === t ? C.gd : C.text }}>{t}</Text>
-                                  </TouchableOpacity>
-                                ))}
+                          </Modal>
+                        )}
+                      </>
+                    ) : (
+                      <Text style={s.infoVal}>{editInfo.subdivision_id ? (subdivisions.find(sd => sd.id === editInfo.subdivision_id)?.name || '—') : '—'}</Text>
+                    )}
+                  </View>
+                )}
+                <View style={{ marginBottom: 14 }}>
+                  <Text style={s.infoLbl}>PROJECT NUMBER</Text>
+                  <Text style={s.infoVal}>{editInfo.number || '—'}</Text>
+                </View>
+                <View style={{ flexDirection: 'row', gap: 12 }}>
+                  <View style={{ flex: 1 }}>{infoField("FIRST NAME", "customer_first_name", undefined, "Jane")}</View>
+                  <View style={{ flex: 1 }}>{infoField("LAST NAME", "customer_last_name", undefined, "Parker")}</View>
+                </View>
+                {infoField("PHONE", "customer_phone", "phone-pad", "(208) 555-1234")}
+                {infoField("EMAIL", "email", "email-address", "client@email.com")}
+                {infoField("STREET ADDRESS", "street_address", undefined, "1245 Oakwood Dr")}
+                <View style={{ flexDirection: 'row', gap: 12, zIndex: 10 }}>
+                  <View style={{ flex: 2 }}>{infoField("CITY", "city", undefined, "Eagle")}</View>
+                  <View style={{ flex: 1, marginBottom: 14 }}>
+                    <Text style={s.infoLbl}>STATE</Text>
+                    {isB ? (
+                      <>
+                        <TouchableOpacity onPress={() => setShowAddrState(p => !p)}
+                          style={{ backgroundColor: C.inputBg, borderWidth: 1, borderColor: C.w10, borderRadius: 8, padding: 10, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <Text style={{ fontSize: 22, color: editInfo.addr_state ? C.text : C.ph }}>{editInfo.addr_state || 'ST'}</Text>
+                          <Text style={{ fontSize: 15, color: C.dm }}>▼</Text>
+                        </TouchableOpacity>
+                        <Modal visible={showAddrState} transparent animationType="fade">
+                          <TouchableOpacity style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', alignItems: 'center' }} activeOpacity={1} onPress={() => setShowAddrState(false)}>
+                            <TouchableOpacity activeOpacity={1} onPress={e => e.stopPropagation()}>
+                              <View style={{ width: 220, maxHeight: 350, backgroundColor: C.cardBg || C.card, borderRadius: 12, borderWidth: 1, borderColor: C.w10, overflow: 'hidden', ...(Platform.OS === 'web' ? { boxShadow: '0 10px 30px rgba(0,0,0,0.5)' } : { elevation: 20 }) }}>
+                                <View style={{ padding: 14, borderBottomWidth: 1, borderBottomColor: C.w06 }}>
+                                  <Text style={{ fontSize: 22, fontWeight: '700', color: C.textBold }}>Select State</Text>
+                                </View>
+                                <ScrollView style={{ maxHeight: 300 }} nestedScrollEnabled keyboardShouldPersistTaps="handled">
+                                  {['AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA','KS','KY','LA','ME','MD',
+                                    'MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ','NM','NY','NC','ND','OH','OK','OR','PA','RI','SC',
+                                    'SD','TN','TX','UT','VT','VA','WA','WV','WI','WY'].map(s2 => (
+                                    <TouchableOpacity key={s2} onPress={() => { setField('addr_state', s2); setShowAddrState(false); }}
+                                      style={{ paddingVertical: 10, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: C.w06, backgroundColor: editInfo.addr_state === s2 ? C.gd + '22' : 'transparent' }}>
+                                      <Text style={{ fontSize: 21, color: editInfo.addr_state === s2 ? C.gd : C.text }}>{s2}</Text>
+                                    </TouchableOpacity>
+                                  ))}
+                                </ScrollView>
                               </View>
+                            </TouchableOpacity>
+                          </TouchableOpacity>
+                        </Modal>
+                      </>
+                    ) : (
+                      <Text style={s.infoVal}>{editInfo.addr_state || '—'}</Text>
+                    )}
+                  </View>
+                  <View style={{ flex: 1 }}>{infoField("ZIP", "zip_code", "numeric", "83616")}</View>
+                </View>
+              </Card>
+            );
+
+            const datesCard = (
+              <Card style={{ marginBottom: 14 }}>
+                <Text style={s.cardTitle}>Dates</Text>
+                <View style={{ marginBottom: 14 }}>
+                  <Text style={s.infoLbl}>CONTRACT DATE</Text>
+                  <Text style={s.infoVal}>{project.date ? (() => {
+                    try { return new Date(project.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); }
+                    catch { return '--'; }
+                  })() : '--'}</Text>
+                </View>
+                <View style={{ marginBottom: 14 }}>
+                  <Text style={s.infoLbl}>START DATE</Text>
+                  <Text style={s.infoVal}>{fD(editInfo.start_date) || '—'}</Text>
+                </View>
+                <View style={{ marginBottom: 14 }}>
+                  <Text style={s.infoLbl}>ESTIMATED COMPLETION</Text>
+                  <Text style={s.infoVal}>{(() => {
+                    if (!editInfo.start_date) return '—';
+                    try {
+                      const d = new Date(editInfo.start_date + 'T00:00:00');
+                      if (isNaN(d.getTime())) return '—';
+                      d.setFullYear(d.getFullYear() + 1);
+                      return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                    } catch { return '—'; }
+                  })()}</Text>
+                  {editInfo.start_date ? (
+                    <Text style={{ fontSize: 13, color: C.dm, fontStyle: 'italic', marginTop: 2 }}>1 year from start date</Text>
+                  ) : null}
+                </View>
+                <View style={{ marginBottom: 14 }}>
+                  <Text style={s.infoLbl}>CURRENT COMPLETION</Text>
+                  <Text style={s.infoVal}>{(() => {
+                    const ends = schedule.filter(t => t.end_date).map(t => t.end_date).sort();
+                    if (ends.length === 0) return '—';
+                    return fD(ends[ends.length - 1]);
+                  })()}</Text>
+                  <Text style={{ fontSize: 13, color: C.dm, fontStyle: 'italic', marginTop: 2 }}>Based on last scheduled task</Text>
+                </View>
+              </Card>
+            );
+
+            const houseSpecsCard = (
+              <Card style={{ marginBottom: 14 }}>
+                <Text style={s.cardTitle}>House Specs</Text>
+                <View style={{ flexDirection: 'row', gap: 12 }}>
+                  <View style={{ flex: 1 }}>{infoField("TOTAL SQUARE FT", "sqft", "numeric", "0")}</View>
+                  <View style={{ flex: 1 }}>
+                    <View style={{ marginBottom: 14 }}>
+                      <Text style={s.infoLbl}>STORIES</Text>
+                      {isB ? (
+                        <TextInput value={editInfo.stories}
+                          onChangeText={v => {
+                            const num = parseInt(v) || 0;
+                            const prev = editInfo.story_details || [];
+                            const details = [...prev];
+                            while (details.length < num) details.push({ title: '', sqft: '' });
+                            if (details.length > num) details.length = num;
+                            setEditInfo(p => ({ ...p, stories: v, story_details: details }));
+                            setInfoDirty(true);
+                          }}
+                          keyboardType="numeric"
+                          style={{ fontSize: 22, color: C.text, backgroundColor: C.inputBg, borderWidth: 1, borderColor: C.w10, borderRadius: 8, padding: 10 }}
+                          placeholder="0" placeholderTextColor={C.ph} />
+                      ) : (
+                        <Text style={s.infoVal}>{editInfo.stories || '—'}</Text>
+                      )}
+                    </View>
+                  </View>
+                </View>
+                {(() => {
+                  const numStories = parseInt(editInfo.stories) || 0;
+                  if (numStories < 1) return null;
+                  const STORY_TITLES = ['Main Level', '2nd Story', 'Basement'];
+                  const details = editInfo.story_details || [];
+                  const totalSqft = parseInt(editInfo.sqft) || 0;
+                  const garageSqft = parseInt(editInfo.garage_sqft) || 0;
+                  const storySqft = details.reduce((sum, d) => sum + (parseInt(d.sqft) || 0), 0);
+                  const usedSqft = storySqft + garageSqft;
+                  const remaining = totalSqft - usedSqft;
+                  return (
+                    <View style={{ marginBottom: 14, gap: 8 }}>
+                      {details.map((story, i) => (
+                        <View key={i} style={{ flexDirection: 'row', gap: 8, alignItems: 'flex-end' }}>
+                          <View style={{ flex: 2 }}>
+                            <Text style={[s.infoLbl, { marginBottom: 4 }]}>STORY {i + 1}</Text>
+                            {isB ? (
+                              <View>
+                                <TouchableOpacity onPress={() => { const updated = [...details]; updated[i] = { ...updated[i], _showPicker: !updated[i]._showPicker }; setField('story_details', updated); }}
+                                  style={{ backgroundColor: C.inputBg, borderWidth: 1, borderColor: C.w10, borderRadius: 8, padding: 10, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                                  <Text style={{ fontSize: 20, color: story.title ? C.text : C.ph }}>{story.title || 'Select level'}</Text>
+                                  <Text style={{ fontSize: 15, color: C.dm }}>▾</Text>
+                                </TouchableOpacity>
+                                {story._showPicker && (
+                                  <View style={{ backgroundColor: C.inputBg, borderWidth: 1, borderColor: C.w10, borderRadius: 8, marginTop: 4, overflow: 'hidden' }}>
+                                    {STORY_TITLES.map(t => (
+                                      <TouchableOpacity key={t} onPress={() => { const updated = [...details]; updated[i] = { title: t, sqft: updated[i].sqft }; setField('story_details', updated); }}
+                                        style={{ paddingVertical: 10, paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: C.w06, backgroundColor: story.title === t ? C.gd + '22' : 'transparent' }}>
+                                        <Text style={{ fontSize: 18, color: story.title === t ? C.gd : C.text }}>{t}</Text>
+                                      </TouchableOpacity>
+                                    ))}
+                                  </View>
+                                )}
+                              </View>
+                            ) : (
+                              <Text style={s.infoVal}>{story.title || '—'}</Text>
                             )}
                           </View>
-                        ) : (
-                          <Text style={s.infoVal}>{story.title || '—'}</Text>
-                        )}
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <Text style={[s.infoLbl, { marginBottom: 4 }]}>SQ FT</Text>
-                        {isB ? (
-                          <TextInput
-                            value={String(story.sqft || '')}
-                            onChangeText={v => {
-                              const val = parseInt(v) || 0;
-                              const otherStories = details.reduce((sum, d, j) => j === i ? sum : sum + (parseInt(d.sqft) || 0), 0);
-                              const garageUsed = parseInt(editInfo.garage_sqft) || 0;
-                              if (val + otherStories + garageUsed > totalSqft && totalSqft > 0) return;
-                              const updated = [...details];
-                              updated[i] = { title: updated[i].title, sqft: v };
-                              setField('story_details', updated);
-                            }}
-                            keyboardType="numeric"
-                            placeholder="0"
-                            placeholderTextColor={C.ph}
-                            style={{ fontSize: 22, color: C.text, backgroundColor: C.inputBg, borderWidth: 1, borderColor: C.w10, borderRadius: 8, padding: 10 }}
-                          />
-                        ) : (
-                          <Text style={s.infoVal}>{story.sqft || '—'}</Text>
-                        )}
-                      </View>
+                          <View style={{ flex: 1 }}>
+                            <Text style={[s.infoLbl, { marginBottom: 4 }]}>SQ FT</Text>
+                            {isB ? (
+                              <TextInput value={String(story.sqft || '')}
+                                onChangeText={v => {
+                                  const val = parseInt(v) || 0;
+                                  const otherStories = details.reduce((sum, d, j) => j === i ? sum : sum + (parseInt(d.sqft) || 0), 0);
+                                  const garageUsed = parseInt(editInfo.garage_sqft) || 0;
+                                  if (val + otherStories + garageUsed > totalSqft && totalSqft > 0) return;
+                                  const updated = [...details];
+                                  updated[i] = { title: updated[i].title, sqft: v };
+                                  setField('story_details', updated);
+                                }}
+                                keyboardType="numeric" placeholder="0" placeholderTextColor={C.ph}
+                                style={{ fontSize: 22, color: C.text, backgroundColor: C.inputBg, borderWidth: 1, borderColor: C.w10, borderRadius: 8, padding: 10 }} />
+                            ) : (
+                              <Text style={s.infoVal}>{story.sqft || '—'}</Text>
+                            )}
+                          </View>
+                        </View>
+                      ))}
+                      {totalSqft > 0 && (
+                        <Text style={{ fontSize: 13, color: remaining < 0 ? '#ef4444' : C.dm, fontStyle: 'italic', marginTop: 2 }}>
+                          {remaining === 0 ? 'All square footage allocated' : `${remaining.toLocaleString()} sq ft remaining (incl. garage)`}
+                        </Text>
+                      )}
                     </View>
-                  ))}
-                  {totalSqft > 0 && (
-                    <Text style={{ fontSize: 13, color: remaining < 0 ? '#ef4444' : C.dm, fontStyle: 'italic', marginTop: 2 }}>
-                      {remaining === 0 ? 'All square footage allocated' : `${remaining.toLocaleString()} sq ft remaining (incl. garage)`}
-                    </Text>
-                  )}
+                  );
+                })()}
+                <View style={{ flexDirection: 'row', gap: 12 }}>
+                  <View style={{ flex: 1 }}>{infoField("BEDROOMS", "bedrooms", "numeric", "0")}</View>
+                  <View style={{ flex: 1 }}>{infoField("BATHROOMS", "bathrooms", "numeric", "0")}</View>
                 </View>
-              );
-            })()}
+                <View style={{ flexDirection: 'row', gap: 12 }}>
+                  <View style={{ flex: 1 }}>
+                    <View style={{ marginBottom: 14 }}>
+                      <Text style={s.infoLbl}>GARAGE</Text>
+                      {isB ? (
+                        <View style={{ flexDirection: 'row', gap: 4, marginTop: 4 }}>
+                          {GARAGE_OPTIONS.map(opt => {
+                            const on = editInfo.garage === opt;
+                            return (
+                              <TouchableOpacity key={opt} onPress={() => setField('garage', on ? '' : opt)}
+                                style={{ paddingHorizontal: 8, paddingVertical: 14, borderRadius: 6, borderWidth: 1, borderColor: on ? C.gd : C.w10, backgroundColor: on ? C.gd + '22' : 'transparent', flex: 1, alignItems: 'center', justifyContent: 'center' }}
+                                activeOpacity={0.7}>
+                                <Text style={{ fontSize: 16, color: on ? C.gd : C.mt, fontWeight: on ? '600' : '400' }}>{opt}</Text>
+                              </TouchableOpacity>
+                            );
+                          })}
+                        </View>
+                      ) : (
+                        <Text style={s.infoVal}>{editInfo.garage || '—'}</Text>
+                      )}
+                    </View>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <View style={{ marginBottom: 14 }}>
+                      <Text style={s.infoLbl}>GARAGE SQ FT</Text>
+                      {isB ? (
+                        <TextInput value={editInfo.garage_sqft}
+                          onChangeText={v => {
+                            const val = parseInt(v) || 0;
+                            const totalSqft = parseInt(editInfo.sqft) || 0;
+                            const storySqft = (editInfo.story_details || []).reduce((sum, d) => sum + (parseInt(d.sqft) || 0), 0);
+                            if (val + storySqft > totalSqft && totalSqft > 0) return;
+                            setField('garage_sqft', v);
+                          }}
+                          keyboardType="numeric"
+                          style={{ fontSize: 22, color: C.text, backgroundColor: C.inputBg, borderWidth: 1, borderColor: C.w10, borderRadius: 8, padding: 10 }}
+                          placeholder="0" placeholderTextColor={C.ph} />
+                      ) : (
+                        <Text style={s.infoVal}>{editInfo.garage_sqft || '—'}</Text>
+                      )}
+                    </View>
+                  </View>
+                </View>
+                {infoField("LOT SIZE", "lot_size", undefined, "e.g., 0.45 acres")}
+              </Card>
+            );
 
-            <View style={{ flexDirection: 'row', gap: 12 }}>
-              <View style={{ flex: 1 }}>{infoField("BEDROOMS", "bedrooms", "numeric", "0")}</View>
-              <View style={{ flex: 1 }}>{infoField("BATHROOMS", "bathrooms", "numeric", "0")}</View>
-            </View>
-            <View style={{ flexDirection: 'row', gap: 12 }}>
-              <View style={{ flex: 1 }}>
-                <View style={{ marginBottom: 14 }}>
-                  <Text style={s.infoLbl}>GARAGE</Text>
-                  {isB ? (
-                    <View style={{ flexDirection: 'row', gap: 4, marginTop: 4 }}>
-                      {GARAGE_OPTIONS.map(opt => {
-                        const on = editInfo.garage === opt;
-                        return (
-                          <TouchableOpacity key={opt} onPress={() => setField('garage', on ? '' : opt)}
-                            style={{ paddingHorizontal: 8, paddingVertical: 14, borderRadius: 6, borderWidth: 1, borderColor: on ? C.gd : C.w10, backgroundColor: on ? C.gd + '22' : 'transparent', flex: 1, alignItems: 'center', justifyContent: 'center' }}
-                            activeOpacity={0.7}>
-                            <Text style={{ fontSize: 16, color: on ? C.gd : C.mt, fontWeight: on ? '600' : '400' }}>{opt}</Text>
-                          </TouchableOpacity>
-                        );
-                      })}
-                    </View>
-                  ) : (
-                    <Text style={s.infoVal}>{editInfo.garage || '—'}</Text>
-                  )}
-                </View>
+            return IS_WIDE ? (
+              <View style={s.twoColRow}>
+                <View style={s.twoColLeft}>{contractPriceCard}{houseSpecsCard}</View>
+                <View style={[s.twoColRight, { zIndex: 20 }]}>{projectDetailsCard}{datesCard}</View>
               </View>
-              <View style={{ flex: 1 }}>
-                <View style={{ marginBottom: 14 }}>
-                  <Text style={s.infoLbl}>GARAGE SQ FT</Text>
-                  {isB ? (
-                    <TextInput
-                      value={editInfo.garage_sqft}
-                      onChangeText={v => {
-                        const val = parseInt(v) || 0;
-                        const totalSqft = parseInt(editInfo.sqft) || 0;
-                        const storySqft = (editInfo.story_details || []).reduce((sum, d) => sum + (parseInt(d.sqft) || 0), 0);
-                        if (val + storySqft > totalSqft && totalSqft > 0) return;
-                        setField('garage_sqft', v);
-                      }}
-                      keyboardType="numeric"
-                      style={{ fontSize: 22, color: C.text, backgroundColor: C.inputBg, borderWidth: 1, borderColor: C.w10, borderRadius: 8, padding: 10 }}
-                      placeholder="0"
-                      placeholderTextColor={C.ph}
-                    />
-                  ) : (
-                    <Text style={s.infoVal}>{editInfo.garage_sqft || '—'}</Text>
-                  )}
-                </View>
-              </View>
-            </View>
-            {infoField("LOT SIZE", "lot_size", undefined, "e.g., 0.45 acres")}
-          </Card>
+            ) : (
+              <>{contractPriceCard}{projectDetailsCard}{datesCard}{houseSpecsCard}</>
+            );
+          })()}
 
           {isB && infoDirty && (
             <TouchableOpacity onPress={saveInfoFields} disabled={infoSaving}
@@ -1273,106 +1256,110 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
       const grandTotal = baseContract + coTotal + selectionTotal;
 
       return (
-        <ScrollView style={{ flex: 1 }} contentContainerStyle={s.scroll}>
-          <Text style={s.sectionTitle}>Job Price Summary</Text>
-          <Text style={{ color: C.mt, fontSize: 21, marginBottom: 20 }}>{project.name}</Text>
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={[s.scroll, { maxWidth: 1200 }]}>
+          <Text style={[s.sectionTitle, { textAlign: 'center' }]}>Job Price Summary</Text>
+          <Text style={{ color: C.mt, fontSize: 21, marginBottom: 20, textAlign: 'center' }}>{project.name}</Text>
 
-          <Card style={{ padding: 0, overflow: 'hidden' }}>
-            <View style={s.priceRow}>
-              <Text style={[s.priceLbl, { fontWeight: '600' }]}>Contract Price</Text>
-              <Text style={s.priceAmt}>{f$(origPrice)}</Text>
-            </View>
+          <View style={s.twoColRow}>
+            {/* LEFT COLUMN: Contract Price + Total Cost */}
+            <View style={s.twoColLeft}>
+              <Card style={{ padding: 0, overflow: 'hidden' }}>
+                <View style={s.priceRow}>
+                  <Text style={[s.priceLbl, { fontWeight: '600' }]}>Contract Price</Text>
+                  <Text style={s.priceAmt}>{f$(origPrice)}</Text>
+                </View>
+                {reconciliation !== 0 && (
+                  <View style={s.priceRow}>
+                    <Text style={s.priceLbl}>Reconciliation After Drafting</Text>
+                    <Text style={[s.priceAmt, { color: reconciliation > 0 ? C.yl : C.gn }]}>
+                      {reconciliation > 0 ? `+${f$(reconciliation)}` : f$(reconciliation)}
+                    </Text>
+                  </View>
+                )}
+                {reconciliation !== 0 && (
+                  <View style={[s.priceRow, { borderTopWidth: 2, borderTopColor: C.gd + '40' }]}>
+                    <Text style={{ fontSize: 24, fontWeight: '700', color: C.text }}>Base Contract</Text>
+                    <Text style={{ fontSize: 30, fontWeight: '700', color: C.gd }}>{f$(baseContract)}</Text>
+                  </View>
+                )}
+              </Card>
 
-            {reconciliation !== 0 && (
-              <View style={s.priceRow}>
-                <Text style={s.priceLbl}>Reconciliation After Drafting</Text>
-                <Text style={[s.priceAmt, { color: reconciliation > 0 ? C.yl : C.gn }]}>
-                  {reconciliation > 0 ? `+${f$(reconciliation)}` : f$(reconciliation)}
-                </Text>
-              </View>
-            )}
-
-            {reconciliation !== 0 && (
-              <View style={[s.priceRow, { borderTopWidth: 2, borderTopColor: C.gd + '40' }]}>
-                <Text style={{ fontSize: 24, fontWeight: '700', color: C.text }}>Base Contract</Text>
-                <Text style={{ fontSize: 30, fontWeight: '700', color: C.gd }}>{f$(baseContract)}</Text>
-              </View>
-            )}
-          </Card>
-
-          {/* Change Orders section */}
-          <Card style={{ padding: 0, overflow: 'hidden', marginTop: 16 }}>
-            <View style={[s.priceRow, { backgroundColor: C.bH05 }]}>
-              <Text style={[s.lbl, { color: C.gd, marginBottom: 0 }]}>CHANGE ORDERS</Text>
-            </View>
-            {approved.length === 0 ? (
-              <View style={[s.priceRow, { justifyContent: 'center' }]}>
-                <Text style={{ fontSize: 20, color: C.dm, fontStyle: 'italic' }}>No approved change orders yet</Text>
-              </View>
-            ) : (
-              approved.map(co => (
-                <View key={co.id} style={s.priceRow}>
-                  <Text style={[s.priceLbl, { flex: 1 }]} numberOfLines={1}>{co.title}</Text>
-                  <Text style={[s.priceAmt, { color: co.amount >= 0 ? C.yl : C.gn }]}>
-                    {co.amount >= 0 ? `+${f$(co.amount)}` : f$(co.amount)}
+              {/* Total Cost */}
+              <Card style={{ padding: 0, overflow: 'hidden', marginTop: 16 }}>
+                <View style={s.priceRow}>
+                  <Text style={s.priceLbl}>Base Contract</Text>
+                  <Text style={s.priceAmt}>{f$(baseContract)}</Text>
+                </View>
+                <View style={s.priceRow}>
+                  <Text style={s.priceLbl}>Change Orders</Text>
+                  <Text style={[s.priceAmt, { color: coTotal > 0 ? C.yl : coTotal < 0 ? C.gn : C.mt }]}>
+                    {coTotal > 0 ? `+${f$(coTotal)}` : f$(coTotal)}
                   </Text>
                 </View>
-              ))
-            )}
-            <View style={[s.priceRow, { borderTopWidth: 1, borderTopColor: C.w10 }]}>
-              <Text style={{ fontSize: 21, fontWeight: '700', color: C.text }}>Change Orders Total</Text>
-              <Text style={{ fontSize: 24, fontWeight: '700', color: coTotal > 0 ? C.yl : coTotal < 0 ? C.gn : C.mt }}>
-                {coTotal > 0 ? `+${f$(coTotal)}` : f$(coTotal)}
-              </Text>
+                <View style={s.priceRow}>
+                  <Text style={s.priceLbl}>Selection Upgrades</Text>
+                  <Text style={[s.priceAmt, { color: selectionTotal > 0 ? C.yl : C.mt }]}>{selectionTotal > 0 ? `+${f$(selectionTotal)}` : f$(0)}</Text>
+                </View>
+                <View style={[s.priceRow, { borderTopWidth: 2, borderTopColor: C.gd + '40' }]}>
+                  <Text style={{ fontSize: 24, fontWeight: '700', color: C.text }}>Total Cost</Text>
+                  <Text style={{ fontSize: 30, fontWeight: '700', color: C.gd }}>{f$(grandTotal)}</Text>
+                </View>
+              </Card>
             </View>
-          </Card>
 
-          {/* Selections section */}
-          <Card style={{ padding: 0, overflow: 'hidden', marginTop: 16 }}>
-            <View style={[s.priceRow, { backgroundColor: C.bH05 }]}>
-              <Text style={[s.lbl, { color: C.gd, marginBottom: 0 }]}>SELECTIONS</Text>
-            </View>
-            {confirmedSels.length === 0 ? (
-              <View style={[s.priceRow, { justifyContent: 'center' }]}>
-                <Text style={{ fontSize: 20, color: C.dm, fontStyle: 'italic' }}>No confirmed selections yet</Text>
-              </View>
-            ) : (
-              selectionLines.map((line, i) => (
-                <View key={i} style={s.priceRow}>
-                  <Text style={[s.priceLbl, { flex: 1 }]} numberOfLines={1}>{line.item} — {line.selected}</Text>
-                  <Text style={[s.priceAmt, line.price > 0 ? { color: C.yl } : { color: C.gn }]}>
-                    {line.price > 0 ? `+${f$(line.price)}` : 'Standard'}
+            {/* RIGHT COLUMN: Change Orders + Selections */}
+            <View style={s.twoColRight}>
+              <Card style={{ padding: 0, overflow: 'hidden' }}>
+                <View style={[s.priceRow, { backgroundColor: C.bH05 }]}>
+                  <Text style={[s.lbl, { color: C.gd, marginBottom: 0 }]}>CHANGE ORDERS</Text>
+                </View>
+                {approved.length === 0 ? (
+                  <View style={[s.priceRow, { justifyContent: 'center' }]}>
+                    <Text style={{ fontSize: 20, color: C.dm, fontStyle: 'italic' }}>No approved change orders yet</Text>
+                  </View>
+                ) : (
+                  approved.map(co => (
+                    <View key={co.id} style={s.priceRow}>
+                      <Text style={[s.priceLbl, { flex: 1 }]} numberOfLines={1}>{co.title}</Text>
+                      <Text style={[s.priceAmt, { color: co.amount >= 0 ? C.yl : C.gn }]}>
+                        {co.amount >= 0 ? `+${f$(co.amount)}` : f$(co.amount)}
+                      </Text>
+                    </View>
+                  ))
+                )}
+                <View style={[s.priceRow, { borderTopWidth: 1, borderTopColor: C.w10 }]}>
+                  <Text style={{ fontSize: 21, fontWeight: '700', color: C.text }}>Change Orders Total</Text>
+                  <Text style={{ fontSize: 24, fontWeight: '700', color: coTotal > 0 ? C.yl : coTotal < 0 ? C.gn : C.mt }}>
+                    {coTotal > 0 ? `+${f$(coTotal)}` : f$(coTotal)}
                   </Text>
                 </View>
-              ))
-            )}
-            <View style={[s.priceRow, { borderTopWidth: 1, borderTopColor: C.w10 }]}>
-              <Text style={{ fontSize: 21, fontWeight: '700', color: C.text }}>Selections Total</Text>
-              <Text style={{ fontSize: 24, fontWeight: '700', color: selectionTotal > 0 ? C.yl : C.gn }}>{selectionTotal > 0 ? `+${f$(selectionTotal)}` : f$(0)}</Text>
-            </View>
-          </Card>
+              </Card>
 
-          {/* Grand total */}
-          <Card style={{ padding: 0, overflow: 'hidden', marginTop: 16 }}>
-            <View style={s.priceRow}>
-              <Text style={s.priceLbl}>Base Contract</Text>
-              <Text style={s.priceAmt}>{f$(baseContract)}</Text>
+              <Card style={{ padding: 0, overflow: 'hidden', marginTop: 16 }}>
+                <View style={[s.priceRow, { backgroundColor: C.bH05 }]}>
+                  <Text style={[s.lbl, { color: C.gd, marginBottom: 0 }]}>SELECTIONS</Text>
+                </View>
+                {confirmedSels.length === 0 ? (
+                  <View style={[s.priceRow, { justifyContent: 'center' }]}>
+                    <Text style={{ fontSize: 20, color: C.dm, fontStyle: 'italic' }}>No confirmed selections yet</Text>
+                  </View>
+                ) : (
+                  selectionLines.map((line, i) => (
+                    <View key={i} style={s.priceRow}>
+                      <Text style={[s.priceLbl, { flex: 1 }]} numberOfLines={1}>{line.item} — {line.selected}</Text>
+                      <Text style={[s.priceAmt, line.price > 0 ? { color: C.yl } : { color: C.gn }]}>
+                        {line.price > 0 ? `+${f$(line.price)}` : 'Standard'}
+                      </Text>
+                    </View>
+                  ))
+                )}
+                <View style={[s.priceRow, { borderTopWidth: 1, borderTopColor: C.w10 }]}>
+                  <Text style={{ fontSize: 21, fontWeight: '700', color: C.text }}>Selections Total</Text>
+                  <Text style={{ fontSize: 24, fontWeight: '700', color: selectionTotal > 0 ? C.yl : C.gn }}>{selectionTotal > 0 ? `+${f$(selectionTotal)}` : f$(0)}</Text>
+                </View>
+              </Card>
             </View>
-            <View style={s.priceRow}>
-              <Text style={s.priceLbl}>Change Orders</Text>
-              <Text style={[s.priceAmt, { color: coTotal > 0 ? C.yl : coTotal < 0 ? C.gn : C.mt }]}>
-                {coTotal > 0 ? `+${f$(coTotal)}` : f$(coTotal)}
-              </Text>
-            </View>
-            <View style={s.priceRow}>
-              <Text style={s.priceLbl}>Selection Upgrades</Text>
-              <Text style={[s.priceAmt, { color: selectionTotal > 0 ? C.yl : C.mt }]}>{selectionTotal > 0 ? `+${f$(selectionTotal)}` : f$(0)}</Text>
-            </View>
-            <View style={[s.priceRow, { borderTopWidth: 2, borderTopColor: C.gd + '40' }]}>
-              <Text style={{ fontSize: 24, fontWeight: '700', color: C.text }}>Total Cost</Text>
-              <Text style={{ fontSize: 30, fontWeight: '700', color: C.gd }}>{f$(grandTotal)}</Text>
-            </View>
-          </Card>
+          </View>
 
           {pending.length > 0 && (
             <View style={s.warnBox}>
@@ -2132,56 +2119,78 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
 
     // --- CHANGE ORDERS ---
     if (tab === 'changeorders') {
+      const renderCOCard = (co) => (
+        <Card key={co.id} onPress={() => setModal({ type: 'co', data: co })} style={{ marginBottom: 10 }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
+            <Text style={{ fontSize: 22, fontWeight: '600', color: C.text, flex: 1 }} numberOfLines={1}>{co.title}</Text>
+            <Badge status={co.status} />
+          </View>
+          <Text style={{ fontSize: 20, color: C.mt, marginBottom: 8 }} numberOfLines={2}>{co.description}</Text>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+            <View>
+              <Text style={{ fontSize: 18, color: C.dm }}>Created {fD(co.created_at)}</Text>
+              {co.due_date && (
+                <Text style={{ fontSize: 18, color: co.due_date && new Date(co.due_date + 'T23:59:59') < new Date() && co.status !== 'approved' ? C.rd : C.dm, marginTop: 2 }}>
+                  Due {fD(co.due_date)}
+                </Text>
+              )}
+            </View>
+            <Text style={{ fontSize: 24, fontWeight: '700', color: co.amount >= 0 ? C.yl : C.gn }}>
+              {co.amount >= 0 ? '+' : ''}{f$(co.amount)}
+            </Text>
+          </View>
+          <View style={{ flexDirection: 'row', gap: 14, marginTop: 10 }}>
+            {[['Builder', co.builder_sig, co.builder_sig_initials], ['Customer', co.customer_sig, co.customer_sig_initials], ...(co.sub_id ? [['Sub', co.sub_sig, co.sub_sig_initials]] : [])].map(([l, signed, initials]) => (
+              <View key={l} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <View style={[s.sigDot, signed && s.sigDotOn]}>
+                  {signed && <Text style={{ color: C.textBold, fontSize: 10, fontWeight: '700' }}>{initials || '✓'}</Text>}
+                </View>
+                <Text style={{ fontSize: 18, color: C.mt }}>{l}</Text>
+              </View>
+            ))}
+          </View>
+        </Card>
+      );
+
+      const approvedCOs = changeOrders.filter(co => co.status === 'approved');
+      const pendingCOs = changeOrders.filter(co => co.status !== 'approved');
+
       return (
         <ScrollView style={{ flex: 1 }} contentContainerStyle={s.scroll}>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-            <Text style={s.sectionTitle}>Change Orders</Text>
-            {(isB || isCon) && (
-              <TouchableOpacity onPress={() => {
-                if (isCon) {
-                  // Contractors go straight to sub change order — pick a task first
-                  setModal({ type: 'subco', task: { id: null, task: '' } });
-                } else {
-                  setModal('coTypePicker');
-                }
-              }} activeOpacity={0.7}
-                style={{ width: 40, height: 40, borderRadius: 10, backgroundColor: C.gd, alignItems: 'center', justifyContent: 'center' }}>
-                <Text style={{ fontSize: 26, fontWeight: '700', color: C.textBold }}>+</Text>
-              </TouchableOpacity>
-            )}
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
+            <View style={{ flex: 1 }} />
+            <Text style={[s.sectionTitle, { textAlign: 'center' }]}>Change Orders</Text>
+            <View style={{ flex: 1, alignItems: 'flex-end' }}>
+              {(isB || isCon) && (
+                <TouchableOpacity onPress={() => {
+                  if (isCon) {
+                    setModal({ type: 'subco', task: { id: null, task: '' } });
+                  } else {
+                    setModal('coTypePicker');
+                  }
+                }} activeOpacity={0.7}
+                  style={{ width: 40, height: 40, borderRadius: 10, backgroundColor: C.gd, alignItems: 'center', justifyContent: 'center' }}>
+                  <Text style={{ fontSize: 26, fontWeight: '700', color: C.textBold }}>+</Text>
+                </TouchableOpacity>
+              )}
+            </View>
           </View>
-          {changeOrders.length === 0 ? <Empty icon="📄" text="No change orders" /> : changeOrders.map(co => (
-            <Card key={co.id} onPress={() => setModal({ type: 'co', data: co })} style={{ marginBottom: 10 }}>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
-                <Text style={{ fontSize: 22, fontWeight: '600', color: C.text, flex: 1 }} numberOfLines={1}>{co.title}</Text>
-                <Badge status={co.status} />
-              </View>
-              <Text style={{ fontSize: 20, color: C.mt, marginBottom: 8 }} numberOfLines={2}>{co.description}</Text>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+          {changeOrders.length === 0 ? <Empty icon="📄" text="No change orders" /> : (
+            <>
+              {approvedCOs.length > 0 && (
                 <View>
-                  <Text style={{ fontSize: 18, color: C.dm }}>Created {fD(co.created_at)}</Text>
-                  {co.due_date && (
-                    <Text style={{ fontSize: 18, color: co.due_date && new Date(co.due_date + 'T23:59:59') < new Date() && co.status !== 'approved' ? C.rd : C.dm, marginTop: 2 }}>
-                      Due {fD(co.due_date)}
-                    </Text>
-                  )}
+                  <Text style={s.groupSubtitle}>Approved</Text>
+                  {approvedCOs.map(renderCOCard)}
                 </View>
-                <Text style={{ fontSize: 24, fontWeight: '700', color: co.amount >= 0 ? C.yl : C.gn }}>
-                  {co.amount >= 0 ? '+' : ''}{f$(co.amount)}
-                </Text>
-              </View>
-              <View style={{ flexDirection: 'row', gap: 14, marginTop: 10 }}>
-                {[['Builder', co.builder_sig, co.builder_sig_initials], ['Customer', co.customer_sig, co.customer_sig_initials], ...(co.sub_id ? [['Sub', co.sub_sig, co.sub_sig_initials]] : [])].map(([l, signed, initials]) => (
-                  <View key={l} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                    <View style={[s.sigDot, signed && s.sigDotOn]}>
-                      {signed && <Text style={{ color: C.textBold, fontSize: 10, fontWeight: '700' }}>{initials || '✓'}</Text>}
-                    </View>
-                    <Text style={{ fontSize: 18, color: C.mt }}>{l}</Text>
-                  </View>
-                ))}
-              </View>
-            </Card>
-          ))}
+              )}
+              {pendingCOs.length > 0 && (
+                <View>
+                  <Text style={s.groupSubtitle}>Awaiting Approval</Text>
+                  {pendingCOs.map(renderCOCard)}
+                </View>
+              )}
+            </>
+          )}
         </ScrollView>
       );
     }
@@ -2200,98 +2209,117 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
         setModal(null);
       };
 
-      // Group by category
-      const grouped = {};
-      selections.forEach(sel => {
-        const cat = sel.category || 'Uncategorized';
-        if (!grouped[cat]) grouped[cat] = [];
-        grouped[cat].push(sel);
-      });
+      // Split by status, then group by category within each
+      const confirmedSels = selections.filter(sel => sel.status === 'confirmed');
+      const awaitingSels = selections.filter(sel => sel.status !== 'confirmed');
+      const groupByCategory = (sels) => {
+        const grouped = {};
+        sels.forEach(sel => { const cat = sel.category || 'Uncategorized'; if (!grouped[cat]) grouped[cat] = []; grouped[cat].push(sel); });
+        return Object.entries(grouped);
+      };
+
+      const renderSelectionCard = (sel) => {
+        const isConfirmed = sel.status === 'confirmed';
+        const hasSelection = !!sel.selected;
+        const needsConfirm = hasSelection && !isConfirmed;
+        return (
+          <Card key={sel.project_selection_id || sel.id} style={{ marginBottom: 14 }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 24, fontWeight: '600', color: C.text }}>{sel.item}</Text>
+              </View>
+              {isConfirmed ? (
+                <View style={{ backgroundColor: 'rgba(34,197,94,0.12)', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 }}>
+                  <Text style={{ fontSize: 16, fontWeight: '700', color: C.gn }}>✓ Confirmed</Text>
+                </View>
+              ) : hasSelection ? (
+                <View style={{ backgroundColor: C.bH12, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 }}>
+                  <Text style={{ fontSize: 16, fontWeight: '700', color: C.gd }}>Selected</Text>
+                </View>
+              ) : (
+                <Badge status="pending" />
+              )}
+            </View>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
+              {(sel.options || []).map((opt, i) => {
+                const isObj = typeof opt === 'object';
+                const optName = isObj ? opt.name : opt;
+                const imgPath = isObj ? opt.image_path : null;
+                const price = isObj ? opt.price : null;
+                const standard = isObj ? opt.comes_standard : false;
+                const active = sel.selected === optName;
+                return (
+                  <TouchableOpacity key={i}
+                    onPress={() => canPick && !isConfirmed && sel.project_selection_id && pick(sel.project_selection_id, optName, sel.status)}
+                    activeOpacity={canPick && !isConfirmed ? 0.7 : 1}
+                    style={{
+                      width: 150, borderRadius: 10, overflow: 'hidden',
+                      borderWidth: active ? 2 : 1,
+                      borderColor: active ? (isConfirmed ? C.gn : C.gd) : C.w12,
+                      backgroundColor: active ? (C.mode === 'dark' ? C.bH08 : C.bH05) : C.w03,
+                      opacity: isConfirmed && !active ? 0.5 : 1,
+                    }}>
+                    {imgPath ? (
+                      <Image source={{ uri: `${API_BASE}${imgPath}` }} style={{ width: '100%', height: 100 }} resizeMode="cover" />
+                    ) : (
+                      <View style={{ width: '100%', height: 100, backgroundColor: C.w06, alignItems: 'center', justifyContent: 'center' }}>
+                        <Text style={{ fontSize: 42, opacity: 0.4 }}>📷</Text>
+                      </View>
+                    )}
+                    <View style={{ padding: 10 }}>
+                      <Text style={{ fontSize: 20, fontWeight: '600', color: active ? C.gd : C.text }} numberOfLines={2}>{active ? '✓ ' : ''}{optName}</Text>
+                      {standard ? (
+                        <Text style={{ fontSize: 18, color: C.gn, fontWeight: '600', marginTop: 4 }}>Standard</Text>
+                      ) : price != null && price > 0 ? (
+                        <Text style={{ fontSize: 18, color: C.mt, marginTop: 4 }}>+{f$(price)}</Text>
+                      ) : null}
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+            {needsConfirm && canPick && (
+              <TouchableOpacity
+                onPress={() => setModal({ type: 'confirmsel', psId: sel.project_selection_id, item: sel.item, selected: sel.selected })}
+                style={{ backgroundColor: C.gd, paddingVertical: 12, borderRadius: 8, marginTop: 14, alignItems: 'center' }}
+                activeOpacity={0.8}
+              >
+                <Text style={{ fontSize: 21, fontWeight: '700', color: C.textBold }}>Confirm Selection</Text>
+              </TouchableOpacity>
+            )}
+          </Card>
+        );
+      };
 
       return (
         <ScrollView style={{ flex: 1 }} contentContainerStyle={s.scroll}>
           <Text style={[s.sectionTitle, { marginBottom: 16 }]}>Selections</Text>
 
           {selections.length === 0 ? <Empty icon="🎨" text="No selections yet" sub={isC ? "Your builder will add selections here" : "Add selections in Settings → Manage Selections"} /> : (
-            Object.entries(grouped).map(([cat, sels]) => (
-              <View key={cat} style={{ marginBottom: 20 }}>
-                <Text style={{ fontSize: 20, fontWeight: '700', color: C.gd, letterSpacing: 1, marginBottom: 10 }}>{cat.toUpperCase()}</Text>
-                {sels.map(sel => {
-                  const isConfirmed = sel.status === 'confirmed';
-                  const hasSelection = !!sel.selected;
-                  const needsConfirm = hasSelection && !isConfirmed;
-                  return (
-                  <Card key={sel.project_selection_id || sel.id} style={{ marginBottom: 14 }}>
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
-                      <View style={{ flex: 1 }}>
-                        <Text style={{ fontSize: 24, fontWeight: '600', color: C.text }}>{sel.item}</Text>
-                      </View>
-                      {isConfirmed ? (
-                        <View style={{ backgroundColor: 'rgba(34,197,94,0.12)', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 }}>
-                          <Text style={{ fontSize: 16, fontWeight: '700', color: C.gn }}>✓ Confirmed</Text>
-                        </View>
-                      ) : hasSelection ? (
-                        <View style={{ backgroundColor: C.bH12, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 }}>
-                          <Text style={{ fontSize: 16, fontWeight: '700', color: C.gd }}>Selected</Text>
-                        </View>
-                      ) : (
-                        <Badge status="pending" />
-                      )}
+            <>
+              {confirmedSels.length > 0 && (
+                <View>
+                  <Text style={s.groupSubtitle}>Confirmed</Text>
+                  {groupByCategory(confirmedSels).map(([cat, sels]) => (
+                    <View key={cat} style={{ marginBottom: 20 }}>
+                      <Text style={{ fontSize: 20, fontWeight: '700', color: C.gd, letterSpacing: 1, marginBottom: 10 }}>{cat.toUpperCase()}</Text>
+                      {sels.map(renderSelectionCard)}
                     </View>
-                    {/* Option cards */}
-                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
-                      {(sel.options || []).map((opt, i) => {
-                        const isObj = typeof opt === 'object';
-                        const optName = isObj ? opt.name : opt;
-                        const imgPath = isObj ? opt.image_path : null;
-                        const price = isObj ? opt.price : null;
-                        const standard = isObj ? opt.comes_standard : false;
-                        const active = sel.selected === optName;
-                        return (
-                          <TouchableOpacity key={i}
-                            onPress={() => canPick && !isConfirmed && sel.project_selection_id && pick(sel.project_selection_id, optName, sel.status)}
-                            activeOpacity={canPick && !isConfirmed ? 0.7 : 1}
-                            style={{
-                              width: 150, borderRadius: 10, overflow: 'hidden',
-                              borderWidth: active ? 2 : 1,
-                              borderColor: active ? (isConfirmed ? C.gn : C.gd) : C.w12,
-                              backgroundColor: active ? (C.mode === 'dark' ? C.bH08 : C.bH05) : C.w03,
-                              opacity: isConfirmed && !active ? 0.5 : 1,
-                            }}>
-                            {imgPath ? (
-                              <Image source={{ uri: `${API_BASE}${imgPath}` }} style={{ width: '100%', height: 100 }} resizeMode="cover" />
-                            ) : (
-                              <View style={{ width: '100%', height: 100, backgroundColor: C.w06, alignItems: 'center', justifyContent: 'center' }}>
-                                <Text style={{ fontSize: 42, opacity: 0.4 }}>📷</Text>
-                              </View>
-                            )}
-                            <View style={{ padding: 10 }}>
-                              <Text style={{ fontSize: 20, fontWeight: '600', color: active ? C.gd : C.text }} numberOfLines={2}>{active ? '✓ ' : ''}{optName}</Text>
-                              {standard ? (
-                                <Text style={{ fontSize: 18, color: C.gn, fontWeight: '600', marginTop: 4 }}>Standard</Text>
-                              ) : price != null && price > 0 ? (
-                                <Text style={{ fontSize: 18, color: C.mt, marginTop: 4 }}>+{f$(price)}</Text>
-                              ) : null}
-                            </View>
-                          </TouchableOpacity>
-                        );
-                      })}
+                  ))}
+                </View>
+              )}
+              {awaitingSels.length > 0 && (
+                <View>
+                  <Text style={s.groupSubtitle}>Awaiting Confirmation</Text>
+                  {groupByCategory(awaitingSels).map(([cat, sels]) => (
+                    <View key={cat} style={{ marginBottom: 20 }}>
+                      <Text style={{ fontSize: 20, fontWeight: '700', color: C.gd, letterSpacing: 1, marginBottom: 10 }}>{cat.toUpperCase()}</Text>
+                      {sels.map(renderSelectionCard)}
                     </View>
-                    {/* Confirm button */}
-                    {needsConfirm && canPick && (
-                      <TouchableOpacity
-                        onPress={() => setModal({ type: 'confirmsel', psId: sel.project_selection_id, item: sel.item, selected: sel.selected })}
-                        style={{ backgroundColor: C.gd, paddingVertical: 12, borderRadius: 8, marginTop: 14, alignItems: 'center' }}
-                        activeOpacity={0.8}
-                      >
-                        <Text style={{ fontSize: 21, fontWeight: '700', color: C.textBold }}>Confirm Selection</Text>
-                      </TouchableOpacity>
-                    )}
-                  </Card>
-                  );
-                })}
-              </View>
-            ))
+                  ))}
+                </View>
+              )}
+            </>
           )}
 
           {/* Confirm Selection Modal */}
@@ -4788,6 +4816,11 @@ const getStyles = (C) => StyleSheet.create({
   infoLbl: { fontSize: 16, fontWeight: '600', color: C.dm, letterSpacing: 0.8 },
   infoVal: { fontSize: 22, fontWeight: '500', color: C.text, textAlign: 'right', flex: 1, marginLeft: 16 },
   divider: { height: 1, backgroundColor: C.w06, marginVertical: 12 },
+
+  twoColRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
+  twoColLeft: { width: SCREEN_W > 800 ? '48%' : '100%' },
+  twoColRight: { width: SCREEN_W > 800 ? '48%' : '100%' },
+  groupSubtitle: { fontSize: 22, fontWeight: '700', color: C.textBold, marginBottom: 10, marginTop: 16, paddingBottom: 8, borderBottomWidth: 2, borderBottomColor: C.gd + '40' },
 
   priceRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 18, borderBottomWidth: 1, borderBottomColor: C.w04 },
   priceLbl: { fontSize: 21, color: C.text },
