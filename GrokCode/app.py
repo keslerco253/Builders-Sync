@@ -194,6 +194,7 @@ class ChangeOrders(db.Model):
     task_extension_days = db.Column(db.Integer, default=0)
     created_at = db.Column(db.String(20), default='')
     due_date = db.Column(db.String(20), nullable=True)
+    documents = db.relationship('ChangeOrderDocument', backref='change_order', cascade='all, delete-orphan', lazy=True)
 
     def to_dict(self):
         return {
@@ -1110,6 +1111,9 @@ def delete_project(project_id):
         ScheduleEditLog.query.filter_by(schedule_id=s.id).delete()
     Schedule.query.filter_by(job_id=project_id).delete()
     JobUsers.query.filter_by(job_id=project_id).delete()
+    co_ids = [co.id for co in ChangeOrders.query.filter_by(job_id=project_id).all()]
+    if co_ids:
+        ChangeOrderDocument.query.filter(ChangeOrderDocument.change_order_id.in_(co_ids)).delete()
     ChangeOrders.query.filter_by(job_id=project_id).delete()
     ProjectSelection.query.filter_by(job_id=project_id).delete()
     DailyLogs.query.filter_by(job_id=project_id).delete()
