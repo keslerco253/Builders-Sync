@@ -575,10 +575,12 @@ def set_user_logo(uid):
 
 @app.route('/builder-logo', methods=['GET'])
 def get_builder_logo():
-    """Get the first builder's logo (for non-builder users to see branding)."""
-    builder = LoginInfo.query.filter_by(role='builder').first()
-    if builder and builder.company_logo:
-        return jsonify({'logo': builder.company_logo})
+    """Get any builder's logo for company branding.
+    Searches all builders for one with a logo uploaded."""
+    builders = LoginInfo.query.filter_by(role='builder').all()
+    for b in builders:
+        if b.company_logo:
+            return jsonify({'logo': b.company_logo})
     return jsonify({'logo': ''})
 
 
