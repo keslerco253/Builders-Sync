@@ -183,6 +183,9 @@ class ChangeOrders(db.Model):
     sub_name = db.Column(db.String(200), nullable=True)
     sub_sig = db.Column(db.Boolean, default=False)
     sub_sig_date = db.Column(db.String(20), nullable=True)
+    builder_sig_initials = db.Column(db.String(10), nullable=True)
+    customer_sig_initials = db.Column(db.String(10), nullable=True)
+    sub_sig_initials = db.Column(db.String(10), nullable=True)
     task_id = db.Column(db.Integer, nullable=True)
     task_name = db.Column(db.String(200), nullable=True)
     task_extension_days = db.Column(db.Integer, default=0)
@@ -198,6 +201,9 @@ class ChangeOrders(db.Model):
             'customer_sig_date': self.customer_sig_date,
             'sub_id': self.sub_id, 'sub_name': self.sub_name,
             'sub_sig': self.sub_sig, 'sub_sig_date': self.sub_sig_date,
+            'builder_sig_initials': self.builder_sig_initials,
+            'customer_sig_initials': self.customer_sig_initials,
+            'sub_sig_initials': self.sub_sig_initials,
             'task_id': self.task_id, 'task_name': self.task_name,
             'task_extension_days': self.task_extension_days,
             'created_at': self.created_at, 'due_date': self.due_date,
@@ -1197,6 +1203,7 @@ def add_change_order(pid):
                 customer_sig=False, customer_sig_date=None,
                 sub_id=data.get('sub_id', None), sub_name=data.get('sub_name', None),
                 sub_sig=True, sub_sig_date=today,
+                sub_sig_initials=data.get('sub_initials', None),
                 task_id=data.get('task_id', None), task_name=data.get('task_name', None),
                 task_extension_days=data.get('task_extension_days', 0),
                 created_at=today, due_date=data.get('due_date', None),
@@ -1207,6 +1214,7 @@ def add_change_order(pid):
                 job_id=pid, title=data['title'], description=data.get('description', ''),
                 amount=data.get('amount', 0), status='pending_customer',
                 builder_sig=True, builder_sig_date=today,
+                builder_sig_initials=data.get('builder_initials', None),
                 customer_sig=False, customer_sig_date=None,
                 sub_id=data.get('sub_id', None), sub_name=data.get('sub_name', None),
                 sub_sig=False, sub_sig_date=None,
@@ -1240,15 +1248,19 @@ def sign_change_order(co_id):
             return jsonify({'error': 'This change order has expired. The due date has passed.', 'co': co.to_dict()}), 400
 
     try:
+        initials = data.get('initials', '')
         if role == 'builder':
             co.builder_sig = True
             co.builder_sig_date = today
+            co.builder_sig_initials = initials
         elif role == 'customer':
             co.customer_sig = True
             co.customer_sig_date = today
+            co.customer_sig_initials = initials
         elif role == 'sub':
             co.sub_sig = True
             co.sub_sig_date = today
+            co.sub_sig_initials = initials
 
         # Determine if fully approved: builder + customer + sub (if sub required)
         all_signed = co.builder_sig and co.customer_sig
