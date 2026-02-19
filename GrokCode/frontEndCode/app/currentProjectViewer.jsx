@@ -356,7 +356,8 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
   const [listContractor, setListContractor] = useState('');
   const [subsList, setSubsList] = useState([]);
   const [subsSearch, setSubsSearch] = useState('');
-  const [taskInfoEdit, setTaskInfoEdit] = useState(null); // {id, task, trade, workdays, predecessor_id, rel_type, lag_days}
+  const [taskInfoEdit, setTaskInfoEdit] = useState(null);
+  const [conTaskPopup, setConTaskPopup] = useState(null); // {id, task, trade, workdays, predecessor_id, rel_type, lag_days}
   const [predDropOpen, setPredDropOpen] = useState(false);
   const [tradeDropOpen, setTradeDropOpen] = useState(false);
   const [tradeFilter, setTradeFilter] = useState([]); // active trade filters for list view
@@ -487,6 +488,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
     : isCon
     ? [
         { id: 'schedule', label: 'Schedule', subs: ['calendar'] },
+        { id: 'changeorders', label: 'Change Orders' },
         { id: 'info', label: 'Info', subs: ['jobinfo'] },
       ]
     : [
@@ -1478,6 +1480,10 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
                       >
                       <TouchableOpacity activeOpacity={0.7}
                         onPress={() => {
+                          if (isCon) {
+                            setConTaskPopup(item);
+                            return;
+                          }
                           if (!isB) return;
                           const now = Date.now();
                           const last = lastTapRef.current[item.id] || 0;
@@ -1553,6 +1559,42 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
                   })()}
                 </ScrollView>
                 </>
+              )}
+
+              {/* Contractor Task Popup */}
+              {conTaskPopup && (
+                <Modal visible animationType="fade" transparent>
+                  <TouchableOpacity style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 20 }}
+                    activeOpacity={1} onPress={() => setConTaskPopup(null)}>
+                    <TouchableOpacity activeOpacity={1} onPress={e => e.stopPropagation()}>
+                      <View style={{
+                        backgroundColor: C.modalBg, borderRadius: 16, width: 340, overflow: 'hidden',
+                        borderWidth: 1, borderColor: C.w10,
+                        ...(Platform.OS === 'web' ? { boxShadow: '0 20px 60px rgba(0,0,0,0.4)' } : { elevation: 20 }),
+                      }}>
+                        <View style={{ padding: 16, borderBottomWidth: 1, borderBottomColor: C.w06 }}>
+                          <Text style={{ fontSize: 20, fontWeight: '700', color: C.textBold }} numberOfLines={1}>{conTaskPopup.task}</Text>
+                          <Text style={{ fontSize: 15, color: C.dm, marginTop: 4 }}>{sD(conTaskPopup.start_date)} — {sD(conTaskPopup.end_date)}</Text>
+                        </View>
+                        <TouchableOpacity
+                          onPress={() => {
+                            const task = conTaskPopup;
+                            setConTaskPopup(null);
+                            setModal({ type: 'subco', task });
+                          }}
+                          style={{ flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 16, paddingHorizontal: 20 }}
+                          activeOpacity={0.7}>
+                          <Text style={{ fontSize: 26 }}>📝</Text>
+                          <View style={{ flex: 1 }}>
+                            <Text style={{ fontSize: 18, fontWeight: '600', color: C.text }}>Make a Change Order</Text>
+                            <Text style={{ fontSize: 14, color: C.dm, marginTop: 2 }}>Submit a change order for this task</Text>
+                          </View>
+                          <Text style={{ fontSize: 16, color: C.dm }}>›</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </TouchableOpacity>
+                  </TouchableOpacity>
+                </Modal>
               )}
 
               {/* Assign Subcontractor Modal */}
@@ -1997,8 +2039,15 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
         <ScrollView style={{ flex: 1 }} contentContainerStyle={s.scroll}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
             <Text style={s.sectionTitle}>Change Orders</Text>
-            {isB && (
-              <TouchableOpacity onPress={() => setModal('coTypePicker')} activeOpacity={0.7}
+            {(isB || isCon) && (
+              <TouchableOpacity onPress={() => {
+                if (isCon) {
+                  // Contractors go straight to sub change order — pick a task first
+                  setModal({ type: 'subco', task: { id: null, task: '' } });
+                } else {
+                  setModal('coTypePicker');
+                }
+              }} activeOpacity={0.7}
                 style={{ width: 40, height: 40, borderRadius: 10, backgroundColor: C.gd, alignItems: 'center', justifyContent: 'center' }}>
                 <Text style={{ fontSize: 26, fontWeight: '700', color: C.textBold }}>+</Text>
               </TouchableOpacity>
@@ -2491,6 +2540,18 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
       />;
     }
 
+    // --- Subcontractor Change Order from Task ---
+    if (modal?.type === 'subco') {
+      return <SubChangeOrderModal project={project} api={api} user={user} task={modal.task} schedule={schedule}
+        onClose={() => setModal(null)}
+        onCreated={(co) => {
+          setChangeOrders(prev => [co, ...prev]);
+          setModal(null);
+          Alert.alert('Success', 'Change order submitted — awaiting builder & customer signatures');
+        }}
+      />;
+    }
+
     // --- New Schedule Item ---
     if (modal === 'newschedule') {
       return <NewScheduleModal project={project} user={user} api={api} prefillDate={prefillDate}
@@ -2510,16 +2571,29 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
       const mediaType = modal === 'uploadphoto' ? 'photo' : modal === 'uploadvideo' ? 'video' : 'document';
       const templateId = modal?.templateId || null;
       const templateName = modal?.templateName || null;
+      const existingDocs = templateId ? documents.filter(d => d.template_id === templateId) : [];
       return <UploadModal
         project={project} user={user} api={api} mediaType={mediaType}
         templateId={templateId} templateName={templateName}
+        existingDocs={existingDocs}
         onClose={() => setModal(null)}
-        onCreated={(doc) => {
+        onCreated={(doc, wasReplaced) => {
           if (mediaType === 'photo') setPhotos(prev => [doc, ...prev]);
           else if (mediaType === 'video') setVideos(prev => [doc, ...prev]);
-          else setDocuments(prev => [doc, ...prev]);
+          else {
+            if (wasReplaced && templateId) {
+              // Update existing docs in state with (OLD) suffix
+              setDocuments(prev => [doc, ...prev.map(d =>
+                d.template_id === templateId && !d.name.endsWith('(OLD)')
+                  ? { ...d, name: `${d.name} (OLD)` }
+                  : d
+              )]);
+            } else {
+              setDocuments(prev => [doc, ...prev]);
+            }
+          }
           setModal(null);
-          Alert.alert('Success', `${mediaType.charAt(0).toUpperCase() + mediaType.slice(1)} uploaded`);
+          Alert.alert('Success', wasReplaced ? 'Document replaced — old version marked (OLD)' : `${mediaType.charAt(0).toUpperCase() + mediaType.slice(1)} uploaded`);
         }}
       />;
     }
@@ -2870,6 +2944,10 @@ const ChangeOrderDetailModal = ({ co, isB, isC, isCon, signCO, onClose, user }) 
           </View>
           {co.sub_sig ? (
             <Text style={{ color: C.gn, fontSize: 20, fontWeight: '600' }}>✓ Signed</Text>
+          ) : isCon && !co.sub_sig ? (
+            <Btn onPress={() => signCO(co.id, 'sub')} bg={C.bl} style={{ paddingVertical: 8, paddingHorizontal: 14 }}>
+              <Text style={s.btnTxt}>✍ Sign</Text>
+            </Btn>
           ) : (
             <Text style={{ color: C.dm, fontSize: 18 }}>Awaiting</Text>
           )}
@@ -3201,6 +3279,224 @@ const NewChangeOrderModal = ({ project, api, onClose, onCreated, user, schedule 
   );
 };
 
+const SubChangeOrderModal = ({ project, api, user, task: initialTask, schedule, onClose, onCreated }) => {
+  const C = React.useContext(ThemeContext);
+  const s = React.useMemo(() => getStyles(C), [C]);
+  const [title, setTitle] = useState('');
+  const [desc, setDesc] = useState('');
+  const [amount, setAmount] = useState('');
+  const [isCredit, setIsCredit] = useState(false);
+  const [dueDate, setDueDate] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [signStep, setSignStep] = useState(false);
+  const [attachments, setAttachments] = useState([]);
+  const [selectedTask, setSelectedTask] = useState(initialTask?.id ? initialTask : null);
+  const [showTaskPicker, setShowTaskPicker] = useState(false);
+  const task = selectedTask || { id: null, task: '' };
+
+  const pickAttachment = () => {
+    if (Platform.OS !== 'web') return;
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.onchange = (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const ext = file.name.split('.').pop() || 'bin';
+      const reader = new FileReader();
+      reader.onload = () => {
+        setAttachments(prev => [...prev, {
+          b64: reader.result, ext, originalName: file.name, size: file.size,
+          docName: file.name.replace(/\.[^/.]+$/, ''), docDesc: '',
+        }]);
+      };
+      reader.readAsDataURL(file);
+    };
+    input.click();
+  };
+
+  const create = async () => {
+    const amt = isCredit ? -Math.abs(parseFloat(amount)) : Math.abs(parseFloat(amount));
+    setLoading(true);
+    try {
+      const body = {
+        title, description: desc, amount: amt, due_date: dueDate || null,
+        created_by: 'sub',
+        sub_id: user?.id || null,
+        sub_name: user?.company_name || user?.name || '',
+        task_id: task.id,
+        task_name: task.task,
+      };
+      const res = await api(`/projects/${project.id}/change-orders`, { method: 'POST', body });
+      if (!res) {
+        Alert.alert('Error', 'Failed to create change order.');
+        return;
+      }
+      for (const att of attachments) {
+        try {
+          const upRes = await fetch(`${API_BASE}/upload-file`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ file: att.b64, ext: att.ext, name: att.originalName }),
+          });
+          if (upRes.ok) {
+            const upData = await upRes.json();
+            await fetch(`${API_BASE}/change-orders/${res.id}/documents`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                name: att.docName, description: att.docDesc,
+                file_url: upData.path, file_size: upData.file_size || att.size || 0,
+                uploaded_by: user?.name || '',
+              }),
+            });
+          }
+        } catch {}
+      }
+      onCreated(res);
+    } catch (e) { Alert.alert('Error', e.message); } finally { setLoading(false); }
+  };
+
+  if (signStep) {
+    return (
+      <ModalSheet visible title="Sign Change Order" onClose={() => setSignStep(false)}>
+        <View style={{ backgroundColor: C.w04, borderRadius: 10, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: C.w08 }}>
+          <Text style={{ fontSize: 20, fontWeight: '600', color: C.text, marginBottom: 4 }}>{title}</Text>
+          <Text style={{ fontSize: 17, color: C.mt, marginBottom: 8 }}>{desc}</Text>
+          <Text style={{ fontSize: 24, fontWeight: '700', color: isCredit ? C.gn : C.yl }}>
+            {isCredit ? '' : '+'}{isCredit ? '-' : ''}{f$(Math.abs(parseFloat(amount) || 0))}
+          </Text>
+          {selectedTask && <Text style={{ fontSize: 15, color: C.dm, marginTop: 6 }}>Task: {selectedTask.task}</Text>}
+        </View>
+        <View style={{ backgroundColor: C.yl + '10', borderRadius: 10, padding: 14, marginBottom: 16, borderWidth: 1, borderColor: C.yl + '30' }}>
+          <Text style={{ fontSize: 16, color: C.yl, fontWeight: '500' }}>
+            By signing below, you are electronically signing this change order as the subcontractor. The builder and customer will also need to sign.
+          </Text>
+        </View>
+        <Btn onPress={create} disabled={loading} bg={C.gn}>
+          <Text style={s.btnTxt}>{loading ? 'Submitting...' : '✍ Sign & Submit'}</Text>
+        </Btn>
+      </ModalSheet>
+    );
+  }
+
+  return (
+    <ModalSheet visible title="New Change Order" onClose={onClose}>
+      {/* Task selector / display */}
+      <View style={{ marginBottom: 14 }}>
+        <Lbl>LINKED TASK</Lbl>
+        {selectedTask ? (
+          <View style={{ backgroundColor: C.w04, borderRadius: 10, padding: 12, borderWidth: 1, borderColor: C.gd + '40' }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 18, fontWeight: '600', color: C.text }}>{selectedTask.task}</Text>
+                {selectedTask.start_date && selectedTask.end_date && (
+                  <Text style={{ fontSize: 14, color: C.dm, marginTop: 2 }}>{selectedTask.start_date} — {selectedTask.end_date}</Text>
+                )}
+              </View>
+              {!initialTask?.id && (
+                <TouchableOpacity onPress={() => setSelectedTask(null)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                  <Text style={{ fontSize: 18, color: C.dm }}>✕</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+        ) : (
+          <>
+            <TouchableOpacity onPress={() => setShowTaskPicker(p => !p)}
+              style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+                backgroundColor: C.w04, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 12,
+                borderWidth: 1, borderColor: C.bd,
+              }} activeOpacity={0.7}>
+              <Text style={{ fontSize: 18, color: C.dm }}>Select a task...</Text>
+              <Text style={{ fontSize: 16, color: C.dm }}>▼</Text>
+            </TouchableOpacity>
+            {showTaskPicker && (
+              <View style={{ marginTop: 6, backgroundColor: C.w04, borderRadius: 10, borderWidth: 1, borderColor: C.w08, maxHeight: 220, overflow: 'hidden' }}>
+                <ScrollView>
+                  {(schedule || []).length === 0 ? (
+                    <View style={{ padding: 16, alignItems: 'center' }}>
+                      <Text style={{ fontSize: 16, color: C.dm }}>No tasks in schedule</Text>
+                    </View>
+                  ) : (schedule || []).map(t => (
+                    <TouchableOpacity key={t.id} onPress={() => { setSelectedTask(t); setShowTaskPicker(false); }}
+                      style={{ paddingVertical: 10, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: C.w04 }}
+                      activeOpacity={0.7}>
+                      <Text style={{ fontSize: 17, fontWeight: '500', color: C.text }}>{t.task}</Text>
+                      {t.contractor ? <Text style={{ fontSize: 14, color: C.dm, marginTop: 2 }}>{t.contractor}</Text> : null}
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+            )}
+          </>
+        )}
+      </View>
+      <Inp label="TITLE" value={title} onChange={setTitle} placeholder="e.g., Additional framing labor" />
+      <Inp label="DESCRIPTION" value={desc} onChange={setDesc} placeholder="Describe the change..." rows={3} />
+      <View style={{ flexDirection: 'row', gap: 12 }}>
+        <Inp label="AMOUNT ($)" value={amount} onChange={setAmount} type="number" placeholder="0" style={{ flex: 1 }} />
+        <View style={{ marginBottom: 14 }}>
+          <Lbl>TYPE</Lbl>
+          <View style={{ flexDirection: 'row', borderRadius: 8, overflow: 'hidden', borderWidth: 1, borderColor: C.bd }}>
+            <TouchableOpacity onPress={() => setIsCredit(false)} style={[s.typeBtn, !isCredit && { backgroundColor: C.yl + '22' }]}>
+              <Text style={[s.typeBtnTxt, !isCredit && { color: C.yl }]}>Add</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setIsCredit(true)} style={[s.typeBtn, isCredit && { backgroundColor: C.gn + '22' }]}>
+              <Text style={[s.typeBtnTxt, isCredit && { color: C.gnB }]}>Credit</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+
+      {/* Attachments */}
+      <View style={{ marginBottom: 14 }}>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+          <Lbl style={{ marginBottom: 0 }}>DOCUMENTS (OPTIONAL)</Lbl>
+          <TouchableOpacity onPress={pickAttachment}
+            style={{ paddingHorizontal: 12, paddingVertical: 5, borderRadius: 7, backgroundColor: C.gd }}
+            activeOpacity={0.7}>
+            <Text style={{ fontSize: 14, fontWeight: '600', color: C.chromeTxt }}>+ Add File</Text>
+          </TouchableOpacity>
+        </View>
+        {attachments.map((att, idx) => (
+          <View key={idx} style={{
+            backgroundColor: C.w04, borderRadius: 10, padding: 12, marginBottom: 8,
+            borderWidth: 1, borderColor: C.w08,
+          }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+              <Text style={{ fontSize: 18 }}>📎</Text>
+              <Text style={{ flex: 1, fontSize: 15, fontWeight: '500', color: C.text }} numberOfLines={1}>{att.originalName}</Text>
+              <TouchableOpacity onPress={() => setAttachments(prev => prev.filter((_, i) => i !== idx))}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} activeOpacity={0.6}>
+                <Text style={{ fontSize: 16, color: C.rd }}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            <Inp label="NAME" value={att.docName}
+              onChange={(v) => setAttachments(prev => prev.map((a, i) => i === idx ? { ...a, docName: v } : a))}
+              placeholder="Document name" />
+            <Inp label="DESCRIPTION" value={att.docDesc}
+              onChange={(v) => setAttachments(prev => prev.map((a, i) => i === idx ? { ...a, docDesc: v } : a))}
+              placeholder="Brief description..." rows={2} />
+          </View>
+        ))}
+        {attachments.length === 0 && (
+          <Text style={{ fontSize: 14, color: C.dm, textAlign: 'center', paddingVertical: 6 }}>No documents attached</Text>
+        )}
+      </View>
+
+      <DatePicker value={dueDate} onChange={setDueDate} label="DUE DATE" placeholder="Select due date" />
+      <Btn onPress={() => {
+        if (!title || !amount) return Alert.alert('Error', 'Title and amount are required');
+        if (!selectedTask) return Alert.alert('Error', 'Please select a task');
+        setSignStep(true);
+      }} disabled={!title || !amount || !selectedTask}>
+        <Text style={s.btnTxt}>Sign & Submit</Text>
+      </Btn>
+    </ModalSheet>
+  );
+};
+
+
 const SelectionChangeOrderModal = ({ project, api, selections, onClose, onCreated, user }) => {
   const C = React.useContext(ThemeContext);
   const s = React.useMemo(() => getStyles(C), [C]);
@@ -3499,14 +3795,17 @@ const NewScheduleModal = ({ project, user, api, onClose, onCreated, prefillDate 
 };
 
 
-const UploadModal = ({ project, user, api, mediaType, templateId, templateName, onClose, onCreated }) => {
+const UploadModal = ({ project, user, api, mediaType, templateId, templateName, existingDocs, onClose, onCreated }) => {
   const C = React.useContext(ThemeContext);
   const s = React.useMemo(() => getStyles(C), [C]);
   const [name, setName] = useState(templateName || '');
   const [category, setCategory] = useState('General');
   const [loading, setLoading] = useState(false);
-  const [fileData, setFileData] = useState(null); // { b64, ext, originalName, size }
+  const [fileData, setFileData] = useState(null);
+  const [replaceMode, setReplaceMode] = useState(false); // true = replace existing, false = add new
   const docCategories = ['General', 'Plans', 'Permits', 'Contracts', 'Reports', 'Specs'];
+
+  const hasExisting = templateId && existingDocs && existingDocs.length > 0;
 
   const pickFile = () => {
     if (Platform.OS !== 'web') return;
@@ -3533,7 +3832,18 @@ const UploadModal = ({ project, user, api, mediaType, templateId, templateName, 
     if (!fileData) return Alert.alert('Error', 'Please select a file');
     setLoading(true);
     try {
-      // Upload the actual file
+      // If replacing, rename existing docs with (OLD) suffix
+      if (replaceMode && hasExisting) {
+        for (const ed of existingDocs) {
+          const oldName = ed.name.endsWith('(OLD)') ? ed.name : `${ed.name} (OLD)`;
+          await fetch(`${API_BASE}/documents/${ed.id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: oldName }),
+          });
+        }
+      }
+
       const uploadRes = await fetch(`${API_BASE}/upload-file`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -3542,7 +3852,6 @@ const UploadModal = ({ project, user, api, mediaType, templateId, templateName, 
       if (!uploadRes.ok) throw new Error('File upload failed');
       const uploadData = await uploadRes.json();
 
-      // Create document record with file_url
       const body = {
         name, category, media_type: mediaType,
         file_size: uploadData.file_size || fileData.size || 0,
@@ -3555,7 +3864,7 @@ const UploadModal = ({ project, user, api, mediaType, templateId, templateName, 
         Alert.alert('Error', 'Failed to save document record');
         return;
       }
-      onCreated(res);
+      onCreated(res, replaceMode);
     } catch (e) { Alert.alert('Error', e.message); } finally { setLoading(false); }
   };
 
@@ -3583,6 +3892,29 @@ const UploadModal = ({ project, user, api, mediaType, templateId, templateName, 
         )}
       </TouchableOpacity>
       <Inp label="DISPLAY NAME" value={name} onChange={setName} placeholder={`${typeLabel} name`} />
+
+      {/* Replace or Add toggle — only when template already has files */}
+      {hasExisting && (
+        <View style={{ marginBottom: 14 }}>
+          <Lbl>UPLOAD MODE</Lbl>
+          <View style={{ flexDirection: 'row', borderRadius: 8, overflow: 'hidden', borderWidth: 1, borderColor: C.bd }}>
+            <TouchableOpacity onPress={() => setReplaceMode(false)}
+              style={{ flex: 1, paddingVertical: 10, alignItems: 'center', backgroundColor: !replaceMode ? C.gd + '22' : undefined }}>
+              <Text style={{ fontSize: 16, fontWeight: '600', color: !replaceMode ? C.gd : C.dm }}>Add New</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setReplaceMode(true)}
+              style={{ flex: 1, paddingVertical: 10, alignItems: 'center', backgroundColor: replaceMode ? C.yl + '22' : undefined }}>
+              <Text style={{ fontSize: 16, fontWeight: '600', color: replaceMode ? C.yl : C.dm }}>Replace</Text>
+            </TouchableOpacity>
+          </View>
+          {replaceMode && (
+            <Text style={{ fontSize: 13, color: C.dm, marginTop: 6 }}>
+              Existing file{existingDocs.length > 1 ? 's' : ''} will be renamed with (OLD) and kept below
+            </Text>
+          )}
+        </View>
+      )}
+
       {mediaType === 'document' && !templateId && (
         <View style={{ marginBottom: 14 }}>
           <Lbl>CATEGORY</Lbl>
@@ -3602,7 +3934,7 @@ const UploadModal = ({ project, user, api, mediaType, templateId, templateName, 
       )}
       {mediaType === 'photo' && <Inp label="CATEGORY" value={category} onChange={setCategory} placeholder="e.g., Foundation, Framing" />}
       <Btn onPress={upload} disabled={loading || !name || !fileData}>
-        <Text style={s.btnTxt}>{loading ? 'Uploading...' : 'Upload'}</Text>
+        <Text style={s.btnTxt}>{loading ? (replaceMode ? 'Replacing...' : 'Uploading...') : (replaceMode ? 'Replace & Upload' : 'Upload')}</Text>
       </Btn>
     </ModalSheet>
   );
