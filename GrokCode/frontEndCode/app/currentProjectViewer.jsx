@@ -1256,7 +1256,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
       const grandTotal = baseContract + coTotal + selectionTotal;
 
       return (
-        <ScrollView style={{ flex: 1 }} contentContainerStyle={[s.scroll, { maxWidth: 1300 }]}>
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={[s.scroll, { maxWidth: 1800 }]}>
           <Text style={[s.sectionTitle, { textAlign: 'center' }]}>Job Price Summary</Text>
           <Text style={{ color: C.mt, fontSize: 21, marginBottom: 20, textAlign: 'center' }}>{project.name}</Text>
 
