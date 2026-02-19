@@ -1256,7 +1256,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
       const grandTotal = baseContract + coTotal + selectionTotal;
 
       return (
-        <ScrollView style={{ flex: 1 }} contentContainerStyle={[s.scroll, { maxWidth: 1800 }]}>
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={[s.scroll, { maxWidth: 1400 }]}>
           <Text style={[s.sectionTitle, { textAlign: 'center' }]}>Job Price Summary</Text>
           <Text style={{ color: C.mt, fontSize: 21, marginBottom: 20, textAlign: 'center' }}>{project.name}</Text>
 
@@ -4838,7 +4838,7 @@ const getStyles = (C) => StyleSheet.create({
   twoColLeft: { width: SCREEN_W > 800 ? '49%' : '100%' },
   twoColRight: { width: SCREEN_W > 800 ? '49%' : '100%' },
   threeColRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
-  threeColCell: { width: SCREEN_W > 800 ? '48%' : '100%' },
+  threeColCell: { width: SCREEN_W > 800 ? '38%' : '100%' },
   groupSubtitle: { fontSize: 22, fontWeight: '700', color: C.textBold, marginBottom: 10, marginTop: 16, paddingBottom: 8, borderBottomWidth: 2, borderBottomColor: C.gd + '40' },
 
   priceRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 18, borderBottomWidth: 1, borderBottomColor: C.w04 },
