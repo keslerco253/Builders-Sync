@@ -31,6 +31,12 @@ export const fPhone = (v) => {
 };
 // Mask phone input as user types
 const maskPhone = (v) => fPhone(v);
+const getInitials = (name) => {
+  if (!name) return '??';
+  const parts = name.trim().split(/\s+/);
+  if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  return parts[0].substring(0, 2).toUpperCase();
+};
 const fD = d => {
   if (!d) return '--';
   try { return new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); }
@@ -676,12 +682,12 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
   }, [syncProjectData]);
 
   // Sign change order
-  const signCO = async (coId, role) => {
+  const signCO = async (coId, role, initials) => {
     try {
       const res = await fetch(`${API_BASE}/change-orders/${coId}/sign`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ role }),
+        body: JSON.stringify({ role, initials }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -2083,10 +2089,10 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
                 </Text>
               </View>
               <View style={{ flexDirection: 'row', gap: 14, marginTop: 10 }}>
-                {[['Builder', co.builder_sig], ['Customer', co.customer_sig], ...(co.sub_id ? [['Sub', co.sub_sig]] : [])].map(([l, signed]) => (
+                {[['Builder', co.builder_sig, co.builder_sig_initials], ['Customer', co.customer_sig, co.customer_sig_initials], ...(co.sub_id ? [['Sub', co.sub_sig, co.sub_sig_initials]] : [])].map(([l, signed, initials]) => (
                   <View key={l} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                     <View style={[s.sigDot, signed && s.sigDotOn]}>
-                      {signed && <Text style={{ color: C.textBold, fontSize: 14, fontWeight: '700' }}>✓</Text>}
+                      {signed && <Text style={{ color: C.textBold, fontSize: 10, fontWeight: '700' }}>{initials || '✓'}</Text>}
                     </View>
                     <Text style={{ fontSize: 18, color: C.mt }}>{l}</Text>
                   </View>
@@ -2709,6 +2715,7 @@ const ChangeOrderDetailModal = ({ co, isB, isC, isCon, signCO, onClose, user }) 
   const [docDesc, setDocDesc] = useState('');
   const [fileData, setFileData] = useState(null);
   const [uploading, setUploading] = useState(false);
+  const [showSignConfirm, setShowSignConfirm] = useState(false);
 
   const isExpired = co.due_date && new Date(co.due_date + 'T23:59:59') < new Date();
   const canBuilderSign = isB && !co.builder_sig;
@@ -2921,9 +2928,11 @@ const ChangeOrderDetailModal = ({ co, isB, isC, isCon, signCO, onClose, user }) 
           </Text>
         </View>
         {co.builder_sig ? (
-          <Text style={{ color: C.gn, fontSize: 20, fontWeight: '600' }}>✓ Signed</Text>
+          <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: C.gn, alignItems: 'center', justifyContent: 'center' }}>
+            <Text style={{ color: C.textBold, fontSize: 18, fontWeight: '700' }}>{co.builder_sig_initials || '✓'}</Text>
+          </View>
         ) : canBuilderSign ? (
-          <Btn onPress={() => signCO(co.id, 'builder')} style={{ paddingVertical: 8, paddingHorizontal: 14 }}>
+          <Btn onPress={() => signCO(co.id, 'builder', getInitials(user?.name))} style={{ paddingVertical: 8, paddingHorizontal: 14 }}>
             <Text style={s.btnTxt}>✍ Sign</Text>
           </Btn>
         ) : (
@@ -2939,9 +2948,11 @@ const ChangeOrderDetailModal = ({ co, isB, isC, isCon, signCO, onClose, user }) 
           </Text>
         </View>
         {co.customer_sig ? (
-          <Text style={{ color: C.gn, fontSize: 20, fontWeight: '600' }}>✓ Signed</Text>
+          <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: C.gn, alignItems: 'center', justifyContent: 'center' }}>
+            <Text style={{ color: C.textBold, fontSize: 18, fontWeight: '700' }}>{co.customer_sig_initials || '✓'}</Text>
+          </View>
         ) : canCustomerSign ? (
-          <Btn onPress={() => signCO(co.id, 'customer')} bg={C.gn} style={{ paddingVertical: 8, paddingHorizontal: 14 }}>
+          <Btn onPress={() => setShowSignConfirm(true)} bg={C.gn} style={{ paddingVertical: 8, paddingHorizontal: 14 }}>
             <Text style={s.btnTxt}>✍ Sign</Text>
           </Btn>
         ) : isExpired && isC && !co.customer_sig ? (
@@ -2961,9 +2972,11 @@ const ChangeOrderDetailModal = ({ co, isB, isC, isCon, signCO, onClose, user }) 
             </Text>
           </View>
           {co.sub_sig ? (
-            <Text style={{ color: C.gn, fontSize: 20, fontWeight: '600' }}>✓ Signed</Text>
+            <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: C.gn, alignItems: 'center', justifyContent: 'center' }}>
+              <Text style={{ color: C.textBold, fontSize: 18, fontWeight: '700' }}>{co.sub_sig_initials || '✓'}</Text>
+            </View>
           ) : isCon && !co.sub_sig ? (
-            <Btn onPress={() => signCO(co.id, 'sub')} bg={C.bl} style={{ paddingVertical: 8, paddingHorizontal: 14 }}>
+            <Btn onPress={() => signCO(co.id, 'sub', getInitials(user?.name))} bg={C.bl} style={{ paddingVertical: 8, paddingHorizontal: 14 }}>
               <Text style={s.btnTxt}>✍ Sign</Text>
             </Btn>
           ) : (
@@ -2991,6 +3004,55 @@ const ChangeOrderDetailModal = ({ co, isB, isC, isCon, signCO, onClose, user }) 
                 : 'Requires both signatures to update Price Summary'}
         </Text>
       </View>
+      {showSignConfirm && (
+        <Modal visible animationType="fade" transparent>
+          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+            <View style={{
+              backgroundColor: C.modalBg, borderRadius: 16, padding: 28, width: '90%', maxWidth: 440,
+              borderWidth: 1, borderColor: C.w10,
+              ...(Platform.OS === 'web' ? { boxShadow: '0 20px 60px rgba(0,0,0,0.4)' } : { elevation: 20 }),
+            }}>
+              <Text style={{ fontSize: 30, fontWeight: '700', color: C.textBold, textAlign: 'center', marginBottom: 8 }}>
+                Sign Change Order
+              </Text>
+              <Text style={{ fontSize: 22, fontWeight: '600', color: C.gd, textAlign: 'center', marginBottom: 16 }}>
+                {co.title} — {co.amount >= 0 ? '+' : ''}{f$(co.amount)}
+              </Text>
+
+              <View style={{
+                backgroundColor: C.mode === 'dark' ? C.bH08 : C.bH05,
+                borderWidth: 1, borderColor: C.gd + '30',
+                borderRadius: 10, padding: 16, marginBottom: 24,
+              }}>
+                <Text style={{ fontSize: 21, lineHeight: 33, color: C.mt, textAlign: 'center' }}>
+                  By signing, you are approving this change order. This may adjust your contract price.
+                </Text>
+              </View>
+
+              <View style={{ borderBottomWidth: 1, borderBottomColor: C.w15, marginBottom: 6, paddingBottom: 2 }}>
+                <Text style={{ fontSize: 21, color: C.text, fontWeight: '600' }}>{user?.name || 'Signature'}</Text>
+              </View>
+              <Text style={{ fontSize: 16, color: C.dm, marginBottom: 24 }}>Electronic Signature</Text>
+
+              <View style={{ flexDirection: 'row', gap: 12 }}>
+                <TouchableOpacity onPress={() => setShowSignConfirm(false)}
+                  style={{ flex: 1, paddingVertical: 13, borderRadius: 8, borderWidth: 1, borderColor: C.w12, alignItems: 'center' }}
+                  activeOpacity={0.7}>
+                  <Text style={{ fontSize: 21, fontWeight: '600', color: C.mt }}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => {
+                    setShowSignConfirm(false);
+                    signCO(co.id, 'customer', getInitials(user?.name));
+                  }}
+                  style={{ flex: 1, paddingVertical: 13, borderRadius: 8, backgroundColor: C.gn, alignItems: 'center' }}
+                  activeOpacity={0.8}>
+                  <Text style={{ fontSize: 21, fontWeight: '700', color: C.textBold }}>Sign</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+      )}
     </ModalSheet>
   );
 };
@@ -3074,7 +3136,7 @@ const NewChangeOrderModal = ({ project, api, onClose, onCreated, user, schedule 
     const amt = isCredit ? -Math.abs(parseFloat(amount)) : Math.abs(parseFloat(amount));
     setLoading(true);
     try {
-      const body = { title, description: desc, amount: amt, due_date: dueDate || null };
+      const body = { title, description: desc, amount: amt, due_date: dueDate || null, builder_initials: getInitials(user?.name) };
       if (selectedTask) {
         body.task_id = selectedTask.id;
         body.task_name = selectedTask.task;
@@ -3416,6 +3478,7 @@ const SubChangeOrderModal = ({ project, api, user, task: initialTask, schedule, 
         created_by: 'sub',
         sub_id: user?.id || null,
         sub_name: user?.company_name || user?.name || '',
+        sub_initials: getInitials(user?.name),
         task_id: task.id,
         task_name: task.task || null,
       };
