@@ -216,6 +216,9 @@ export default function Dashboard() {
   const [taskActionSaving, setTaskActionSaving] = useState(false);
   const [subTaskFilter, setSubTaskFilter] = useState(null); // task name string or null
   const [subTaskFilterOpen, setSubTaskFilterOpen] = useState(false);
+  const [subChangeOrders, setSubChangeOrders] = useState([]);
+  const [subCOLoading, setSubCOLoading] = useState(false);
+  const [subCOSignModal, setSubCOSignModal] = useState(null); // change order to sign
   const [subDraggedId, setSubDraggedId] = useState(null);
   const [subEditing, setSubEditing] = useState(false);
   const [subEditFields, setSubEditFields] = useState({});
@@ -1713,6 +1716,100 @@ export default function Dashboard() {
             </View>
           </Modal>
         )}
+        {/* Sub Change Order Sign Modal */}
+        {subCOSignModal && (
+          <Modal visible transparent animationType="fade">
+            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.6)' }}>
+              <View style={{ backgroundColor: C.modalBg, borderRadius: 16, padding: 28, width: '92%', maxWidth: 460,
+                borderWidth: 1, borderColor: C.w10,
+                ...(Platform.OS === 'web' ? { boxShadow: '0 20px 60px rgba(0,0,0,0.4)' } : {}),
+              }}>
+                <Text style={{ fontSize: 26, fontWeight: '700', color: C.textBold, textAlign: 'center', marginBottom: 6 }}>
+                  Sign Change Order
+                </Text>
+                <Text style={{ fontSize: 20, fontWeight: '600', color: C.gd, textAlign: 'center', marginBottom: 16 }}>
+                  {subCOSignModal.title}
+                </Text>
+
+                {subCOSignModal.project_name && (
+                  <Text style={{ fontSize: 16, color: C.dm, textAlign: 'center', marginBottom: 12 }}>Project: {subCOSignModal.project_name}</Text>
+                )}
+
+                {subCOSignModal.description ? (
+                  <Text style={{ fontSize: 17, color: C.mt, lineHeight: 26, marginBottom: 14, textAlign: 'center' }}>{subCOSignModal.description}</Text>
+                ) : null}
+
+                <View style={{ flexDirection: 'row', justifyContent: 'center', marginBottom: 16 }}>
+                  <Text style={{ fontSize: 28, fontWeight: '700', color: subCOSignModal.amount >= 0 ? '#f59e0b' : '#10b981' }}>
+                    {subCOSignModal.amount >= 0 ? '+' : ''}{(() => { const v = Number(subCOSignModal.amount || 0); const abs = Math.abs(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }); return v < 0 ? '-$' + abs : '$' + abs; })()}
+                  </Text>
+                </View>
+
+                {subCOSignModal.task_name && (
+                  <View style={{ backgroundColor: C.w04, borderRadius: 8, padding: 12, marginBottom: 14 }}>
+                    <Text style={{ fontSize: 15, color: C.dm }}>Linked Task</Text>
+                    <Text style={{ fontSize: 17, fontWeight: '600', color: C.text }}>{subCOSignModal.task_name}</Text>
+                    {subCOSignModal.task_extension_days > 0 && (
+                      <Text style={{ fontSize: 15, color: '#f59e0b', marginTop: 4 }}>+{subCOSignModal.task_extension_days} day extension will be applied</Text>
+                    )}
+                  </View>
+                )}
+
+                {/* Warning box */}
+                <View style={{
+                  backgroundColor: 'rgba(239,68,68,0.06)', borderWidth: 1, borderColor: 'rgba(239,68,68,0.2)',
+                  borderRadius: 10, padding: 16, marginBottom: 20,
+                }}>
+                  <Text style={{ fontSize: 18, lineHeight: 28, color: C.mt, textAlign: 'center', fontWeight: '500' }}>
+                    ⚠️ By signing below, you are agreeing to the terms of this change order. This is a legally binding electronic signature.
+                  </Text>
+                </View>
+
+                {/* Signature line */}
+                <View style={{ borderBottomWidth: 2, borderBottomColor: C.w15, marginBottom: 6, paddingBottom: 2 }}>
+                  <Text style={{ fontSize: 20, color: C.text, fontWeight: '600' }}>
+                    {selectedSub?.company_name || selectedSub?.name || 'Signature'}
+                  </Text>
+                </View>
+                <Text style={{ fontSize: 14, color: C.dm, marginBottom: 24 }}>Electronic Signature</Text>
+
+                <View style={{ flexDirection: 'row', gap: 12 }}>
+                  <TouchableOpacity onPress={() => setSubCOSignModal(null)}
+                    style={{ flex: 1, paddingVertical: 13, borderRadius: 10, borderWidth: 1, borderColor: C.w12, alignItems: 'center' }}
+                    activeOpacity={0.7}>
+                    <Text style={{ fontSize: 20, fontWeight: '600', color: C.mt }}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={async () => {
+                      try {
+                        const res = await fetch(`${API_BASE}/change-orders/${subCOSignModal.id}/sign`, {
+                          method: 'PUT',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ role: 'sub' }),
+                        });
+                        const data = await res.json();
+                        if (!res.ok) {
+                          Alert.alert('Cannot Sign', data.error || 'Request failed');
+                        } else {
+                          setSubChangeOrders(prev => prev.map(c => c.id === subCOSignModal.id ? { ...c, ...data } : c));
+                          Alert.alert('Signed', 'Change order signed successfully');
+                        }
+                        setSubCOSignModal(null);
+                      } catch (e) {
+                        Alert.alert('Error', e.message || 'Failed to sign');
+                        setSubCOSignModal(null);
+                      }
+                    }}
+                    style={{ flex: 1, paddingVertical: 13, borderRadius: 10, backgroundColor: C.gd, alignItems: 'center' }}
+                    activeOpacity={0.8}>
+                    <Text style={{ fontSize: 20, fontWeight: '700', color: C.textBold }}>Sign & Submit</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          </Modal>
+        )}
+
         {/* Subcontractor View banner */}
         {subView && (
           <View style={{
@@ -1742,12 +1839,22 @@ export default function Dashboard() {
 
         {/* Tab bar */}
         <View style={st.subTabBar}>
-          {[['calendar', 'Calendar'], ['info', 'Info']].map(([id, label]) => {
+          {[['calendar', 'Calendar'], ['info', 'Info'], ['changeorders', 'Change Orders']].map(([id, label]) => {
             const active = subTab === id;
             return (
             <TouchableOpacity
               key={id}
-              onPress={() => setSubTab(id)}
+              onPress={() => {
+                setSubTab(id);
+                if (id === 'changeorders' && selectedSub) {
+                  setSubCOLoading(true);
+                  fetch(`${API_BASE}/users/${selectedSub.id}/change-orders`)
+                    .then(r => r.json())
+                    .then(data => { if (Array.isArray(data)) setSubChangeOrders(data); })
+                    .catch(() => {})
+                    .finally(() => setSubCOLoading(false));
+                }
+              }}
               style={[st.subTabBtn, active && st.subTabBtnOn]}
               activeOpacity={0.7}
               {...(Platform.OS === 'web' ? {
@@ -1761,7 +1868,89 @@ export default function Dashboard() {
           })}
         </View>
 
-        {subTab === 'info' ? (
+        {subTab === 'changeorders' ? (
+          /* ---- CHANGE ORDERS TAB ---- */
+          <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20 }}>
+            <Text style={{ fontSize: 20, fontWeight: '700', color: C.textBold, marginBottom: 16 }}>Change Orders</Text>
+            {subCOLoading ? (
+              <View style={{ padding: 30, alignItems: 'center' }}>
+                <Text style={{ fontSize: 16, color: C.dm }}>Loading...</Text>
+              </View>
+            ) : subChangeOrders.length === 0 ? (
+              <View style={{ padding: 30, alignItems: 'center' }}>
+                <Text style={{ fontSize: 40, marginBottom: 8 }}>📄</Text>
+                <Text style={{ fontSize: 17, color: C.dm }}>No change orders involving this subcontractor</Text>
+              </View>
+            ) : subChangeOrders.map(co => {
+              const isExpired = co.due_date && new Date(co.due_date + 'T23:59:59') < new Date();
+              const needsSig = co.sub_id && !co.sub_sig && co.status !== 'approved' && co.status !== 'expired';
+              return (
+                <TouchableOpacity key={co.id}
+                  onPress={() => { if (needsSig) setSubCOSignModal(co); }}
+                  style={{ backgroundColor: C.w04, borderRadius: 12, padding: 16, marginBottom: 12, borderWidth: 1,
+                    borderColor: needsSig ? C.yl + '60' : C.w08,
+                  }}
+                  activeOpacity={needsSig ? 0.7 : 1}
+                >
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
+                    <Text style={{ fontSize: 19, fontWeight: '600', color: C.text, flex: 1 }} numberOfLines={2}>{co.title}</Text>
+                    <View style={{ paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6, marginLeft: 8,
+                      backgroundColor: co.status === 'approved' ? 'rgba(16,185,129,0.12)'
+                        : co.status === 'expired' ? 'rgba(239,68,68,0.12)'
+                        : 'rgba(245,158,11,0.12)',
+                    }}>
+                      <Text style={{ fontSize: 13, fontWeight: '700',
+                        color: co.status === 'approved' ? '#10b981'
+                          : co.status === 'expired' ? '#ef4444' : '#f59e0b',
+                      }}>{co.status === 'approved' ? 'Approved' : co.status === 'expired' ? 'Expired' : 'Pending'}</Text>
+                    </View>
+                  </View>
+                  {co.project_name && (
+                    <Text style={{ fontSize: 15, color: C.dm, marginBottom: 4 }}>{co.project_name}</Text>
+                  )}
+                  {co.description ? (
+                    <Text style={{ fontSize: 16, color: C.mt, marginBottom: 8 }} numberOfLines={2}>{co.description}</Text>
+                  ) : null}
+                  {co.task_name && (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                      <Text style={{ fontSize: 14, color: C.dm }}>Task:</Text>
+                      <Text style={{ fontSize: 15, fontWeight: '500', color: C.text }}>{co.task_name}</Text>
+                      {co.task_extension_days > 0 && (
+                        <Text style={{ fontSize: 14, color: C.yl }}>+{co.task_extension_days}d</Text>
+                      )}
+                    </View>
+                  )}
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Text style={{ fontSize: 15, color: C.dm }}>Created {(() => { try { return new Date(co.created_at + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); } catch { return co.created_at; } })()}</Text>
+                    <Text style={{ fontSize: 22, fontWeight: '700', color: co.amount >= 0 ? '#f59e0b' : '#10b981' }}>
+                      {co.amount >= 0 ? '+' : ''}{(() => { const v = Number(co.amount || 0); const abs = Math.abs(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }); return v < 0 ? '-$' + abs : '$' + abs; })()}
+                    </Text>
+                  </View>
+                  {/* Signature status */}
+                  <View style={{ flexDirection: 'row', gap: 12, marginTop: 10 }}>
+                    {[['Builder', co.builder_sig], ['Customer', co.customer_sig], ['You', co.sub_sig]].map(([label, signed]) => (
+                      <View key={label} style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                        <View style={{ width: 20, height: 20, borderRadius: 10, borderWidth: 2,
+                          borderColor: signed ? '#10b981' : C.w15,
+                          backgroundColor: signed ? '#10b981' : 'transparent',
+                          alignItems: 'center', justifyContent: 'center',
+                        }}>
+                          {signed && <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>✓</Text>}
+                        </View>
+                        <Text style={{ fontSize: 15, color: C.mt }}>{label}</Text>
+                      </View>
+                    ))}
+                  </View>
+                  {needsSig && (
+                    <View style={{ backgroundColor: C.yl + '15', borderRadius: 8, padding: 10, marginTop: 10, borderWidth: 1, borderColor: C.yl + '30' }}>
+                      <Text style={{ fontSize: 15, fontWeight: '600', color: '#f59e0b', textAlign: 'center' }}>Your signature is required — tap to review & sign</Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        ) : subTab === 'info' ? (
           /* ---- INFO TAB ---- */
           <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20 }}>
             {/* Sub header card */}
@@ -3718,7 +3907,7 @@ export default function Dashboard() {
                                 </View>
                               )}
                             </View>
-                            {(isBuilder || isContractor) && (
+                            {active && (isBuilder || isContractor) && (
                               <View style={{ justifyContent: 'center', alignItems: 'center', paddingRight: 4 }}>
                                 {isBuilder && (
                                   <TouchableOpacity
@@ -3727,7 +3916,7 @@ export default function Dashboard() {
                                     activeOpacity={0.6}
                                     hitSlop={{ top: 4, bottom: 4, left: 8, right: 8 }}
                                   >
-                                    <Text style={{ fontSize: 20, color: active ? C.gd : C.dm }}>ⓘ</Text>
+                                    <Text style={{ fontSize: 20, color: C.gd }}>ⓘ</Text>
                                   </TouchableOpacity>
                                 )}
                                 <TouchableOpacity
@@ -3745,7 +3934,7 @@ export default function Dashboard() {
                                   activeOpacity={0.6}
                                   hitSlop={{ top: 4, bottom: 4, left: 8, right: 8 }}
                                 >
-                                  <Text style={{ fontSize: 18, color: (active && clientView) ? C.gn : active ? C.gd : C.dm }}>🏠</Text>
+                                  <Text style={{ fontSize: 18, color: clientView ? C.gn : C.gd }}>🏠</Text>
                                 </TouchableOpacity>
                               </View>
                             )}
