@@ -366,6 +366,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
   const [selections, setSelections] = useState([]);
   const [documents, setDocuments] = useState([]);
   const [docTemplates, setDocTemplates] = useState([]);
+  const [docEditMode, setDocEditMode] = useState(false);
   const [photos, setPhotos] = useState([]);
   const [videos, setVideos] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -2219,6 +2220,20 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
           }
         };
 
+        const downloadFile = (url, name) => {
+          const full = url.startsWith('http') ? url : `${API_BASE}${url}`;
+          if (Platform.OS === 'web') {
+            const a = document.createElement('a');
+            a.href = full;
+            a.download = name || 'download';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+          } else {
+            Linking.openURL(full);
+          }
+        };
+
         const deleteDoc = async (docId) => {
           try {
             const res = await fetch(`${API_BASE}/documents/${docId}`, { method: 'DELETE' });
@@ -2237,13 +2252,25 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
           <ScrollView style={{ flex: 1 }} contentContainerStyle={s.scroll}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
               <Text style={s.sectionTitle}>Documents</Text>
-              {(isB || isCon) && (
-                <TouchableOpacity onPress={() => setModal('uploaddoc')}
-                  style={{ width: 42, height: 42, borderRadius: 11, backgroundColor: C.gd, alignItems: 'center', justifyContent: 'center' }}
-                  activeOpacity={0.8}>
-                  <Text style={{ fontSize: 27, color: C.chromeTxt, fontWeight: '600', marginTop: -1 }}>+</Text>
-                </TouchableOpacity>
-              )}
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                {(isB || isCon) && (
+                  <TouchableOpacity onPress={() => setDocEditMode(p => !p)}
+                    style={{ width: 38, height: 38, borderRadius: 10, alignItems: 'center', justifyContent: 'center',
+                      backgroundColor: docEditMode ? C.rd + '18' : C.w06,
+                      borderWidth: 1, borderColor: docEditMode ? C.rd + '40' : 'transparent',
+                    }}
+                    activeOpacity={0.7}>
+                    <Text style={{ fontSize: 18, color: docEditMode ? C.rd : C.dm }}>{docEditMode ? '✕' : '✏️'}</Text>
+                  </TouchableOpacity>
+                )}
+                {(isB || isCon) && (
+                  <TouchableOpacity onPress={() => setModal('uploaddoc')}
+                    style={{ width: 42, height: 42, borderRadius: 11, backgroundColor: C.gd, alignItems: 'center', justifyContent: 'center' }}
+                    activeOpacity={0.8}>
+                    <Text style={{ fontSize: 27, color: C.chromeTxt, fontWeight: '600', marginTop: -1 }}>+</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
             </View>
 
             {/* Required documents from templates */}
@@ -2270,34 +2297,33 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
                     )}
                   </View>
                   {uploads.map(d => (
-                    <View key={d.id} style={{
-                      flexDirection: 'row', alignItems: 'center', gap: 10,
-                      paddingHorizontal: 14, paddingVertical: 10,
-                      borderTopWidth: 1, borderTopColor: C.w06,
-                      backgroundColor: C.w06 + '40',
-                    }}>
-                      <Text style={{ fontSize: 18 }}>📎</Text>
+                    <TouchableOpacity key={d.id} onPress={() => d.file_url && openFile(d.file_url)} activeOpacity={0.7}
+                      style={{
+                        flexDirection: 'row', alignItems: 'center', gap: 10,
+                        paddingHorizontal: 14, paddingVertical: 10,
+                        borderTopWidth: 1, borderTopColor: C.w06,
+                        backgroundColor: C.w06 + '40',
+                      }}>
+                      {docEditMode ? (
+                        <TouchableOpacity onPress={(e) => { e.stopPropagation(); deleteDoc(d.id); }}
+                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} activeOpacity={0.6}>
+                          <Text style={{ fontSize: 20, color: C.rd }}>✕</Text>
+                        </TouchableOpacity>
+                      ) : (
+                        <Text style={{ fontSize: 18 }}>📎</Text>
+                      )}
                       <View style={{ flex: 1 }}>
                         <Text style={{ fontSize: 17, fontWeight: '500', color: C.text }} numberOfLines={1}>{d.name}</Text>
                         <Text style={{ fontSize: 13, color: C.dm }}>{fD(d.created_at)}{d.uploaded_by ? ` · ${d.uploaded_by}` : ''}{d.file_size ? ` · ${formatSize(d.file_size)}` : ''}</Text>
                       </View>
-                      {d.file_url ? (
-                        <View style={{ flexDirection: 'row', gap: 6 }}>
-                          <TouchableOpacity onPress={() => openFile(d.file_url)}
-                            style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 6, backgroundColor: C.bl + '20' }}
-                            activeOpacity={0.7}>
-                            <Text style={{ fontSize: 14, fontWeight: '600', color: C.bl }}>View</Text>
-                          </TouchableOpacity>
-                          {(isB || isCon) && (
-                            <TouchableOpacity onPress={() => deleteDoc(d.id)}
-                              style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 6, backgroundColor: C.rd + '15' }}
-                              activeOpacity={0.7}>
-                              <Text style={{ fontSize: 14, fontWeight: '600', color: C.rd }}>Delete</Text>
-                            </TouchableOpacity>
-                          )}
-                        </View>
+                      {d.file_url && !docEditMode ? (
+                        <TouchableOpacity onPress={(e) => { e.stopPropagation(); downloadFile(d.file_url, d.name); }}
+                          style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 6, backgroundColor: C.bl + '20' }}
+                          activeOpacity={0.7}>
+                          <Text style={{ fontSize: 16 }}>⬇</Text>
+                        </TouchableOpacity>
                       ) : null}
-                    </View>
+                    </TouchableOpacity>
                   ))}
                 </Card>
               );
@@ -2310,27 +2336,25 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
                   <Text style={{ fontSize: 18, fontWeight: '600', color: C.dm, marginTop: 16, marginBottom: 8 }}>Other Documents</Text>
                 )}
                 {unlinkedDocs.map(d => (
-                  <Card key={d.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 8 }}>
-                    <View style={s.docIcon}><Text style={{ fontSize: 24 }}>📄</Text></View>
+                  <Card key={d.id} onPress={() => d.file_url && openFile(d.file_url)} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+                    {docEditMode ? (
+                      <TouchableOpacity onPress={(e) => { e.stopPropagation(); deleteDoc(d.id); }}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} activeOpacity={0.6}>
+                        <View style={[s.docIcon, { backgroundColor: C.rd + '15' }]}><Text style={{ fontSize: 22, color: C.rd }}>✕</Text></View>
+                      </TouchableOpacity>
+                    ) : (
+                      <View style={s.docIcon}><Text style={{ fontSize: 24 }}>📄</Text></View>
+                    )}
                     <View style={{ flex: 1 }}>
                       <Text style={{ fontSize: 20, fontWeight: '600', color: C.text }}>{d.name}</Text>
                       <Text style={{ fontSize: 15, color: C.dm, marginTop: 2 }}>{d.category} · {fD(d.created_at)}{d.uploaded_by ? ` · ${d.uploaded_by}` : ''}{d.file_size ? ` · ${formatSize(d.file_size)}` : ''}</Text>
                     </View>
-                    {d.file_url ? (
-                      <View style={{ flexDirection: 'row', gap: 6 }}>
-                        <TouchableOpacity onPress={() => openFile(d.file_url)}
-                          style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 6, backgroundColor: C.bl + '20' }}
-                          activeOpacity={0.7}>
-                          <Text style={{ fontSize: 14, fontWeight: '600', color: C.bl }}>View</Text>
-                        </TouchableOpacity>
-                        {(isB || isCon) && (
-                          <TouchableOpacity onPress={() => deleteDoc(d.id)}
-                            style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 6, backgroundColor: C.rd + '15' }}
-                            activeOpacity={0.7}>
-                            <Text style={{ fontSize: 14, fontWeight: '600', color: C.rd }}>Delete</Text>
-                          </TouchableOpacity>
-                        )}
-                      </View>
+                    {d.file_url && !docEditMode ? (
+                      <TouchableOpacity onPress={(e) => { e.stopPropagation(); downloadFile(d.file_url, d.name); }}
+                        style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 6, backgroundColor: C.bl + '20' }}
+                        activeOpacity={0.7}>
+                        <Text style={{ fontSize: 16 }}>⬇</Text>
+                      </TouchableOpacity>
                     ) : null}
                   </Card>
                 ))}

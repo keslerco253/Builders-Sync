@@ -372,15 +372,28 @@ export default function Dashboard() {
           .catch(() => {});
       }
     }
-    // Fetch company logo (builder's own logo, or find a builder's logo for other roles)
+    // Fetch company logo — try own logo first, then fallback to any builder's logo
     if (user?.id) {
-      const endpoint = isBuilder
-        ? `${API_BASE}/users/${user.id}/logo`
-        : `${API_BASE}/builder-logo`;
-      fetch(endpoint)
-        .then(r => r.json())
-        .then(data => { if (data.logo) setCompanyLogo(data.logo); else setCompanyLogo(null); })
-        .catch(() => {});
+      if (isBuilder) {
+        fetch(`${API_BASE}/users/${user.id}/logo`)
+          .then(r => r.json())
+          .then(data => {
+            if (data.logo) { setCompanyLogo(data.logo); }
+            else {
+              // Fallback: check if another builder in the company has a logo
+              fetch(`${API_BASE}/builder-logo`)
+                .then(r => r.json())
+                .then(d => { if (d.logo) setCompanyLogo(d.logo); else setCompanyLogo(null); })
+                .catch(() => {});
+            }
+          })
+          .catch(() => {});
+      } else {
+        fetch(`${API_BASE}/builder-logo`)
+          .then(r => r.json())
+          .then(data => { if (data.logo) setCompanyLogo(data.logo); else setCompanyLogo(null); })
+          .catch(() => {});
+      }
     }
   }, []));
 
@@ -3593,7 +3606,11 @@ export default function Dashboard() {
             </TouchableOpacity>
           )}
           <View style={st.logoBox}>
-            <Text style={{ fontSize: 24, color: C.chromeTxt, fontWeight: '700' }}>⬡</Text>
+            {companyLogo ? (
+              <Image source={{ uri: companyLogo }} style={{ width: 36, height: 36, borderRadius: 8, resizeMode: 'contain' }} />
+            ) : (
+              <Text style={{ fontSize: 24, color: C.chromeTxt, fontWeight: '700' }}>⬡</Text>
+            )}
           </View>
           <Text style={st.brandName}>{isWide || (!showingDetail && !showingContractorProject) ? 'BuilderSync' : ''}</Text>
         </View>
