@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Linking,
-  TextInput, Alert, ActivityIndicator, Modal, KeyboardAvoidingView, Dimensions, Image, AppState,
+  TextInput, Alert, ActivityIndicator, Modal, KeyboardAvoidingView, Dimensions, Image, AppState, useWindowDimensions,
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { AuthContext, ThemeContext, API_BASE } from './context';
@@ -292,6 +292,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
   const navigation = useNavigation();
   const route = useRoute();
   const { user } = React.useContext(AuthContext);
+  const { width: windowWidth } = useWindowDimensions();
   const project = projectProp || route?.params?.project;
 
   const isB = clientView ? false : user?.role === 'builder';
@@ -1256,7 +1257,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
       const grandTotal = baseContract + coTotal + selectionTotal;
 
       return (
-        <ScrollView style={{ flex: 1 }} contentContainerStyle={[s.scroll, { maxWidth: 1800 }]}>
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={[s.scroll, { maxWidth: windowWidth * 0.9 }]}>
           <Text style={[s.sectionTitle, { textAlign: 'center' }]}>Job Price Summary</Text>
           <Text style={{ color: C.mt, fontSize: 21, marginBottom: 20, textAlign: 'center' }}>{project.name}</Text>
 
