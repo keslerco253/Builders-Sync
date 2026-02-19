@@ -523,6 +523,68 @@ def _calc_start_from_pred(pred, rel_type, lag_days):
     return _fmt(start)
 
 
+def _apply_hold_preview(task_dicts, hold_start_date):
+    """Adjust task dates in-memory to preview hold extension (no DB writes).
+    Mirrors the release logic: extend in-progress task and push subsequent tasks."""
+    today = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    hold_start = _to_date(hold_start_date)
+    if not hold_start:
+        return task_dicts
+
+    # Calculate workdays on hold so far
+    hold_days = 0
+    d = hold_start
+    while d < today:
+        d += timedelta(days=1)
+        if d.weekday() < 5:
+            hold_days += 1
+    if hold_days < 1:
+        return task_dicts  # same day, no adjustment needed yet
+
+    today_str = _fmt(today)
+
+    # Find in-progress task: started but not complete, not exception
+    in_progress = None
+    for t in task_dicts:
+        sd = t.get('start_date', '')
+        prog = t.get('progress', 0)
+        is_exc = t.get('is_exception', False)
+        if sd and sd <= today_str and prog < 100 and not is_exc:
+            if not in_progress or sd > in_progress.get('start_date', ''):
+                in_progress = t
+
+    if in_progress:
+        # Extend in-progress task end_date
+        old_end = _to_date(in_progress.get('end_date'))
+        if old_end:
+            in_progress['end_date'] = _fmt(_add_workdays(old_end, hold_days))
+
+        # Push all tasks after the in-progress task
+        ip_start = in_progress.get('start_date', '')
+        for t in task_dicts:
+            if t.get('id') == in_progress.get('id'):
+                continue
+            if t.get('start_date', '') and t['start_date'] > ip_start:
+                old_s = _to_date(t['start_date'])
+                old_e = _to_date(t.get('end_date'))
+                if old_s:
+                    t['start_date'] = _fmt(_add_workdays(old_s, hold_days))
+                if old_e:
+                    t['end_date'] = _fmt(_add_workdays(old_e, hold_days))
+    else:
+        # No in-progress task — push all future tasks
+        for t in task_dicts:
+            if t.get('start_date', '') and t['start_date'] >= today_str:
+                old_s = _to_date(t['start_date'])
+                old_e = _to_date(t.get('end_date'))
+                if old_s:
+                    t['start_date'] = _fmt(_add_workdays(old_s, hold_days))
+                if old_e:
+                    t['end_date'] = _fmt(_add_workdays(old_e, hold_days))
+
+    return task_dicts
+
+
 # ============================================================
 # AUTH ROUTES
 # ============================================================
@@ -1169,8 +1231,13 @@ def get_user_tasks(uid):
         or_(Schedule.contractor == contractor_name, Schedule.contractor == u.companyName)
     ).all()
     result = []
+    # Cache project lookups and group on-hold tasks by project for preview
+    proj_cache = {}
+    on_hold_groups = {}  # job_id -> list of task dicts
     for t in tasks:
-        proj = Projects.query.get(t.job_id)
+        if t.job_id not in proj_cache:
+            proj_cache[t.job_id] = Projects.query.get(t.job_id)
+        proj = proj_cache[t.job_id]
         # Non-builders only see tasks from go_live projects (unless a builder is viewing)
         if viewer_role != 'builder' and u.role != 'builder' and proj and not proj.go_live:
             continue
@@ -1181,6 +1248,25 @@ def get_user_tasks(uid):
             td['go_live'] = bool(proj.go_live) if proj.go_live else False
             td['on_hold'] = bool(proj.on_hold) if proj.on_hold else False
         result.append(td)
+        # Collect on-hold tasks for preview adjustment
+        if proj and proj.on_hold and proj.hold_start_date:
+            on_hold_groups.setdefault(t.job_id, []).append(td)
+
+    # Apply hold preview adjustments per project (needs full task list for context)
+    for job_id, held_tasks in on_hold_groups.items():
+        proj = proj_cache[job_id]
+        # Get ALL tasks for this project so the in-progress detection works correctly
+        all_proj_tasks = Schedule.query.filter_by(job_id=job_id).order_by(Schedule.start_date).all()
+        all_dicts = [tp.to_dict() for tp in all_proj_tasks]
+        adjusted = _apply_hold_preview(all_dicts, proj.hold_start_date)
+        # Map adjusted dates back to the user's tasks
+        adj_map = {a['id']: a for a in adjusted}
+        for td in held_tasks:
+            adj = adj_map.get(td['id'])
+            if adj:
+                td['start_date'] = adj['start_date']
+                td['end_date'] = adj['end_date']
+
     return jsonify(result)
 
 
@@ -1533,7 +1619,14 @@ def sync_project_dates(job_id):
 @app.route('/projects/<int:pid>/schedule', methods=['GET'])
 def get_schedule(pid):
     items = Schedule.query.filter_by(job_id=pid).order_by(Schedule.start_date).all()
-    return jsonify([i.to_dict() for i in items])
+    result = [i.to_dict() for i in items]
+
+    # Apply on-the-fly hold adjustments so dates extend visually while on hold
+    proj = Projects.query.get(pid)
+    if proj and proj.on_hold and proj.hold_start_date:
+        result = _apply_hold_preview(result, proj.hold_start_date)
+
+    return jsonify(result)
 
 
 @app.route('/projects/<int:pid>/schedule', methods=['POST'])
