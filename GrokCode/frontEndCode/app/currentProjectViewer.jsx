@@ -1260,9 +1260,9 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
           <Text style={[s.sectionTitle, { textAlign: 'center' }]}>Job Price Summary</Text>
           <Text style={{ color: C.mt, fontSize: 21, marginBottom: 20, textAlign: 'center' }}>{project.name}</Text>
 
-          <View style={s.twoColRow}>
+          <View style={s.threeColRow}>
             {/* LEFT COLUMN: Contract Price + Total Cost */}
-            <View style={s.twoColLeft}>
+            <View style={s.threeColCell}>
               <Card style={{ padding: 0, overflow: 'hidden' }}>
                 <View style={s.priceRow}>
                   <Text style={[s.priceLbl, { fontWeight: '600' }]}>Contract Price</Text>
@@ -1307,8 +1307,35 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
               </Card>
             </View>
 
-            {/* RIGHT COLUMN: Change Orders + Selections */}
-            <View style={s.twoColRight}>
+            {/* MIDDLE COLUMN: Selections */}
+            <View style={s.threeColCell}>
+              <Card style={{ padding: 0, overflow: 'hidden' }}>
+                <View style={[s.priceRow, { backgroundColor: C.bH05 }]}>
+                  <Text style={[s.lbl, { color: C.gd, marginBottom: 0 }]}>SELECTIONS</Text>
+                </View>
+                {confirmedSels.length === 0 ? (
+                  <View style={[s.priceRow, { justifyContent: 'center' }]}>
+                    <Text style={{ fontSize: 20, color: C.dm, fontStyle: 'italic' }}>No confirmed selections yet</Text>
+                  </View>
+                ) : (
+                  selectionLines.map((line, i) => (
+                    <View key={i} style={s.priceRow}>
+                      <Text style={[s.priceLbl, { flex: 1 }]} numberOfLines={1}>{line.item} — {line.selected}</Text>
+                      <Text style={[s.priceAmt, line.price > 0 ? { color: C.yl } : { color: C.gn }]}>
+                        {line.price > 0 ? `+${f$(line.price)}` : 'Standard'}
+                      </Text>
+                    </View>
+                  ))
+                )}
+                <View style={[s.priceRow, { borderTopWidth: 1, borderTopColor: C.w10 }]}>
+                  <Text style={{ fontSize: 21, fontWeight: '700', color: C.text }}>Selections Total</Text>
+                  <Text style={{ fontSize: 24, fontWeight: '700', color: selectionTotal > 0 ? C.yl : C.gn }}>{selectionTotal > 0 ? `+${f$(selectionTotal)}` : f$(0)}</Text>
+                </View>
+              </Card>
+            </View>
+
+            {/* RIGHT COLUMN: Change Orders */}
+            <View style={s.threeColCell}>
               <Card style={{ padding: 0, overflow: 'hidden' }}>
                 <View style={[s.priceRow, { backgroundColor: C.bH05 }]}>
                   <Text style={[s.lbl, { color: C.gd, marginBottom: 0 }]}>CHANGE ORDERS</Text>
@@ -1332,30 +1359,6 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
                   <Text style={{ fontSize: 24, fontWeight: '700', color: coTotal > 0 ? C.yl : coTotal < 0 ? C.gn : C.mt }}>
                     {coTotal > 0 ? `+${f$(coTotal)}` : f$(coTotal)}
                   </Text>
-                </View>
-              </Card>
-
-              <Card style={{ padding: 0, overflow: 'hidden', marginTop: 16 }}>
-                <View style={[s.priceRow, { backgroundColor: C.bH05 }]}>
-                  <Text style={[s.lbl, { color: C.gd, marginBottom: 0 }]}>SELECTIONS</Text>
-                </View>
-                {confirmedSels.length === 0 ? (
-                  <View style={[s.priceRow, { justifyContent: 'center' }]}>
-                    <Text style={{ fontSize: 20, color: C.dm, fontStyle: 'italic' }}>No confirmed selections yet</Text>
-                  </View>
-                ) : (
-                  selectionLines.map((line, i) => (
-                    <View key={i} style={s.priceRow}>
-                      <Text style={[s.priceLbl, { flex: 1 }]} numberOfLines={1}>{line.item} — {line.selected}</Text>
-                      <Text style={[s.priceAmt, line.price > 0 ? { color: C.yl } : { color: C.gn }]}>
-                        {line.price > 0 ? `+${f$(line.price)}` : 'Standard'}
-                      </Text>
-                    </View>
-                  ))
-                )}
-                <View style={[s.priceRow, { borderTopWidth: 1, borderTopColor: C.w10 }]}>
-                  <Text style={{ fontSize: 21, fontWeight: '700', color: C.text }}>Selections Total</Text>
-                  <Text style={{ fontSize: 24, fontWeight: '700', color: selectionTotal > 0 ? C.yl : C.gn }}>{selectionTotal > 0 ? `+${f$(selectionTotal)}` : f$(0)}</Text>
                 </View>
               </Card>
             </View>
@@ -2176,20 +2179,24 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
             </View>
           </View>
           {changeOrders.length === 0 ? <Empty icon="📄" text="No change orders" /> : (
-            <>
-              {approvedCOs.length > 0 && (
-                <View>
-                  <Text style={s.groupSubtitle}>Approved</Text>
-                  {approvedCOs.map(renderCOCard)}
-                </View>
-              )}
-              {pendingCOs.length > 0 && (
-                <View>
-                  <Text style={s.groupSubtitle}>Awaiting Approval</Text>
-                  {pendingCOs.map(renderCOCard)}
-                </View>
-              )}
-            </>
+            <View style={s.twoColRow}>
+              <View style={s.twoColLeft}>
+                {approvedCOs.length > 0 && (
+                  <>
+                    <Text style={s.groupSubtitle}>Approved</Text>
+                    {approvedCOs.map(renderCOCard)}
+                  </>
+                )}
+              </View>
+              <View style={s.twoColRight}>
+                {pendingCOs.length > 0 && (
+                  <>
+                    <Text style={s.groupSubtitle}>Awaiting Approval</Text>
+                    {pendingCOs.map(renderCOCard)}
+                  </>
+                )}
+              </View>
+            </View>
           )}
         </ScrollView>
       );
@@ -2296,30 +2303,34 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
           <Text style={[s.sectionTitle, { marginBottom: 16 }]}>Selections</Text>
 
           {selections.length === 0 ? <Empty icon="🎨" text="No selections yet" sub={isC ? "Your builder will add selections here" : "Add selections in Settings → Manage Selections"} /> : (
-            <>
-              {confirmedSels.length > 0 && (
-                <View>
-                  <Text style={s.groupSubtitle}>Confirmed</Text>
-                  {groupByCategory(confirmedSels).map(([cat, sels]) => (
-                    <View key={cat} style={{ marginBottom: 20 }}>
-                      <Text style={{ fontSize: 20, fontWeight: '700', color: C.gd, letterSpacing: 1, marginBottom: 10 }}>{cat.toUpperCase()}</Text>
-                      {sels.map(renderSelectionCard)}
-                    </View>
-                  ))}
-                </View>
-              )}
-              {awaitingSels.length > 0 && (
-                <View>
-                  <Text style={s.groupSubtitle}>Awaiting Confirmation</Text>
-                  {groupByCategory(awaitingSels).map(([cat, sels]) => (
-                    <View key={cat} style={{ marginBottom: 20 }}>
-                      <Text style={{ fontSize: 20, fontWeight: '700', color: C.gd, letterSpacing: 1, marginBottom: 10 }}>{cat.toUpperCase()}</Text>
-                      {sels.map(renderSelectionCard)}
-                    </View>
-                  ))}
-                </View>
-              )}
-            </>
+            <View style={s.twoColRow}>
+              <View style={s.twoColLeft}>
+                {confirmedSels.length > 0 && (
+                  <>
+                    <Text style={s.groupSubtitle}>Confirmed</Text>
+                    {groupByCategory(confirmedSels).map(([cat, sels]) => (
+                      <View key={cat} style={{ marginBottom: 20 }}>
+                        <Text style={{ fontSize: 20, fontWeight: '700', color: C.gd, letterSpacing: 1, marginBottom: 10 }}>{cat.toUpperCase()}</Text>
+                        {sels.map(renderSelectionCard)}
+                      </View>
+                    ))}
+                  </>
+                )}
+              </View>
+              <View style={s.twoColRight}>
+                {awaitingSels.length > 0 && (
+                  <>
+                    <Text style={s.groupSubtitle}>Awaiting Confirmation</Text>
+                    {groupByCategory(awaitingSels).map(([cat, sels]) => (
+                      <View key={cat} style={{ marginBottom: 20 }}>
+                        <Text style={{ fontSize: 20, fontWeight: '700', color: C.gd, letterSpacing: 1, marginBottom: 10 }}>{cat.toUpperCase()}</Text>
+                        {sels.map(renderSelectionCard)}
+                      </View>
+                    ))}
+                  </>
+                )}
+              </View>
+            </View>
           )}
 
           {/* Confirm Selection Modal */}
@@ -4820,6 +4831,8 @@ const getStyles = (C) => StyleSheet.create({
   twoColRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
   twoColLeft: { width: SCREEN_W > 800 ? '48%' : '100%' },
   twoColRight: { width: SCREEN_W > 800 ? '48%' : '100%' },
+  threeColRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
+  threeColCell: { width: SCREEN_W > 800 ? '32%' : '100%' },
   groupSubtitle: { fontSize: 22, fontWeight: '700', color: C.textBold, marginBottom: 10, marginTop: 16, paddingBottom: 8, borderBottomWidth: 2, borderBottomColor: C.gd + '40' },
 
   priceRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 18, borderBottomWidth: 1, borderBottomColor: C.w04 },
