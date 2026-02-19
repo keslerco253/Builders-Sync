@@ -1320,7 +1320,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
                 ) : (
                   selectionLines.map((line, i) => (
                     <View key={i} style={s.priceRow}>
-                      <Text style={[s.priceLbl, { flex: 1 }]} numberOfLines={1}>{line.item} — {line.selected}</Text>
+                      <Text style={[s.priceLbl, { flex: 1 }]}>{line.item} — {line.selected}</Text>
                       <Text style={[s.priceAmt, line.price > 0 ? { color: C.yl } : { color: C.gn }]}>
                         {line.price > 0 ? `+${f$(line.price)}` : 'Standard'}
                       </Text>
@@ -1347,7 +1347,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
                 ) : (
                   approved.map(co => (
                     <View key={co.id} style={s.priceRow}>
-                      <Text style={[s.priceLbl, { flex: 1 }]} numberOfLines={1}>{co.title}</Text>
+                      <Text style={[s.priceLbl, { flex: 1 }]}>{co.title}</Text>
                       <Text style={[s.priceAmt, { color: co.amount >= 0 ? C.yl : C.gn }]}>
                         {co.amount >= 0 ? `+${f$(co.amount)}` : f$(co.amount)}
                       </Text>
@@ -2088,31 +2088,37 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
             ];
 
             return (
-              <ScrollView style={{ flex: 1 }} contentContainerStyle={s.scroll}>
-                <Text style={s.sectionTitle}>Job Progress</Text>
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 16 }}>
-                  {stats.map(([label, val, color]) => (
-                    <View key={label} style={s.statCard}>
-                      <Lbl>{label}</Lbl>
-                      <Text style={{ fontSize: 30, fontWeight: '700', color }}>{val}</Text>
-                    </View>
-                  ))}
-                </View>
-                {schedule.length > 0 && (
-                  <Card>
-                    <Text style={s.cardTitle}>Schedule Progress</Text>
-                    {taskProgress.map(item => {
-                      const barColor = item.pct === 100 ? C.gn : item.status === 'in-progress' ? C.gd : '#2d3748';
-                      return (
-                        <View key={item.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-                          <Text style={{ fontSize: 16, color: C.mt, width: 120 }} numberOfLines={1}>{item.task}</Text>
-                          <Bar pct={item.pct} color={barColor} />
-                          <Text style={{ fontSize: 15, color: C.dm, width: 28, textAlign: 'right' }}>{item.pct}%</Text>
+              <ScrollView style={{ flex: 1 }} contentContainerStyle={[s.scroll, { maxWidth: 1200 }]}>
+                <Text style={[s.sectionTitle, { textAlign: 'center', marginBottom: 16 }]}>Job Progress</Text>
+                <View style={s.twoColRow}>
+                  <View style={s.twoColLeft}>
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 16 }}>
+                      {stats.map(([label, val, color]) => (
+                        <View key={label} style={s.statCard}>
+                          <Lbl>{label}</Lbl>
+                          <Text style={{ fontSize: 30, fontWeight: '700', color }}>{val}</Text>
                         </View>
-                      );
-                    })}
-                  </Card>
-                )}
+                      ))}
+                    </View>
+                  </View>
+                  <View style={s.twoColRight}>
+                    {schedule.length > 0 && (
+                      <Card>
+                        <Text style={s.cardTitle}>Schedule Progress</Text>
+                        {taskProgress.map(item => {
+                          const barColor = item.pct === 100 ? C.gn : item.status === 'in-progress' ? C.gd : '#2d3748';
+                          return (
+                            <View key={item.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                              <Text style={{ fontSize: 16, color: C.mt, width: 120 }} numberOfLines={1}>{item.task}</Text>
+                              <Bar pct={item.pct} color={barColor} />
+                              <Text style={{ fontSize: 15, color: C.dm, width: 28, textAlign: 'right' }}>{item.pct}%</Text>
+                            </View>
+                          );
+                        })}
+                      </Card>
+                    )}
+                  </View>
+                </View>
               </ScrollView>
             );
           })()}
@@ -2159,7 +2165,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
       const pendingCOs = changeOrders.filter(co => co.status !== 'approved');
 
       return (
-        <ScrollView style={{ flex: 1 }} contentContainerStyle={s.scroll}>
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={[s.scroll, { maxWidth: 1200 }]}>
           <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
             <View style={{ flex: 1 }} />
             <Text style={[s.sectionTitle, { textAlign: 'center' }]}>Change Orders</Text>
@@ -2299,7 +2305,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
       };
 
       return (
-        <ScrollView style={{ flex: 1 }} contentContainerStyle={s.scroll}>
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={[s.scroll, { maxWidth: 1200 }]}>
           <Text style={[s.sectionTitle, { marginBottom: 16 }]}>Selections</Text>
 
           {selections.length === 0 ? <Empty icon="🎨" text="No selections yet" sub={isC ? "Your builder will add selections here" : "Add selections in Settings → Manage Selections"} /> : (
@@ -4829,8 +4835,8 @@ const getStyles = (C) => StyleSheet.create({
   divider: { height: 1, backgroundColor: C.w06, marginVertical: 12 },
 
   twoColRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
-  twoColLeft: { width: SCREEN_W > 800 ? '48%' : '100%' },
-  twoColRight: { width: SCREEN_W > 800 ? '48%' : '100%' },
+  twoColLeft: { width: SCREEN_W > 800 ? '49%' : '100%' },
+  twoColRight: { width: SCREEN_W > 800 ? '49%' : '100%' },
   threeColRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
   threeColCell: { width: SCREEN_W > 800 ? '32%' : '100%' },
   groupSubtitle: { fontSize: 22, fontWeight: '700', color: C.textBold, marginBottom: 10, marginTop: 16, paddingBottom: 8, borderBottomWidth: 2, borderBottomColor: C.gd + '40' },
