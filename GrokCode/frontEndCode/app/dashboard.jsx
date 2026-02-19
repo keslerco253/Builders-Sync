@@ -255,7 +255,7 @@ export default function Dashboard() {
   const [subCOModal, setSubCOModal] = useState(null); // { task, project } for sub change order popup
   const [subCOForm, setSubCOForm] = useState({ title: '', desc: '', amount: '', isCredit: false, dueDate: '', signerName: '' });
   const [subCOStep, setSubCOStep] = useState('form'); // 'form' | 'sign'
-  const [subCOLoading, setSubCOLoading] = useState(false);
+  const [subCOSubmitting, setSubCOSubmitting] = useState(false);
   const [subCOAttachments, setSubCOAttachments] = useState([]);
   const [showBuilderCal, setShowBuilderCal] = useState(false);
   const [builderTasks, setBuilderTasks] = useState([]);
@@ -1408,7 +1408,7 @@ export default function Dashboard() {
     setSubCOModal(null);
     setSubCOForm({ title: '', desc: '', amount: '', isCredit: false, dueDate: '', signerName: '' });
     setSubCOStep('form');
-    setSubCOLoading(false);
+    setSubCOSubmitting(false);
     setSubCOAttachments([]);
   };
 
@@ -1437,7 +1437,7 @@ export default function Dashboard() {
     const { task, project } = subCOModal;
     const { title, desc, amount, isCredit, dueDate, signerName } = subCOForm;
     const amt = isCredit ? -Math.abs(parseFloat(amount)) : Math.abs(parseFloat(amount));
-    setSubCOLoading(true);
+    setSubCOSubmitting(true);
     try {
       const body = {
         title, description: desc, amount: amt, due_date: dueDate || null,
@@ -1477,7 +1477,7 @@ export default function Dashboard() {
       }
       closeSubCOModal();
       Alert.alert('Success', 'Change order submitted! The builder and customer will be notified to sign.');
-    } catch (e) { Alert.alert('Error', e.message); } finally { setSubCOLoading(false); }
+    } catch (e) { Alert.alert('Error', e.message); } finally { setSubCOSubmitting(false); }
   };
 
   // Clean up sub drag listeners on unmount
@@ -2853,10 +2853,10 @@ export default function Dashboard() {
                           {subCOForm.signerName.trim() ? (
                             <Text style={{ fontSize: 16, color: C.dm, marginBottom: 14 }}>Initials: {getInitials(subCOForm.signerName.trim())}</Text>
                           ) : <View style={{ marginBottom: 14 }} />}
-                          <TouchableOpacity onPress={submitSubCO} disabled={subCOLoading || !subCOForm.signerName.trim()}
+                          <TouchableOpacity onPress={submitSubCO} disabled={subCOSubmitting || !subCOForm.signerName.trim()}
                             style={{ backgroundColor: subCOForm.signerName.trim() ? C.gn : C.w10, paddingVertical: 14, borderRadius: 10, alignItems: 'center', opacity: subCOForm.signerName.trim() ? 1 : 0.5 }} activeOpacity={0.8}>
                             <Text style={{ fontSize: 18, fontWeight: '700', color: subCOForm.signerName.trim() ? '#fff' : C.dm }}>
-                              {subCOLoading ? 'Submitting...' : 'Sign & Submit'}
+                              {subCOSubmitting ? 'Submitting...' : 'Sign & Submit'}
                             </Text>
                           </TouchableOpacity>
                         </>
