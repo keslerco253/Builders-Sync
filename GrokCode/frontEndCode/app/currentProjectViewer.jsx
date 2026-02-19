@@ -1486,7 +1486,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
                 <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 6, paddingVertical: 8, paddingRight: 40, borderBottomWidth: 1, borderBottomColor: C.bd }}>
                   {viewToggle}
                 </View>
-                <ScrollView style={{ flex: 1 }} contentContainerStyle={s.scroll}>
+                <ScrollView style={{ flex: 1 }} contentContainerStyle={[s.scroll, { maxWidth: windowWidth * 0.9 }]}>
                   {isB && (
                     <View style={{ flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', gap: 8, marginBottom: 12 }}>
                       <TouchableOpacity
@@ -1546,104 +1546,130 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
 
                   {(() => {
                     const filtered = tradeFilter.length > 0 ? schedule.filter(t => t.trade && tradeFilter.includes(t.trade)) : schedule;
-                    return filtered.length === 0 ? <Empty text={tradeFilter.length > 0 ? "No tasks match filter" : "No schedule items"} /> : filtered.map(item => {
-                    const { pct, status } = calcTaskProgress(item);
-                    const hasSlip = item.baseline_end && item.end_date && item.baseline_end !== item.end_date;
-                    const statusColor = status === 'complete' ? C.gn : status === 'in-progress' ? C.gd : status === 'overdue' ? C.rd : '#4a5568';
-                    const statusLabel = status === 'complete' ? 'Complete' : status === 'in-progress' ? 'In Progress' : 'Upcoming';
-                    return (
-                      <View key={item.id}
-                        {...(Platform.OS === 'web' ? {
-                          onContextMenu: async (e) => {
+                    if (filtered.length === 0) return <Empty text={tradeFilter.length > 0 ? "No tasks match filter" : "No schedule items"} />;
+
+                    const completedTasks = filtered.filter(item => calcTaskProgress(item).status === 'complete');
+                    const otherTasks = filtered.filter(item => calcTaskProgress(item).status !== 'complete');
+
+                    const renderTaskCard = (item) => {
+                      const { pct, status } = calcTaskProgress(item);
+                      const hasSlip = item.baseline_end && item.end_date && item.baseline_end !== item.end_date;
+                      const statusColor = status === 'complete' ? C.gn : status === 'in-progress' ? C.gd : status === 'overdue' ? C.rd : '#4a5568';
+                      const statusLabel = status === 'complete' ? 'Complete' : status === 'in-progress' ? 'In Progress' : 'Upcoming';
+                      return (
+                        <View key={item.id}
+                          {...(Platform.OS === 'web' ? {
+                            onContextMenu: async (e) => {
+                              if (!isB) return;
+                              e.preventDefault();
+                              setListEditTask(item); setListContractor(item.contractor || ''); setSubsSearch('');
+                              try {
+                                const res = await fetch(`${API_BASE}/users`);
+                                const data = await res.json();
+                                if (Array.isArray(data)) setSubsList(data.filter(u => (u.role === 'contractor' || u.role === 'builder') && u.active !== false));
+                              } catch(e2) { console.warn('fetch subs:', e2); }
+                            },
+                          } : {})}
+                        >
+                        <TouchableOpacity activeOpacity={0.7}
+                          onPress={() => {
+                            if (isCon) {
+                              setConTaskPopup(item);
+                              return;
+                            }
                             if (!isB) return;
-                            e.preventDefault();
+                            const now = Date.now();
+                            const last = lastTapRef.current[item.id] || 0;
+                            lastTapRef.current[item.id] = now;
+                            if (now - last < 400) {
+                              lastTapRef.current[item.id] = 0;
+                              setPredDropOpen(false);
+                              setTradeDropOpen(false);
+                              setTaskInfoEdit({
+                                id: item.id,
+                                task: item.task || '',
+                                trade: item.trade || '',
+                                workdays: String((() => {
+                                  if (!item.start_date || !item.end_date) return 1;
+                                  const s2 = new Date(item.start_date + 'T00:00:00');
+                                  const e2 = new Date(item.end_date + 'T00:00:00');
+                                  if (isNaN(s2) || isNaN(e2)) return 1;
+                                  let count = 1; let d = new Date(s2);
+                                  while (d < e2) { d.setDate(d.getDate() + 1); if (d.getDay() !== 0 && d.getDay() !== 6) count++; }
+                                  return count;
+                                })()),
+                                predecessor_id: item.predecessor_id || null,
+                                rel_type: item.rel_type || 'FS',
+                                lag_days: String(item.lag_days || '0'),
+                                start_date: item.start_date || '',
+                                end_date: item.end_date || '',
+                              });
+                            }
+                          }}
+                          onLongPress={async () => {
+                            if (!isB) return;
                             setListEditTask(item); setListContractor(item.contractor || ''); setSubsSearch('');
                             try {
                               const res = await fetch(`${API_BASE}/users`);
                               const data = await res.json();
                               if (Array.isArray(data)) setSubsList(data.filter(u => (u.role === 'contractor' || u.role === 'builder') && u.active !== false));
-                            } catch(e2) { console.warn('fetch subs:', e2); }
-                          },
-                        } : {})}
-                      >
-                      <TouchableOpacity activeOpacity={0.7}
-                        onPress={() => {
-                          if (isCon) {
-                            setConTaskPopup(item);
-                            return;
-                          }
-                          if (!isB) return;
-                          const now = Date.now();
-                          const last = lastTapRef.current[item.id] || 0;
-                          lastTapRef.current[item.id] = now;
-                          if (now - last < 400) {
-                            lastTapRef.current[item.id] = 0;
-                            setPredDropOpen(false);
-                            setTradeDropOpen(false);
-                            setTaskInfoEdit({
-                              id: item.id,
-                              task: item.task || '',
-                              trade: item.trade || '',
-                              workdays: String((() => {
-                                if (!item.start_date || !item.end_date) return 1;
-                                const s2 = new Date(item.start_date + 'T00:00:00');
-                                const e2 = new Date(item.end_date + 'T00:00:00');
-                                if (isNaN(s2) || isNaN(e2)) return 1;
-                                let count = 1; let d = new Date(s2);
-                                while (d < e2) { d.setDate(d.getDate() + 1); if (d.getDay() !== 0 && d.getDay() !== 6) count++; }
-                                return count;
-                              })()),
-                              predecessor_id: item.predecessor_id || null,
-                              rel_type: item.rel_type || 'FS',
-                              lag_days: String(item.lag_days || '0'),
-                              start_date: item.start_date || '',
-                              end_date: item.end_date || '',
-                            });
-                          }
-                        }}
-                        onLongPress={async () => {
-                          if (!isB) return;
-                          setListEditTask(item); setListContractor(item.contractor || ''); setSubsSearch('');
-                          try {
-                            const res = await fetch(`${API_BASE}/users`);
-                            const data = await res.json();
-                            if (Array.isArray(data)) setSubsList(data.filter(u => (u.role === 'contractor' || u.role === 'builder') && u.active !== false));
-                          } catch(e) { console.warn('fetch subs:', e); }
-                        }}
-                      >
-                        <Card style={{ marginBottom: 8 }}>
-                          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
-                            <View style={{ flex: 1 }}>
-                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                                <Text style={{ fontSize: 21, fontWeight: '600', color: C.text }}>{item.task}</Text>
-                                {hasSlip && <Text style={{ fontSize: 15, color: C.rd }}>⚠ slipped</Text>}
+                            } catch(e) { console.warn('fetch subs:', e); }
+                          }}
+                        >
+                          <Card style={{ marginBottom: 8 }}>
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+                              <View style={{ flex: 1 }}>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                                  <Text style={{ fontSize: 21, fontWeight: '600', color: C.text }}>{item.task}</Text>
+                                  {hasSlip && <Text style={{ fontSize: 15, color: C.rd }}>⚠ slipped</Text>}
+                                </View>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 }}>
+                                  <Text style={{ fontSize: 18, color: C.dm }}>{item.contractor || 'Unassigned'}</Text>
+                                  {item.trade ? (
+                                    <View style={{ backgroundColor: 'rgba(59,130,246,0.1)', paddingHorizontal: 6, paddingVertical: 1, borderRadius: 4 }}>
+                                      <Text style={{ fontSize: 13, fontWeight: '600', color: C.bl }}>{item.trade}</Text>
+                                    </View>
+                                  ) : null}
+                                </View>
                               </View>
-                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 }}>
-                                <Text style={{ fontSize: 18, color: C.dm }}>{item.contractor || 'Unassigned'}</Text>
-                                {item.trade ? (
-                                  <View style={{ backgroundColor: 'rgba(59,130,246,0.1)', paddingHorizontal: 6, paddingVertical: 1, borderRadius: 4 }}>
-                                    <Text style={{ fontSize: 13, fontWeight: '600', color: C.bl }}>{item.trade}</Text>
-                                  </View>
-                                ) : null}
+                              <View style={{ alignItems: 'flex-end' }}>
+                                <Text style={{ fontSize: 16, color: C.mt }}>{sD(item.start_date)} — {sD(item.end_date)}</Text>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 3 }}>
+                                  <View style={{ width: 9, height: 9, borderRadius: 5, backgroundColor: statusColor }} />
+                                  <Text style={{ fontSize: 15, fontWeight: '600', color: statusColor }}>{statusLabel}</Text>
+                                </View>
                               </View>
                             </View>
-                            <View style={{ alignItems: 'flex-end' }}>
-                              <Text style={{ fontSize: 16, color: C.mt }}>{sD(item.start_date)} — {sD(item.end_date)}</Text>
-                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 3 }}>
-                                <View style={{ width: 9, height: 9, borderRadius: 5, backgroundColor: statusColor }} />
-                                <Text style={{ fontSize: 15, fontWeight: '600', color: statusColor }}>{statusLabel}</Text>
-                              </View>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                              <Bar pct={pct} color={statusColor} />
+                              <Text style={{ fontSize: 18, fontWeight: '600', color: statusColor, minWidth: 32, textAlign: 'right' }}>{pct}%</Text>
                             </View>
-                          </View>
-                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                            <Bar pct={pct} color={statusColor} />
-                            <Text style={{ fontSize: 18, fontWeight: '600', color: statusColor, minWidth: 32, textAlign: 'right' }}>{pct}%</Text>
-                          </View>
-                        </Card>
-                      </TouchableOpacity>
+                          </Card>
+                        </TouchableOpacity>
+                        </View>
+                      );
+                    };
+
+                    return (
+                      <View style={s.twoColRow}>
+                        <View style={s.twoColLeft}>
+                          {completedTasks.length > 0 && (
+                            <>
+                              <Text style={s.groupSubtitle}>Completed</Text>
+                              {completedTasks.map(renderTaskCard)}
+                            </>
+                          )}
+                        </View>
+                        <View style={s.twoColRight}>
+                          {otherTasks.length > 0 && (
+                            <>
+                              <Text style={s.groupSubtitle}>In Progress / Upcoming</Text>
+                              {otherTasks.map(renderTaskCard)}
+                            </>
+                          )}
+                        </View>
                       </View>
                     );
-                  });
                   })()}
                 </ScrollView>
                 </>
