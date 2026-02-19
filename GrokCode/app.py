@@ -1170,18 +1170,34 @@ def get_change_orders(pid):
 def add_change_order(pid):
     data = request.get_json()
     today = datetime.utcnow().strftime('%Y-%m-%d')
+    created_by = data.get('created_by', 'builder')  # 'builder' or 'sub'
     try:
-        co = ChangeOrders(
-            job_id=pid, title=data['title'], description=data.get('description', ''),
-            amount=data.get('amount', 0), status='pending_customer',
-            builder_sig=True, builder_sig_date=today,
-            customer_sig=False, customer_sig_date=None,
-            sub_id=data.get('sub_id', None), sub_name=data.get('sub_name', None),
-            sub_sig=False, sub_sig_date=None,
-            task_id=data.get('task_id', None), task_name=data.get('task_name', None),
-            task_extension_days=data.get('task_extension_days', 0),
-            created_at=today, due_date=data.get('due_date', None),
-        )
+        if created_by == 'sub':
+            # Sub-created: sub auto-signs, needs builder + customer approval
+            co = ChangeOrders(
+                job_id=pid, title=data['title'], description=data.get('description', ''),
+                amount=data.get('amount', 0), status='pending_builder',
+                builder_sig=False, builder_sig_date=None,
+                customer_sig=False, customer_sig_date=None,
+                sub_id=data.get('sub_id', None), sub_name=data.get('sub_name', None),
+                sub_sig=True, sub_sig_date=today,
+                task_id=data.get('task_id', None), task_name=data.get('task_name', None),
+                task_extension_days=data.get('task_extension_days', 0),
+                created_at=today, due_date=data.get('due_date', None),
+            )
+        else:
+            # Builder-created: builder auto-signs
+            co = ChangeOrders(
+                job_id=pid, title=data['title'], description=data.get('description', ''),
+                amount=data.get('amount', 0), status='pending_customer',
+                builder_sig=True, builder_sig_date=today,
+                customer_sig=False, customer_sig_date=None,
+                sub_id=data.get('sub_id', None), sub_name=data.get('sub_name', None),
+                sub_sig=False, sub_sig_date=None,
+                task_id=data.get('task_id', None), task_name=data.get('task_name', None),
+                task_extension_days=data.get('task_extension_days', 0),
+                created_at=today, due_date=data.get('due_date', None),
+            )
         db.session.add(co)
         db.session.commit()
         return jsonify(co.to_dict()), 201
@@ -2064,6 +2080,17 @@ def add_document(pid):
     db.session.add(doc)
     db.session.commit()
     return jsonify(doc.to_dict()), 201
+
+
+@app.route('/documents/<int:doc_id>', methods=['PATCH'])
+def update_document(doc_id):
+    """Update a document's name or other fields."""
+    doc = Documents.query.get_or_404(doc_id)
+    data = request.get_json()
+    if 'name' in data:
+        doc.name = data['name']
+    db.session.commit()
+    return jsonify(doc.to_dict())
 
 
 @app.route('/documents/<int:doc_id>', methods=['DELETE'])

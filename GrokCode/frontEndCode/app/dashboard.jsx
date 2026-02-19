@@ -3645,6 +3645,7 @@ export default function Dashboard() {
               : user?.role === 'contractor'
               ? [
                   { id: 'schedule', label: 'Schedule', defSub: 'calendar' },
+                  { id: 'changeorders', label: 'Change Orders', defSub: null },
                   { id: 'info', label: 'Info', defSub: 'jobinfo' },
                 ]
               : [
