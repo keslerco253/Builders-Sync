@@ -2024,7 +2024,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
                 </Text>
               </View>
               <View style={{ flexDirection: 'row', gap: 14, marginTop: 10 }}>
-                {[['Builder', co.builder_sig], ['Customer', co.customer_sig]].map(([l, signed]) => (
+                {[['Builder', co.builder_sig], ['Customer', co.customer_sig], ...(co.sub_id ? [['Sub', co.sub_sig]] : [])].map(([l, signed]) => (
                   <View key={l} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                     <View style={[s.sigDot, signed && s.sigDotOn]}>
                       {signed && <Text style={{ color: C.textBold, fontSize: 14, fontWeight: '700' }}>✓</Text>}
@@ -2431,6 +2431,23 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
             </View>
           )}
 
+          {/* Linked task info */}
+          {co.task_name && (
+            <View style={{ backgroundColor: C.w04, borderRadius: 10, padding: 14, marginBottom: 16, borderWidth: 1, borderColor: C.w08 }}>
+              <Text style={{ fontSize: 14, fontWeight: '700', color: C.dm, letterSpacing: 0.5, marginBottom: 6 }}>LINKED TASK</Text>
+              <Text style={{ fontSize: 19, fontWeight: '600', color: C.text }}>{co.task_name}</Text>
+              {co.task_extension_days > 0 && (
+                <Text style={{ fontSize: 16, color: C.yl, marginTop: 4 }}>+{co.task_extension_days} day extension (applied on approval)</Text>
+              )}
+              {co.sub_name && (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6 }}>
+                  <Text style={{ fontSize: 16 }}>👷</Text>
+                  <Text style={{ fontSize: 16, fontWeight: '500', color: C.bl }}>{co.sub_name}</Text>
+                </View>
+              )}
+            </View>
+          )}
+
           <Text style={{ fontSize: 21, fontWeight: '600', color: C.text, marginBottom: 14 }}>Digital Signatures</Text>
 
           {/* Builder signature */}
@@ -2473,6 +2490,24 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
             )}
           </View>
 
+          {/* Subcontractor signature (only if sub is involved) */}
+          {co.sub_id && (
+            <View style={[s.card, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }]}>
+              <View>
+                <Text style={{ fontSize: 21, fontWeight: '600', color: C.text }}>Subcontractor</Text>
+                <Text style={{ fontSize: 16, color: C.bl, marginTop: 1 }}>{co.sub_name}</Text>
+                <Text style={{ fontSize: 18, color: C.dm, marginTop: 2 }}>
+                  {co.sub_sig ? `Signed ${fD(co.sub_sig_date)}` : 'Not yet signed'}
+                </Text>
+              </View>
+              {co.sub_sig ? (
+                <Text style={{ color: C.gn, fontSize: 20, fontWeight: '600' }}>✓ Signed</Text>
+              ) : (
+                <Text style={{ color: C.dm, fontSize: 18 }}>Awaiting</Text>
+              )}
+            </View>
+          )}
+
           <View style={[s.warnBox, {
             backgroundColor: co.status === 'approved' ? 'rgba(16,185,129,0.08)'
               : isExpired && co.status !== 'approved' ? 'rgba(239,68,68,0.08)' : undefined,
@@ -2487,7 +2522,9 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
                 ? '✓ Approved — reflected in Price Summary'
                 : isExpired && co.status !== 'approved'
                   ? 'This change order has expired — the due date has passed'
-                  : 'Requires both signatures to update Price Summary'}
+                  : co.sub_id
+                    ? 'Requires all signatures (builder, customer, sub) to update Price Summary'
+                    : 'Requires both signatures to update Price Summary'}
             </Text>
           </View>
         </ModalSheet>
@@ -2535,7 +2572,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
 
     // --- New Change Order ---
     if (modal === 'newco') {
-      return <NewChangeOrderModal project={project} api={api} user={user} onClose={() => setModal(null)} onCreated={(co) => {
+      return <NewChangeOrderModal project={project} api={api} user={user} schedule={schedule} onClose={() => setModal(null)} onCreated={(co) => {
         setChangeOrders(prev => [co, ...prev]);
         setModal(null);
         Alert.alert('Success', 'Change order created & signed as builder');
@@ -2680,7 +2717,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
 // ISOLATED MODAL COMPONENTS
 // ============================================================
 
-const NewChangeOrderModal = ({ project, api, onClose, onCreated, user }) => {
+const NewChangeOrderModal = ({ project, api, onClose, onCreated, user, schedule }) => {
   const C = React.useContext(ThemeContext);
   const s = React.useMemo(() => getStyles(C), [C]);
   const [title, setTitle] = useState('');
@@ -2690,14 +2727,50 @@ const NewChangeOrderModal = ({ project, api, onClose, onCreated, user }) => {
   const [dueDate, setDueDate] = useState('');
   const [loading, setLoading] = useState(false);
   const [signStep, setSignStep] = useState(false);
+  const [selectedTask, setSelectedTask] = useState(null);
+  const [showTaskPicker, setShowTaskPicker] = useState(false);
+  const [extensionDays, setExtensionDays] = useState('');
+  const [subInfo, setSubInfo] = useState(null); // { id, name }
+
+  // When a task is selected, look up the subcontractor
+  const onTaskSelect = async (task) => {
+    setSelectedTask(task);
+    setShowTaskPicker(false);
+    setSubInfo(null);
+    if (task.contractor && task.contractor.trim()) {
+      try {
+        const res = await fetch(`${API_BASE}/users`);
+        const users = await res.json();
+        if (Array.isArray(users)) {
+          const match = users.find(u =>
+            `${u.firstName} ${u.lastName}` === task.contractor ||
+            u.companyName === task.contractor
+          );
+          if (match) setSubInfo({ id: match.id, name: match.companyName || `${match.firstName} ${match.lastName}` });
+        }
+      } catch {}
+    }
+  };
 
   const create = async () => {
     const amt = isCredit ? -Math.abs(parseFloat(amount)) : Math.abs(parseFloat(amount));
     setLoading(true);
     try {
+      const body = { title, description: desc, amount: amt, due_date: dueDate || null };
+      if (selectedTask) {
+        body.task_id = selectedTask.id;
+        body.task_name = selectedTask.task;
+      }
+      if (subInfo) {
+        body.sub_id = subInfo.id;
+        body.sub_name = subInfo.name;
+      }
+      if (extensionDays && parseInt(extensionDays) > 0) {
+        body.task_extension_days = parseInt(extensionDays);
+      }
       const res = await api(`/projects/${project.id}/change-orders`, {
         method: 'POST',
-        body: { title, description: desc, amount: amt, due_date: dueDate || null },
+        body,
       });
       if (!res) {
         Alert.alert('Error', 'Failed to create change order. Please try again.');
@@ -2723,6 +2796,19 @@ const NewChangeOrderModal = ({ project, api, onClose, onCreated, user }) => {
               {title} — {isCredit ? '-' : '+'}{f$(Math.abs(parseFloat(amount || 0)))}
             </Text>
 
+            {selectedTask && (
+              <View style={{ backgroundColor: C.w04, borderRadius: 8, padding: 12, marginBottom: 12 }}>
+                <Text style={{ fontSize: 16, color: C.dm, marginBottom: 2 }}>Linked Task</Text>
+                <Text style={{ fontSize: 18, fontWeight: '600', color: C.text }}>{selectedTask.task}</Text>
+                {extensionDays && parseInt(extensionDays) > 0 ? (
+                  <Text style={{ fontSize: 16, color: C.yl, marginTop: 4 }}>+{extensionDays} day extension</Text>
+                ) : null}
+                {subInfo && (
+                  <Text style={{ fontSize: 16, color: C.bl, marginTop: 4 }}>Sub: {subInfo.name} (signature required)</Text>
+                )}
+              </View>
+            )}
+
             <View style={{
               backgroundColor: C.mode === 'dark' ? C.bH08 : C.bH05,
               borderWidth: 1, borderColor: C.gd + '30',
@@ -2730,6 +2816,7 @@ const NewChangeOrderModal = ({ project, api, onClose, onCreated, user }) => {
             }}>
               <Text style={{ fontSize: 21, lineHeight: 33, color: C.mt, textAlign: 'center' }}>
                 By signing, you are submitting this change order to the customer for approval.
+                {subInfo ? '\nThe subcontractor will also need to sign.' : ''}
                 {dueDate ? `\nDue date: ${fD(dueDate)}` : ''}
               </Text>
             </View>
@@ -2777,6 +2864,70 @@ const NewChangeOrderModal = ({ project, api, onClose, onCreated, user }) => {
           </View>
         </View>
       </View>
+
+      {/* Link to Task */}
+      <View style={{ marginBottom: 14 }}>
+        <Lbl>LINK TO TASK (OPTIONAL)</Lbl>
+        <TouchableOpacity
+          onPress={() => setShowTaskPicker(true)}
+          style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+            backgroundColor: C.w04, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 12,
+            borderWidth: 1, borderColor: selectedTask ? C.gd + '40' : C.bd,
+          }}
+          activeOpacity={0.7}
+        >
+          <Text style={{ fontSize: 18, color: selectedTask ? C.text : C.dm }} numberOfLines={1}>
+            {selectedTask ? selectedTask.task : 'Select a task...'}
+          </Text>
+          {selectedTask ? (
+            <TouchableOpacity onPress={() => { setSelectedTask(null); setSubInfo(null); setExtensionDays(''); }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Text style={{ fontSize: 18, color: C.dm }}>✕</Text>
+            </TouchableOpacity>
+          ) : (
+            <Text style={{ fontSize: 16, color: C.dm }}>▼</Text>
+          )}
+        </TouchableOpacity>
+      </View>
+
+      {/* Task picker dropdown */}
+      {showTaskPicker && (
+        <View style={{ marginBottom: 14, backgroundColor: C.w04, borderRadius: 10, borderWidth: 1, borderColor: C.w08, maxHeight: 220, overflow: 'hidden' }}>
+          <ScrollView>
+            {(schedule || []).length === 0 ? (
+              <View style={{ padding: 16, alignItems: 'center' }}>
+                <Text style={{ fontSize: 16, color: C.dm }}>No tasks in schedule</Text>
+              </View>
+            ) : (schedule || []).map(t => (
+              <TouchableOpacity key={t.id} onPress={() => onTaskSelect(t)}
+                style={{ paddingVertical: 10, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: C.w04 }}
+                activeOpacity={0.7}
+              >
+                <Text style={{ fontSize: 17, fontWeight: '500', color: C.text }}>{t.task}</Text>
+                {t.contractor ? (
+                  <Text style={{ fontSize: 14, color: C.dm, marginTop: 2 }}>Sub: {t.contractor}</Text>
+                ) : null}
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+      )}
+
+      {/* Subcontractor info */}
+      {selectedTask && subInfo && (
+        <View style={{ marginBottom: 14, backgroundColor: 'rgba(59,130,246,0.08)', borderRadius: 10, padding: 14, borderWidth: 1, borderColor: 'rgba(59,130,246,0.2)' }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+            <Text style={{ fontSize: 18 }}>👷</Text>
+            <Text style={{ fontSize: 18, fontWeight: '600', color: C.text }}>{subInfo.name}</Text>
+          </View>
+          <Text style={{ fontSize: 15, color: C.dm }}>This subcontractor will be required to sign the change order</Text>
+        </View>
+      )}
+
+      {/* Task extension */}
+      {selectedTask && (
+        <Inp label="EXTEND TASK (DAYS)" value={extensionDays} onChange={setExtensionDays} type="number" placeholder="0 (no extension)" />
+      )}
+
       <DatePicker value={dueDate} onChange={setDueDate} label="DUE DATE" placeholder="Select due date" />
       <Btn onPress={() => {
         if (!title || !amount) return Alert.alert('Error', 'Title and amount are required');

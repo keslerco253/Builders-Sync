@@ -174,6 +174,13 @@ class ChangeOrders(db.Model):
     builder_sig_date = db.Column(db.String(20), nullable=True)
     customer_sig = db.Column(db.Boolean, default=False)
     customer_sig_date = db.Column(db.String(20), nullable=True)
+    sub_id = db.Column(db.Integer, nullable=True)
+    sub_name = db.Column(db.String(200), nullable=True)
+    sub_sig = db.Column(db.Boolean, default=False)
+    sub_sig_date = db.Column(db.String(20), nullable=True)
+    task_id = db.Column(db.Integer, nullable=True)
+    task_name = db.Column(db.String(200), nullable=True)
+    task_extension_days = db.Column(db.Integer, default=0)
     created_at = db.Column(db.String(20), default='')
     due_date = db.Column(db.String(20), nullable=True)
 
@@ -183,8 +190,12 @@ class ChangeOrders(db.Model):
             'description': self.description, 'amount': self.amount,
             'status': self.status, 'builder_sig': self.builder_sig,
             'builder_sig_date': self.builder_sig_date, 'customer_sig': self.customer_sig,
-            'customer_sig_date': self.customer_sig_date, 'created_at': self.created_at,
-            'due_date': self.due_date,
+            'customer_sig_date': self.customer_sig_date,
+            'sub_id': self.sub_id, 'sub_name': self.sub_name,
+            'sub_sig': self.sub_sig, 'sub_sig_date': self.sub_sig_date,
+            'task_id': self.task_id, 'task_name': self.task_name,
+            'task_extension_days': self.task_extension_days,
+            'created_at': self.created_at, 'due_date': self.due_date,
         }
 
 
@@ -1143,8 +1154,12 @@ def add_change_order(pid):
             job_id=pid, title=data['title'], description=data.get('description', ''),
             amount=data.get('amount', 0), status='pending_customer',
             builder_sig=True, builder_sig_date=today,
-            customer_sig=False, customer_sig_date=None, created_at=today,
-            due_date=data.get('due_date', None),
+            customer_sig=False, customer_sig_date=None,
+            sub_id=data.get('sub_id', None), sub_name=data.get('sub_name', None),
+            sub_sig=False, sub_sig_date=None,
+            task_id=data.get('task_id', None), task_name=data.get('task_name', None),
+            task_extension_days=data.get('task_extension_days', 0),
+            created_at=today, due_date=data.get('due_date', None),
         )
         db.session.add(co)
         db.session.commit()
@@ -1178,26 +1193,60 @@ def sign_change_order(co_id):
         elif role == 'customer':
             co.customer_sig = True
             co.customer_sig_date = today
+        elif role == 'sub':
+            co.sub_sig = True
+            co.sub_sig_date = today
 
-        if co.builder_sig and co.customer_sig:
+        # Determine if fully approved: builder + customer + sub (if sub required)
+        all_signed = co.builder_sig and co.customer_sig
+        if co.sub_id:
+            all_signed = all_signed and co.sub_sig
+
+        if all_signed:
             co.status = 'approved'
             # Update project contract price
             project = Projects.query.get(co.job_id)
             if project:
                 approved = ChangeOrders.query.filter_by(job_id=co.job_id, status='approved').all()
-                # Include this one since we just set it
                 total = (project.original_price or 0) + sum(c.amount for c in approved)
                 if co not in approved:
                     total += co.amount
                 project.contract_price = total
+            # Apply task extension if specified
+            if co.task_id and co.task_extension_days:
+                task = Schedule.query.get(co.task_id)
+                if task and task.end_date:
+                    from datetime import timedelta
+                    end = datetime.strptime(task.end_date, '%Y-%m-%d')
+                    new_end = end + timedelta(days=co.task_extension_days)
+                    task.end_date = new_end.strftime('%Y-%m-%d')
         else:
-            co.status = 'pending_customer' if co.builder_sig else 'pending_builder'
+            if not co.builder_sig:
+                co.status = 'pending_builder'
+            elif not co.customer_sig:
+                co.status = 'pending_customer'
+            elif co.sub_id and not co.sub_sig:
+                co.status = 'pending_sub'
 
         db.session.commit()
         return jsonify(co.to_dict())
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
+
+
+@app.route('/users/<int:uid>/change-orders', methods=['GET'])
+def get_user_change_orders(uid):
+    """Get all change orders involving a subcontractor."""
+    cos = ChangeOrders.query.filter_by(sub_id=uid).order_by(ChangeOrders.created_at.desc()).all()
+    result = []
+    for co in cos:
+        d = co.to_dict()
+        proj = Projects.query.get(co.job_id)
+        if proj:
+            d['project_name'] = proj.name
+        result.append(d)
+    return jsonify(result)
 
 
 # ============================================================
