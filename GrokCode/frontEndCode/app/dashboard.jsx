@@ -252,7 +252,11 @@ export default function Dashboard() {
     }
   }, [selectedSub]);
   const [contractorProject, setContractorProject] = useState(null); // for contractor viewing a project
-  const [pendingCOTask, setPendingCOTask] = useState(null); // task to auto-open SubChangeOrderModal
+  const [subCOModal, setSubCOModal] = useState(null); // { task, project } for sub change order popup
+  const [subCOForm, setSubCOForm] = useState({ title: '', desc: '', amount: '', isCredit: false, dueDate: '', signerName: '' });
+  const [subCOStep, setSubCOStep] = useState('form'); // 'form' | 'sign'
+  const [subCOLoading, setSubCOLoading] = useState(false);
+  const [subCOAttachments, setSubCOAttachments] = useState([]);
   const [showBuilderCal, setShowBuilderCal] = useState(false);
   const [builderTasks, setBuilderTasks] = useState([]);
   const [builderCalView, setBuilderCalView] = useState('gantt');
@@ -1391,6 +1395,89 @@ export default function Dashboard() {
       closeSubEditPopup();
       setScheduleVersion(v => v + 1);
     } catch (e) { console.warn('Sub edit save failed:', e); setSubEditSaving(false); }
+  };
+
+  // Sub change order modal helpers
+  const getInitials = (name) => {
+    const parts = (name || '').trim().split(/\s+/);
+    if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+    return parts[0] ? parts[0][0].toUpperCase() : '';
+  };
+
+  const closeSubCOModal = () => {
+    setSubCOModal(null);
+    setSubCOForm({ title: '', desc: '', amount: '', isCredit: false, dueDate: '', signerName: '' });
+    setSubCOStep('form');
+    setSubCOLoading(false);
+    setSubCOAttachments([]);
+  };
+
+  const pickSubCOAttachment = () => {
+    if (Platform.OS !== 'web') return;
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.onchange = (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const ext = file.name.split('.').pop() || 'bin';
+      const reader = new FileReader();
+      reader.onload = () => {
+        setSubCOAttachments(prev => [...prev, {
+          b64: reader.result, ext, originalName: file.name, size: file.size,
+          docName: file.name.replace(/\.[^/.]+$/, ''), docDesc: '',
+        }]);
+      };
+      reader.readAsDataURL(file);
+    };
+    input.click();
+  };
+
+  const submitSubCO = async () => {
+    if (!subCOModal) return;
+    const { task, project } = subCOModal;
+    const { title, desc, amount, isCredit, dueDate, signerName } = subCOForm;
+    const amt = isCredit ? -Math.abs(parseFloat(amount)) : Math.abs(parseFloat(amount));
+    setSubCOLoading(true);
+    try {
+      const body = {
+        title, description: desc, amount: amt, due_date: dueDate || null,
+        created_by: 'sub',
+        sub_id: user?.id || null,
+        sub_name: user?.company_name || user?.name || '',
+        sub_initials: getInitials(signerName.trim()),
+        sub_signer_name: signerName.trim(),
+        task_id: task.id,
+        task_name: task.task || null,
+      };
+      const res = await fetch(`${API_BASE}/projects/${project.id}/change-orders`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) { const err = await res.json(); Alert.alert('Error', err.error || 'Failed to create change order.'); return; }
+      const co = await res.json();
+      // Upload attachments
+      for (const att of subCOAttachments) {
+        try {
+          const upRes = await fetch(`${API_BASE}/upload-file`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ file: att.b64, ext: att.ext, name: att.originalName }),
+          });
+          if (upRes.ok) {
+            const upData = await upRes.json();
+            await fetch(`${API_BASE}/change-orders/${co.id}/documents`, {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                name: att.docName, description: att.docDesc,
+                file_url: upData.path, file_size: upData.file_size || att.size || 0,
+                uploaded_by: user?.name || '',
+              }),
+            });
+          }
+        } catch {}
+      }
+      closeSubCOModal();
+      Alert.alert('Success', 'Change order submitted! The builder and customer will be notified to sign.');
+    } catch (e) { Alert.alert('Error', e.message); } finally { setSubCOLoading(false); }
   };
 
   // Clean up sub drag listeners on unmount
@@ -2679,8 +2766,8 @@ export default function Dashboard() {
                     </TouchableOpacity>
                     <TouchableOpacity onPress={() => {
                         const { task, project } = taskActionPopup;
-                        setPendingCOTask(task);
-                        taskActionNav(project, 'changeorders');
+                        closeTaskActionPopup();
+                        setSubCOModal({ task, project });
                       }}
                       style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, paddingHorizontal: 16, borderBottomWidth: taskActionPopup.project.subdivision_id ? 1 : 0, borderBottomColor: C.w06 }} activeOpacity={0.7}>
                       <Text style={{ fontSize: 22 }}>📝</Text>
@@ -2718,6 +2805,174 @@ export default function Dashboard() {
                       </TouchableOpacity>
                     </View>
                   )}
+                </View>
+              </View>
+            )}
+
+            {/* Sub Change Order Modal */}
+            {subCOModal && (
+              <View style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 1100, alignItems: 'center', justifyContent: 'center' }}>
+                <TouchableOpacity style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)' }} activeOpacity={1} onPress={closeSubCOModal} />
+                <View style={{ width: 420, maxHeight: '90%', zIndex: 1101, backgroundColor: C.modalBg, borderRadius: 12, borderWidth: 1, borderColor: C.w12, overflow: 'hidden',
+                  ...(Platform.OS === 'web' ? { boxShadow: '0 12px 40px rgba(0,0,0,0.3)' } : { elevation: 20 }) }}>
+                  {/* Header */}
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: C.w08, backgroundColor: C.w03 }}>
+                    <Text style={{ fontSize: 21, fontWeight: '700', color: C.textBold }}>{subCOStep === 'sign' ? 'Sign Change Order' : 'New Change Order'}</Text>
+                    <TouchableOpacity onPress={closeSubCOModal} style={{ width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: C.w06 }}>
+                      <Text style={{ fontSize: 24, color: C.mt, marginTop: -1 }}>×</Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  <ScrollView style={{ maxHeight: 600 }} keyboardShouldPersistTaps="handled">
+                    <View style={{ padding: 16 }}>
+                      {subCOStep === 'sign' ? (
+                        <>
+                          {/* Sign step — review & sign */}
+                          <View style={{ backgroundColor: C.w04, borderRadius: 10, padding: 14, marginBottom: 14, borderWidth: 1, borderColor: C.w08 }}>
+                            <Text style={{ fontSize: 20, fontWeight: '600', color: C.text, marginBottom: 4 }}>{subCOForm.title}</Text>
+                            <Text style={{ fontSize: 17, color: C.mt, marginBottom: 8 }}>{subCOForm.desc}</Text>
+                            <Text style={{ fontSize: 24, fontWeight: '700', color: subCOForm.isCredit ? C.gn : '#f59e0b' }}>
+                              {subCOForm.isCredit ? '-' : '+'}{(() => { const v = Math.abs(parseFloat(subCOForm.amount) || 0); return v.toLocaleString('en-US', { style: 'currency', currency: 'USD' }); })()}
+                            </Text>
+                            <Text style={{ fontSize: 15, color: C.dm, marginTop: 6 }}>Task: {subCOModal.task.task}</Text>
+                          </View>
+                          <View style={{ backgroundColor: '#f59e0b10', borderRadius: 10, padding: 14, marginBottom: 14, borderWidth: 1, borderColor: '#f59e0b30' }}>
+                            <Text style={{ fontSize: 16, color: '#f59e0b', fontWeight: '500' }}>
+                              By signing below, you are electronically signing this change order as the subcontractor. The builder and customer will also need to sign.
+                            </Text>
+                          </View>
+                          <Text style={{ fontSize: 14, fontWeight: '700', color: C.dm, letterSpacing: 0.8, marginBottom: 6 }}>TYPE YOUR FULL NAME TO SIGN</Text>
+                          <TextInput
+                            value={subCOForm.signerName}
+                            onChangeText={(v) => setSubCOForm(p => ({ ...p, signerName: v }))}
+                            placeholder="e.g., John Smith"
+                            placeholderTextColor={C.ph || C.dm}
+                            autoFocus
+                            style={{ backgroundColor: C.w04, borderRadius: 8, borderWidth: 1, borderColor: C.bd, paddingHorizontal: 14, paddingVertical: 12, fontSize: 18, color: C.text, marginBottom: 4 }}
+                          />
+                          {subCOForm.signerName.trim() ? (
+                            <Text style={{ fontSize: 16, color: C.dm, marginBottom: 14 }}>Initials: {getInitials(subCOForm.signerName.trim())}</Text>
+                          ) : <View style={{ marginBottom: 14 }} />}
+                          <TouchableOpacity onPress={submitSubCO} disabled={subCOLoading || !subCOForm.signerName.trim()}
+                            style={{ backgroundColor: subCOForm.signerName.trim() ? C.gn : C.w10, paddingVertical: 14, borderRadius: 10, alignItems: 'center', opacity: subCOForm.signerName.trim() ? 1 : 0.5 }} activeOpacity={0.8}>
+                            <Text style={{ fontSize: 18, fontWeight: '700', color: subCOForm.signerName.trim() ? '#fff' : C.dm }}>
+                              {subCOLoading ? 'Submitting...' : 'Sign & Submit'}
+                            </Text>
+                          </TouchableOpacity>
+                        </>
+                      ) : (
+                        <>
+                          {/* Form step */}
+                          {/* Linked Task (read-only) */}
+                          <Text style={{ fontSize: 14, fontWeight: '700', color: C.dm, letterSpacing: 0.8, marginBottom: 6 }}>LINKED TASK</Text>
+                          <View style={{ backgroundColor: C.w04, borderRadius: 10, padding: 12, marginBottom: 14, borderWidth: 1, borderColor: C.gd + '40' }}>
+                            <Text style={{ fontSize: 18, fontWeight: '600', color: C.text }}>{subCOModal.task.task}</Text>
+                            {subCOModal.task.start_date && subCOModal.task.end_date && (
+                              <Text style={{ fontSize: 14, color: C.dm, marginTop: 2 }}>{subCOModal.task.start_date} — {subCOModal.task.end_date}</Text>
+                            )}
+                          </View>
+
+                          {/* Title */}
+                          <Text style={{ fontSize: 14, fontWeight: '700', color: C.dm, letterSpacing: 0.8, marginBottom: 6 }}>TITLE</Text>
+                          <TextInput
+                            value={subCOForm.title}
+                            onChangeText={(v) => setSubCOForm(p => ({ ...p, title: v }))}
+                            placeholder="e.g., Additional framing labor"
+                            placeholderTextColor={C.ph || C.dm}
+                            style={{ backgroundColor: C.w04, borderRadius: 8, borderWidth: 1, borderColor: C.bd, paddingHorizontal: 14, paddingVertical: 12, fontSize: 18, color: C.text, marginBottom: 14 }}
+                          />
+
+                          {/* Description */}
+                          <Text style={{ fontSize: 14, fontWeight: '700', color: C.dm, letterSpacing: 0.8, marginBottom: 6 }}>DESCRIPTION</Text>
+                          <TextInput
+                            value={subCOForm.desc}
+                            onChangeText={(v) => setSubCOForm(p => ({ ...p, desc: v }))}
+                            placeholder="Describe the change..."
+                            placeholderTextColor={C.ph || C.dm}
+                            multiline
+                            numberOfLines={3}
+                            style={{ backgroundColor: C.w04, borderRadius: 8, borderWidth: 1, borderColor: C.bd, paddingHorizontal: 14, paddingVertical: 12, fontSize: 18, color: C.text, marginBottom: 14, minHeight: 80, textAlignVertical: 'top' }}
+                          />
+
+                          {/* Amount + Type */}
+                          <View style={{ flexDirection: 'row', gap: 12, marginBottom: 14 }}>
+                            <View style={{ flex: 1 }}>
+                              <Text style={{ fontSize: 14, fontWeight: '700', color: C.dm, letterSpacing: 0.8, marginBottom: 6 }}>AMOUNT ($)</Text>
+                              <TextInput
+                                value={subCOForm.amount}
+                                onChangeText={(v) => setSubCOForm(p => ({ ...p, amount: v }))}
+                                placeholder="0"
+                                placeholderTextColor={C.ph || C.dm}
+                                keyboardType="numeric"
+                                style={{ backgroundColor: C.w04, borderRadius: 8, borderWidth: 1, borderColor: C.bd, paddingHorizontal: 14, paddingVertical: 12, fontSize: 18, color: C.text }}
+                              />
+                            </View>
+                            <View>
+                              <Text style={{ fontSize: 14, fontWeight: '700', color: C.dm, letterSpacing: 0.8, marginBottom: 6 }}>TYPE</Text>
+                              <View style={{ flexDirection: 'row', borderRadius: 8, overflow: 'hidden', borderWidth: 1, borderColor: C.bd }}>
+                                <TouchableOpacity onPress={() => setSubCOForm(p => ({ ...p, isCredit: false }))}
+                                  style={{ paddingHorizontal: 16, paddingVertical: 12, backgroundColor: !subCOForm.isCredit ? '#f59e0b22' : 'transparent' }}>
+                                  <Text style={{ fontSize: 16, fontWeight: '600', color: !subCOForm.isCredit ? '#f59e0b' : C.dm }}>Add</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity onPress={() => setSubCOForm(p => ({ ...p, isCredit: true }))}
+                                  style={{ paddingHorizontal: 16, paddingVertical: 12, backgroundColor: subCOForm.isCredit ? (C.gn + '22') : 'transparent' }}>
+                                  <Text style={{ fontSize: 16, fontWeight: '600', color: subCOForm.isCredit ? C.gn : C.dm }}>Credit</Text>
+                                </TouchableOpacity>
+                              </View>
+                            </View>
+                          </View>
+
+                          {/* Attachments */}
+                          <View style={{ marginBottom: 14 }}>
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                              <Text style={{ fontSize: 14, fontWeight: '700', color: C.dm, letterSpacing: 0.8 }}>DOCUMENTS (OPTIONAL)</Text>
+                              <TouchableOpacity onPress={pickSubCOAttachment}
+                                style={{ paddingHorizontal: 12, paddingVertical: 5, borderRadius: 7, backgroundColor: C.gd }} activeOpacity={0.7}>
+                                <Text style={{ fontSize: 14, fontWeight: '600', color: '#000' }}>+ Add File</Text>
+                              </TouchableOpacity>
+                            </View>
+                            {subCOAttachments.map((att, idx) => (
+                              <View key={idx} style={{ backgroundColor: C.w04, borderRadius: 10, padding: 12, marginBottom: 8, borderWidth: 1, borderColor: C.w08 }}>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                                  <Text style={{ fontSize: 18 }}>📎</Text>
+                                  <Text style={{ flex: 1, fontSize: 15, fontWeight: '500', color: C.text }} numberOfLines={1}>{att.originalName}</Text>
+                                  <TouchableOpacity onPress={() => setSubCOAttachments(prev => prev.filter((_, i) => i !== idx))} activeOpacity={0.6}>
+                                    <Text style={{ fontSize: 16, color: C.rd }}>✕</Text>
+                                  </TouchableOpacity>
+                                </View>
+                                <Text style={{ fontSize: 14, fontWeight: '700', color: C.dm, letterSpacing: 0.8, marginBottom: 4 }}>NAME</Text>
+                                <TextInput value={att.docName}
+                                  onChangeText={(v) => setSubCOAttachments(prev => prev.map((a, i) => i === idx ? { ...a, docName: v } : a))}
+                                  placeholder="Document name" placeholderTextColor={C.ph || C.dm}
+                                  style={{ backgroundColor: C.w04, borderRadius: 8, borderWidth: 1, borderColor: C.bd, paddingHorizontal: 14, paddingVertical: 10, fontSize: 16, color: C.text, marginBottom: 8 }} />
+                                <Text style={{ fontSize: 14, fontWeight: '700', color: C.dm, letterSpacing: 0.8, marginBottom: 4 }}>DESCRIPTION</Text>
+                                <TextInput value={att.docDesc}
+                                  onChangeText={(v) => setSubCOAttachments(prev => prev.map((a, i) => i === idx ? { ...a, docDesc: v } : a))}
+                                  placeholder="Brief description..." placeholderTextColor={C.ph || C.dm} multiline numberOfLines={2}
+                                  style={{ backgroundColor: C.w04, borderRadius: 8, borderWidth: 1, borderColor: C.bd, paddingHorizontal: 14, paddingVertical: 10, fontSize: 16, color: C.text, minHeight: 50, textAlignVertical: 'top' }} />
+                              </View>
+                            ))}
+                            {subCOAttachments.length === 0 && (
+                              <Text style={{ fontSize: 14, color: C.dm, textAlign: 'center', paddingVertical: 6 }}>No documents attached</Text>
+                            )}
+                          </View>
+
+                          {/* Due Date */}
+                          <DatePicker value={subCOForm.dueDate} onChange={(v) => setSubCOForm(p => ({ ...p, dueDate: v }))} label="DUE DATE" placeholder="Select due date" />
+
+                          {/* Submit */}
+                          <TouchableOpacity onPress={() => {
+                              if (!subCOForm.title || !subCOForm.amount) return Alert.alert('Error', 'Title and amount are required');
+                              setSubCOStep('sign');
+                            }}
+                            disabled={!subCOForm.title || !subCOForm.amount}
+                            style={{ backgroundColor: (subCOForm.title && subCOForm.amount) ? C.gd : C.w10, paddingVertical: 14, borderRadius: 10, alignItems: 'center', marginTop: 6, opacity: (subCOForm.title && subCOForm.amount) ? 1 : 0.5 }} activeOpacity={0.8}>
+                            <Text style={{ fontSize: 18, fontWeight: '700', color: (subCOForm.title && subCOForm.amount) ? '#000' : C.dm }}>Sign & Submit</Text>
+                          </TouchableOpacity>
+                        </>
+                      )}
+                    </View>
+                  </ScrollView>
                 </View>
               </View>
             )}
@@ -3824,10 +4079,6 @@ export default function Dashboard() {
               project={contractorProject}
               clientView={clientView}
               onClientViewToggle={() => setClientView(false)}
-              activeTab={activeTab}
-              activeSub={activeSub}
-              onTabChange={setActiveTab}
-              onSubChange={setActiveSub}
               onProjectUpdate={handleProjectUpdate}
               onProjectDeleted={handleProjectDeleted}
               scheduleVersion={scheduleVersion}
@@ -3837,8 +4088,6 @@ export default function Dashboard() {
               calYear={globalCalMonth.getFullYear()}
               calMonth={globalCalMonth.getMonth()}
               onMonthChange={(y, m) => setGlobalCalMonth(new Date(y, m, 1))}
-              pendingCOTask={pendingCOTask}
-              onPendingCOTaskHandled={() => setPendingCOTask(null)}
             />
           </View>
         ) : (
