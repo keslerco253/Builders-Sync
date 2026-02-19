@@ -842,7 +842,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
               <TextInput
                 value={editInfo.name}
                 onChangeText={v => setField('name', v)}
-                style={{ fontSize: 30, fontWeight: '700', color: C.text, textAlign: 'center', backgroundColor: C.inputBg, borderWidth: 1, borderColor: C.w10, borderRadius: 8, padding: 8, width: '100%', marginBottom: 6 }}
+                style={{ fontSize: 30, fontWeight: '700', color: C.text, textAlign: 'center', backgroundColor: C.inputBg, borderWidth: 1, borderColor: C.w10, borderRadius: 8, padding: 8, width: windowWidth * 0.5, maxWidth: '100%', marginBottom: 6 }}
                 placeholder="Project Name"
                 placeholderTextColor={C.ph}
               />
@@ -892,7 +892,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
               ? Math.round(schedule.reduce((sum, t) => sum + calcTaskProgress(t).pct, 0) / schedule.length)
               : (project.progress || 0);
             return (
-              <Card>
+              <Card style={{ width: windowWidth * 0.75, maxWidth: '100%', alignSelf: 'center' }}>
                 <Lbl>OVERALL PROGRESS</Lbl>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
                   <Bar pct={overallPct} h={10} />
