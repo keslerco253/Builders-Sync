@@ -39,8 +39,20 @@ const getInitials = (name) => {
 };
 const fD = d => {
   if (!d) return '--';
-  try { return new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); }
-  catch { return d; }
+  try {
+    const dateStr = d.includes(' ') ? d.replace(' ', 'T') : d + 'T00:00:00';
+    return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  } catch { return d; }
+};
+const fDT = d => {
+  if (!d) return '--';
+  try {
+    const dateStr = d.includes(' ') ? d.replace(' ', 'T') : d + 'T00:00:00';
+    const dt = new Date(dateStr);
+    const date = dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    const time = dt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+    return `${date} at ${time}`;
+  } catch { return d; }
 };
 const sD = d => {
   if (!d) return '--';
@@ -177,6 +189,76 @@ const ModalSheet = ({ visible, onClose, title, children }) => {
     </KeyboardAvoidingView>
   </Modal>
 );
+};
+
+// ============================================================
+// SIGN CONFIRM MODAL (typed name e-signature for detail view)
+// ============================================================
+const SignConfirmModal = ({ visible, onClose, onSign, role, coTitle, coAmount }) => {
+  const C = React.useContext(ThemeContext);
+  const s = React.useMemo(() => getStyles(C), [C]);
+  const [typedName, setTypedName] = React.useState('');
+  React.useEffect(() => { if (visible) setTypedName(''); }, [visible]);
+  if (!visible) return null;
+  const legalText = role === 'customer'
+    ? 'By signing, you are approving this change order. This may adjust your contract price.'
+    : role === 'builder'
+    ? 'By signing, you are approving this change order as the builder.'
+    : 'By signing, you are electronically signing this change order as the subcontractor.';
+  const canSign = typedName.trim().length > 0;
+  return (
+    <Modal visible animationType="fade" transparent>
+      <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+        <View style={{
+          backgroundColor: C.modalBg, borderRadius: 16, padding: 28, width: '90%', maxWidth: 440,
+          borderWidth: 1, borderColor: C.w10,
+          ...(Platform.OS === 'web' ? { boxShadow: '0 20px 60px rgba(0,0,0,0.4)' } : { elevation: 20 }),
+        }}>
+          <Text style={{ fontSize: 30, fontWeight: '700', color: C.textBold, textAlign: 'center', marginBottom: 8 }}>
+            Sign Change Order
+          </Text>
+          <Text style={{ fontSize: 22, fontWeight: '600', color: C.gd, textAlign: 'center', marginBottom: 16 }}>
+            {coTitle} — {coAmount}
+          </Text>
+          <View style={{
+            backgroundColor: C.mode === 'dark' ? C.bH08 : C.bH05,
+            borderWidth: 1, borderColor: C.gd + '30',
+            borderRadius: 10, padding: 16, marginBottom: 20,
+          }}>
+            <Text style={{ fontSize: 21, lineHeight: 33, color: C.mt, textAlign: 'center' }}>{legalText}</Text>
+          </View>
+          <Text style={{ fontSize: 14, fontWeight: '700', color: C.dm, letterSpacing: 0.8, marginBottom: 6 }}>TYPE YOUR FULL NAME TO SIGN</Text>
+          <TextInput
+            value={typedName}
+            onChangeText={setTypedName}
+            placeholder="e.g., John Smith"
+            placeholderTextColor={C.ph}
+            autoFocus
+            style={[s.inp, { marginBottom: 4 }]}
+          />
+          {canSign ? (
+            <Text style={{ fontSize: 16, color: C.dm, marginBottom: 20 }}>Initials: {getInitials(typedName.trim())}</Text>
+          ) : (
+            <View style={{ marginBottom: 20 }} />
+          )}
+          <View style={{ flexDirection: 'row', gap: 12 }}>
+            <TouchableOpacity onPress={onClose}
+              style={{ flex: 1, paddingVertical: 13, borderRadius: 8, borderWidth: 1, borderColor: C.w12, alignItems: 'center' }}
+              activeOpacity={0.7}>
+              <Text style={{ fontSize: 21, fontWeight: '600', color: C.mt }}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => { if (canSign) onSign(getInitials(typedName.trim()), typedName.trim()); }}
+              disabled={!canSign}
+              style={{ flex: 1, paddingVertical: 13, borderRadius: 8, backgroundColor: role === 'sub' ? C.bl : C.gn, alignItems: 'center', opacity: canSign ? 1 : 0.4 }}
+              activeOpacity={0.8}>
+              <Text style={{ fontSize: 21, fontWeight: '700', color: C.textBold }}>Sign</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
 };
 
 // ============================================================
@@ -682,12 +764,12 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
   }, [syncProjectData]);
 
   // Sign change order
-  const signCO = async (coId, role, initials) => {
+  const signCO = async (coId, role, initials, signerName) => {
     try {
       const res = await fetch(`${API_BASE}/change-orders/${coId}/sign`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ role, initials }),
+        body: JSON.stringify({ role, initials, signer_name: signerName }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -2715,7 +2797,7 @@ const ChangeOrderDetailModal = ({ co, isB, isC, isCon, signCO, onClose, user }) 
   const [docDesc, setDocDesc] = useState('');
   const [fileData, setFileData] = useState(null);
   const [uploading, setUploading] = useState(false);
-  const [showSignConfirm, setShowSignConfirm] = useState(false);
+  const [signConfirmRole, setSignConfirmRole] = useState(null);
 
   const isExpired = co.due_date && new Date(co.due_date + 'T23:59:59') < new Date();
   const canBuilderSign = isB && !co.builder_sig;
@@ -2923,8 +3005,9 @@ const ChangeOrderDetailModal = ({ co, isB, isC, isCon, signCO, onClose, user }) 
       <View style={[s.card, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }]}>
         <View>
           <Text style={{ fontSize: 21, fontWeight: '600', color: C.text }}>Builder</Text>
+          {co.builder_sig_name ? <Text style={{ fontSize: 16, color: C.bl, marginTop: 1 }}>{co.builder_sig_name}</Text> : null}
           <Text style={{ fontSize: 18, color: C.dm, marginTop: 2 }}>
-            {co.builder_sig ? `Signed ${fD(co.builder_sig_date)}` : 'Not yet signed'}
+            {co.builder_sig ? `Signed ${fDT(co.builder_sig_date)}` : 'Not yet signed'}
           </Text>
         </View>
         {co.builder_sig ? (
@@ -2932,7 +3015,7 @@ const ChangeOrderDetailModal = ({ co, isB, isC, isCon, signCO, onClose, user }) 
             <Text style={{ color: C.textBold, fontSize: 18, fontWeight: '700' }}>{co.builder_sig_initials || '✓'}</Text>
           </View>
         ) : canBuilderSign ? (
-          <Btn onPress={() => signCO(co.id, 'builder', getInitials(user?.name))} style={{ paddingVertical: 8, paddingHorizontal: 14 }}>
+          <Btn onPress={() => setSignConfirmRole('builder')} style={{ paddingVertical: 8, paddingHorizontal: 14 }}>
             <Text style={s.btnTxt}>✍ Sign</Text>
           </Btn>
         ) : (
@@ -2943,8 +3026,9 @@ const ChangeOrderDetailModal = ({ co, isB, isC, isCon, signCO, onClose, user }) 
       <View style={[s.card, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }]}>
         <View>
           <Text style={{ fontSize: 21, fontWeight: '600', color: C.text }}>Customer</Text>
+          {co.customer_sig_name ? <Text style={{ fontSize: 16, color: C.bl, marginTop: 1 }}>{co.customer_sig_name}</Text> : null}
           <Text style={{ fontSize: 18, color: C.dm, marginTop: 2 }}>
-            {co.customer_sig ? `Signed ${fD(co.customer_sig_date)}` : 'Not yet signed'}
+            {co.customer_sig ? `Signed ${fDT(co.customer_sig_date)}` : 'Not yet signed'}
           </Text>
         </View>
         {co.customer_sig ? (
@@ -2952,7 +3036,7 @@ const ChangeOrderDetailModal = ({ co, isB, isC, isCon, signCO, onClose, user }) 
             <Text style={{ color: C.textBold, fontSize: 18, fontWeight: '700' }}>{co.customer_sig_initials || '✓'}</Text>
           </View>
         ) : canCustomerSign ? (
-          <Btn onPress={() => setShowSignConfirm(true)} bg={C.gn} style={{ paddingVertical: 8, paddingHorizontal: 14 }}>
+          <Btn onPress={() => setSignConfirmRole('customer')} bg={C.gn} style={{ paddingVertical: 8, paddingHorizontal: 14 }}>
             <Text style={s.btnTxt}>✍ Sign</Text>
           </Btn>
         ) : isExpired && isC && !co.customer_sig ? (
@@ -2966,9 +3050,9 @@ const ChangeOrderDetailModal = ({ co, isB, isC, isCon, signCO, onClose, user }) 
         <View style={[s.card, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }]}>
           <View>
             <Text style={{ fontSize: 21, fontWeight: '600', color: C.text }}>Subcontractor</Text>
-            <Text style={{ fontSize: 16, color: C.bl, marginTop: 1 }}>{co.sub_name}</Text>
+            <Text style={{ fontSize: 16, color: C.bl, marginTop: 1 }}>{co.sub_sig_name || co.sub_name}</Text>
             <Text style={{ fontSize: 18, color: C.dm, marginTop: 2 }}>
-              {co.sub_sig ? `Signed ${fD(co.sub_sig_date)}` : 'Not yet signed'}
+              {co.sub_sig ? `Signed ${fDT(co.sub_sig_date)}` : 'Not yet signed'}
             </Text>
           </View>
           {co.sub_sig ? (
@@ -2976,7 +3060,7 @@ const ChangeOrderDetailModal = ({ co, isB, isC, isCon, signCO, onClose, user }) 
               <Text style={{ color: C.textBold, fontSize: 18, fontWeight: '700' }}>{co.sub_sig_initials || '✓'}</Text>
             </View>
           ) : isCon && !co.sub_sig ? (
-            <Btn onPress={() => signCO(co.id, 'sub', getInitials(user?.name))} bg={C.bl} style={{ paddingVertical: 8, paddingHorizontal: 14 }}>
+            <Btn onPress={() => setSignConfirmRole('sub')} bg={C.bl} style={{ paddingVertical: 8, paddingHorizontal: 14 }}>
               <Text style={s.btnTxt}>✍ Sign</Text>
             </Btn>
           ) : (
@@ -3004,55 +3088,18 @@ const ChangeOrderDetailModal = ({ co, isB, isC, isCon, signCO, onClose, user }) 
                 : 'Requires both signatures to update Price Summary'}
         </Text>
       </View>
-      {showSignConfirm && (
-        <Modal visible animationType="fade" transparent>
-          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 20 }}>
-            <View style={{
-              backgroundColor: C.modalBg, borderRadius: 16, padding: 28, width: '90%', maxWidth: 440,
-              borderWidth: 1, borderColor: C.w10,
-              ...(Platform.OS === 'web' ? { boxShadow: '0 20px 60px rgba(0,0,0,0.4)' } : { elevation: 20 }),
-            }}>
-              <Text style={{ fontSize: 30, fontWeight: '700', color: C.textBold, textAlign: 'center', marginBottom: 8 }}>
-                Sign Change Order
-              </Text>
-              <Text style={{ fontSize: 22, fontWeight: '600', color: C.gd, textAlign: 'center', marginBottom: 16 }}>
-                {co.title} — {co.amount >= 0 ? '+' : ''}{f$(co.amount)}
-              </Text>
-
-              <View style={{
-                backgroundColor: C.mode === 'dark' ? C.bH08 : C.bH05,
-                borderWidth: 1, borderColor: C.gd + '30',
-                borderRadius: 10, padding: 16, marginBottom: 24,
-              }}>
-                <Text style={{ fontSize: 21, lineHeight: 33, color: C.mt, textAlign: 'center' }}>
-                  By signing, you are approving this change order. This may adjust your contract price.
-                </Text>
-              </View>
-
-              <View style={{ borderBottomWidth: 1, borderBottomColor: C.w15, marginBottom: 6, paddingBottom: 2 }}>
-                <Text style={{ fontSize: 21, color: C.text, fontWeight: '600' }}>{user?.name || 'Signature'}</Text>
-              </View>
-              <Text style={{ fontSize: 16, color: C.dm, marginBottom: 24 }}>Electronic Signature</Text>
-
-              <View style={{ flexDirection: 'row', gap: 12 }}>
-                <TouchableOpacity onPress={() => setShowSignConfirm(false)}
-                  style={{ flex: 1, paddingVertical: 13, borderRadius: 8, borderWidth: 1, borderColor: C.w12, alignItems: 'center' }}
-                  activeOpacity={0.7}>
-                  <Text style={{ fontSize: 21, fontWeight: '600', color: C.mt }}>Cancel</Text>
-                </TouchableOpacity>
-                <TouchableOpacity onPress={() => {
-                    setShowSignConfirm(false);
-                    signCO(co.id, 'customer', getInitials(user?.name));
-                  }}
-                  style={{ flex: 1, paddingVertical: 13, borderRadius: 8, backgroundColor: C.gn, alignItems: 'center' }}
-                  activeOpacity={0.8}>
-                  <Text style={{ fontSize: 21, fontWeight: '700', color: C.textBold }}>Sign</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-        </Modal>
-      )}
+      <SignConfirmModal
+        visible={!!signConfirmRole}
+        onClose={() => setSignConfirmRole(null)}
+        onSign={(initials, name) => {
+          const role = signConfirmRole;
+          setSignConfirmRole(null);
+          signCO(co.id, role, initials, name);
+        }}
+        role={signConfirmRole || 'customer'}
+        coTitle={co.title}
+        coAmount={`${co.amount >= 0 ? '+' : ''}${f$(co.amount)}`}
+      />
     </ModalSheet>
   );
 };
@@ -3068,6 +3115,7 @@ const NewChangeOrderModal = ({ project, api, onClose, onCreated, user, schedule 
   const [dueDate, setDueDate] = useState('');
   const [loading, setLoading] = useState(false);
   const [signStep, setSignStep] = useState(false);
+  const [signerName, setSignerName] = useState('');
   const [selectedTask, setSelectedTask] = useState(null);
   const [showTaskPicker, setShowTaskPicker] = useState(false);
   const [extensionDays, setExtensionDays] = useState('');
@@ -3136,7 +3184,7 @@ const NewChangeOrderModal = ({ project, api, onClose, onCreated, user, schedule 
     const amt = isCredit ? -Math.abs(parseFloat(amount)) : Math.abs(parseFloat(amount));
     setLoading(true);
     try {
-      const body = { title, description: desc, amount: amt, due_date: dueDate || null, builder_initials: getInitials(user?.name) };
+      const body = { title, description: desc, amount: amt, due_date: dueDate || null, builder_initials: getInitials(signerName.trim()), builder_signer_name: signerName.trim() };
       if (selectedTask) {
         body.task_id = selectedTask.id;
         body.task_name = selectedTask.task;
@@ -3223,10 +3271,20 @@ const NewChangeOrderModal = ({ project, api, onClose, onCreated, user, schedule 
               </Text>
             </View>
 
-            <View style={{ borderBottomWidth: 1, borderBottomColor: C.w15, marginBottom: 6, paddingBottom: 2 }}>
-              <Text style={{ fontSize: 21, color: C.text, fontWeight: '600' }}>{user?.name || 'Signature'}</Text>
-            </View>
-            <Text style={{ fontSize: 16, color: C.dm, marginBottom: 24 }}>Electronic Signature</Text>
+            <Text style={{ fontSize: 14, fontWeight: '700', color: C.dm, letterSpacing: 0.8, marginBottom: 6 }}>TYPE YOUR FULL NAME TO SIGN</Text>
+            <TextInput
+              value={signerName}
+              onChangeText={setSignerName}
+              placeholder="e.g., John Smith"
+              placeholderTextColor={C.ph}
+              autoFocus
+              style={[s.inp, { marginBottom: 4 }]}
+            />
+            {signerName.trim() ? (
+              <Text style={{ fontSize: 16, color: C.dm, marginBottom: 20 }}>Initials: {getInitials(signerName.trim())}</Text>
+            ) : (
+              <View style={{ marginBottom: 20 }} />
+            )}
 
             <View style={{ flexDirection: 'row', gap: 12 }}>
               <TouchableOpacity onPress={() => setSignStep(false)}
@@ -3234,8 +3292,8 @@ const NewChangeOrderModal = ({ project, api, onClose, onCreated, user, schedule 
                 activeOpacity={0.7}>
                 <Text style={{ fontSize: 21, fontWeight: '600', color: C.mt }}>Cancel</Text>
               </TouchableOpacity>
-              <TouchableOpacity onPress={create} disabled={loading}
-                style={{ flex: 1, paddingVertical: 13, borderRadius: 8, backgroundColor: C.gd, alignItems: 'center', opacity: loading ? 0.6 : 1 }}
+              <TouchableOpacity onPress={create} disabled={loading || !signerName.trim()}
+                style={{ flex: 1, paddingVertical: 13, borderRadius: 8, backgroundColor: C.gd, alignItems: 'center', opacity: (loading || !signerName.trim()) ? 0.4 : 1 }}
                 activeOpacity={0.8}>
                 <Text style={{ fontSize: 21, fontWeight: '700', color: C.textBold }}>
                   {loading ? 'Sending...' : 'Sign & Send'}
@@ -3444,6 +3502,7 @@ const SubChangeOrderModal = ({ project, api, user, task: initialTask, schedule, 
   const [dueDate, setDueDate] = useState('');
   const [loading, setLoading] = useState(false);
   const [signStep, setSignStep] = useState(false);
+  const [signerName, setSignerName] = useState('');
   const [attachments, setAttachments] = useState([]);
   const [selectedTask, setSelectedTask] = useState(initialTask?.id ? initialTask : null);
   const [showTaskPicker, setShowTaskPicker] = useState(false);
@@ -3478,7 +3537,8 @@ const SubChangeOrderModal = ({ project, api, user, task: initialTask, schedule, 
         created_by: 'sub',
         sub_id: user?.id || null,
         sub_name: user?.company_name || user?.name || '',
-        sub_initials: getInitials(user?.name),
+        sub_initials: getInitials(signerName.trim()),
+        sub_signer_name: signerName.trim(),
         task_id: task.id,
         task_name: task.task || null,
       };
@@ -3528,7 +3588,21 @@ const SubChangeOrderModal = ({ project, api, user, task: initialTask, schedule, 
             By signing below, you are electronically signing this change order as the subcontractor. The builder and customer will also need to sign.
           </Text>
         </View>
-        <Btn onPress={create} disabled={loading} bg={C.gn}>
+        <Text style={{ fontSize: 14, fontWeight: '700', color: C.dm, letterSpacing: 0.8, marginBottom: 6 }}>TYPE YOUR FULL NAME TO SIGN</Text>
+        <TextInput
+          value={signerName}
+          onChangeText={setSignerName}
+          placeholder="e.g., John Smith"
+          placeholderTextColor={C.ph}
+          autoFocus
+          style={[s.inp, { marginBottom: 4 }]}
+        />
+        {signerName.trim() ? (
+          <Text style={{ fontSize: 16, color: C.dm, marginBottom: 16 }}>Initials: {getInitials(signerName.trim())}</Text>
+        ) : (
+          <View style={{ marginBottom: 16 }} />
+        )}
+        <Btn onPress={create} disabled={loading || !signerName.trim()} bg={C.gn} style={{ opacity: (loading || !signerName.trim()) ? 0.4 : 1 }}>
           <Text style={s.btnTxt}>{loading ? 'Submitting...' : '✍ Sign & Submit'}</Text>
         </Btn>
       </ModalSheet>
@@ -3661,6 +3735,7 @@ const SelectionChangeOrderModal = ({ project, api, selections, onClose, onCreate
   const [dueDate, setDueDate] = useState('');
   const [loading, setLoading] = useState(false);
   const [signStep, setSignStep] = useState(false);
+  const [signerName, setSignerName] = useState('');
 
   const getOptPrice = (options, optName) => {
     const opt = (options || []).find(o => (typeof o === 'object' ? o.name : o) === optName);
@@ -3679,7 +3754,7 @@ const SelectionChangeOrderModal = ({ project, api, selections, onClose, onCreate
     try {
       const res = await api(`/projects/${project.id}/change-orders`, {
         method: 'POST',
-        body: { title: coTitle, description: coDesc, amount: priceDiff, due_date: dueDate || null },
+        body: { title: coTitle, description: coDesc, amount: priceDiff, due_date: dueDate || null, builder_initials: getInitials(signerName.trim()), builder_signer_name: signerName.trim() },
       });
       if (!res) {
         Alert.alert('Error', 'Failed to create change order. Please try again.');
@@ -3725,10 +3800,20 @@ const SelectionChangeOrderModal = ({ project, api, selections, onClose, onCreate
               </Text>
             </View>
 
-            <View style={{ borderBottomWidth: 1, borderBottomColor: C.w15, marginBottom: 6, paddingBottom: 2 }}>
-              <Text style={{ fontSize: 21, color: C.text, fontWeight: '600' }}>{user?.name || 'Signature'}</Text>
-            </View>
-            <Text style={{ fontSize: 16, color: C.dm, marginBottom: 24 }}>Electronic Signature</Text>
+            <Text style={{ fontSize: 14, fontWeight: '700', color: C.dm, letterSpacing: 0.8, marginBottom: 6 }}>TYPE YOUR FULL NAME TO SIGN</Text>
+            <TextInput
+              value={signerName}
+              onChangeText={setSignerName}
+              placeholder="e.g., John Smith"
+              placeholderTextColor={C.ph}
+              autoFocus
+              style={[s.inp, { marginBottom: 4 }]}
+            />
+            {signerName.trim() ? (
+              <Text style={{ fontSize: 16, color: C.dm, marginBottom: 20 }}>Initials: {getInitials(signerName.trim())}</Text>
+            ) : (
+              <View style={{ marginBottom: 20 }} />
+            )}
 
             <View style={{ flexDirection: 'row', gap: 12 }}>
               <TouchableOpacity onPress={() => setSignStep(false)}
@@ -3736,8 +3821,8 @@ const SelectionChangeOrderModal = ({ project, api, selections, onClose, onCreate
                 activeOpacity={0.7}>
                 <Text style={{ fontSize: 21, fontWeight: '600', color: C.mt }}>Cancel</Text>
               </TouchableOpacity>
-              <TouchableOpacity onPress={create} disabled={loading}
-                style={{ flex: 1, paddingVertical: 13, borderRadius: 8, backgroundColor: C.gd, alignItems: 'center', opacity: loading ? 0.6 : 1 }}
+              <TouchableOpacity onPress={create} disabled={loading || !signerName.trim()}
+                style={{ flex: 1, paddingVertical: 13, borderRadius: 8, backgroundColor: C.gd, alignItems: 'center', opacity: (loading || !signerName.trim()) ? 0.4 : 1 }}
                 activeOpacity={0.8}>
                 <Text style={{ fontSize: 21, fontWeight: '700', color: C.textBold }}>
                   {loading ? 'Sending...' : 'Sign & Send'}
