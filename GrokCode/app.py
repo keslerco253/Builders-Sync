@@ -1111,10 +1111,8 @@ def delete_project(project_id):
         ScheduleEditLog.query.filter_by(schedule_id=s.id).delete()
     Schedule.query.filter_by(job_id=project_id).delete()
     JobUsers.query.filter_by(job_id=project_id).delete()
-    co_ids = [co.id for co in ChangeOrders.query.filter_by(job_id=project_id).all()]
-    if co_ids:
-        ChangeOrderDocument.query.filter(ChangeOrderDocument.change_order_id.in_(co_ids)).delete()
-    ChangeOrders.query.filter_by(job_id=project_id).delete()
+    for co in ChangeOrders.query.filter_by(job_id=project_id).all():
+        db.session.delete(co)
     ProjectSelection.query.filter_by(job_id=project_id).delete()
     DailyLogs.query.filter_by(job_id=project_id).delete()
     Todos.query.filter_by(job_id=project_id).delete()
