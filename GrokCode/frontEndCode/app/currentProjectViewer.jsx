@@ -923,7 +923,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
                   <Text style={{ fontSize: 30, fontWeight: '700', color: C.text, marginBottom: 12 }}>{f$(parseFloat(editInfo.reconciliation) || 0)}</Text>
                 )}
                 <View style={{ borderTopWidth: 1, borderTopColor: C.w10, paddingTop: 12, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <Text style={{ fontSize: 21, fontWeight: '700', color: C.mt }}>Contract Total</Text>
+                  <Text style={{ fontSize: 21, fontWeight: '700', color: C.mt }}>Current Project Cost</Text>
                   <Text style={{ fontSize: 30, fontWeight: '700', color: C.gd }}>{f$((parseFloat(editInfo.original_price) || 0) + (parseFloat(editInfo.reconciliation) || 0))}</Text>
                 </View>
               </Card>
@@ -1302,7 +1302,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
                   <Text style={[s.priceAmt, { color: selectionTotal > 0 ? C.yl : C.mt }]}>{selectionTotal > 0 ? `+${f$(selectionTotal)}` : f$(0)}</Text>
                 </View>
                 <View style={[s.priceRow, { borderTopWidth: 2, borderTopColor: C.gd + '40' }]}>
-                  <Text style={{ fontSize: 24, fontWeight: '700', color: C.text }}>Total Cost</Text>
+                  <Text style={{ fontSize: 24, fontWeight: '700', color: C.text }}>Current Project Cost</Text>
                   <Text style={{ fontSize: 30, fontWeight: '700', color: C.gd }}>{f$(grandTotal)}</Text>
                 </View>
               </Card>
@@ -2155,38 +2155,48 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
 
     // --- CHANGE ORDERS ---
     if (tab === 'changeorders') {
-      const renderCOCard = (co) => (
-        <Card key={co.id} onPress={() => setModal({ type: 'co', data: co })} style={{ marginBottom: 10 }}>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
-            <Text style={{ fontSize: 22, fontWeight: '600', color: C.text, flex: 1 }} numberOfLines={1}>{co.title}</Text>
-            <Badge status={co.status} />
-          </View>
-          <Text style={{ fontSize: 20, color: C.mt, marginBottom: 8 }} numberOfLines={2}>{co.description}</Text>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-            <View>
-              <Text style={{ fontSize: 18, color: C.dm }}>Created {fD(co.created_at)}</Text>
-              {co.due_date && (
-                <Text style={{ fontSize: 18, color: co.due_date && new Date(co.due_date + 'T23:59:59') < new Date() && co.status !== 'approved' ? C.rd : C.dm, marginTop: 2 }}>
-                  Due {fD(co.due_date)}
-                </Text>
-              )}
+      const renderCOCard = (co) => {
+        const isApproved = co.status === 'approved';
+        return (
+          <Card key={co.id} onPress={() => setModal({ type: 'co', data: co })} style={{ marginBottom: 10 }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
+              <Text style={{ fontSize: 22, fontWeight: '600', color: C.text, flex: 1 }} numberOfLines={1}>{co.title}</Text>
+              <Badge status={co.status} />
             </View>
-            <Text style={{ fontSize: 24, fontWeight: '700', color: co.amount >= 0 ? C.yl : C.gn }}>
-              {co.amount >= 0 ? '+' : ''}{f$(co.amount)}
-            </Text>
-          </View>
-          <View style={{ flexDirection: 'row', gap: 14, marginTop: 10 }}>
-            {[['Builder', co.builder_sig, co.builder_sig_initials], ['Customer', co.customer_sig, co.customer_sig_initials], ...(co.sub_id ? [['Sub', co.sub_sig, co.sub_sig_initials]] : [])].map(([l, signed, initials]) => (
-              <View key={l} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                <View style={[s.sigDot, signed && s.sigDotOn]}>
-                  {signed && <Text style={{ color: C.textBold, fontSize: 10, fontWeight: '700' }}>{initials || '✓'}</Text>}
-                </View>
-                <Text style={{ fontSize: 18, color: C.mt }}>{l}</Text>
+            <Text style={{ fontSize: 20, color: C.mt, marginBottom: 8 }} numberOfLines={2}>{co.description}</Text>
+            {isApproved ? (
+              <View style={{ alignItems: 'flex-end' }}>
+                <Text style={{ fontSize: 24, fontWeight: '700', color: co.amount >= 0 ? C.yl : C.gn }}>
+                  {co.amount >= 0 ? '+' : ''}{f$(co.amount)}
+                </Text>
               </View>
-            ))}
-          </View>
-        </Card>
-      );
+            ) : (
+              <>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <View>
+                    {co.due_date && (
+                      <Text style={{ fontSize: 18, color: C.yl }}>Due {fD(co.due_date)}</Text>
+                    )}
+                  </View>
+                  <Text style={{ fontSize: 24, fontWeight: '700', color: co.amount >= 0 ? C.yl : C.gn }}>
+                    {co.amount >= 0 ? '+' : ''}{f$(co.amount)}
+                  </Text>
+                </View>
+                <View style={{ flexDirection: 'row', gap: 14, marginTop: 10 }}>
+                  {[['Builder', co.builder_sig, co.builder_sig_initials], ['Customer', co.customer_sig, co.customer_sig_initials], ...(co.sub_id ? [['Sub', co.sub_sig, co.sub_sig_initials]] : [])].map(([l, signed, initials]) => (
+                    <View key={l} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <View style={[s.sigDot, signed && s.sigDotOn]}>
+                        {signed && <Text style={{ color: C.textBold, fontSize: 10, fontWeight: '700' }}>{initials || '✓'}</Text>}
+                      </View>
+                      <Text style={{ fontSize: 18, color: C.mt }}>{l}</Text>
+                    </View>
+                  ))}
+                </View>
+              </>
+            )}
+          </Card>
+        );
+      };
 
       const approvedCOs = changeOrders.filter(co => co.status === 'approved');
       const pendingCOs = changeOrders.filter(co => co.status !== 'approved');
