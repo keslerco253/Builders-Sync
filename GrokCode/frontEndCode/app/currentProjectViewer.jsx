@@ -835,7 +835,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
       };
 
       return (
-        <ScrollView style={{ flex: 1 }} contentContainerStyle={[s.scroll, { maxWidth: 1200 }]} keyboardShouldPersistTaps="handled">
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={[s.scroll, { maxWidth: windowWidth * 0.9 }]} keyboardShouldPersistTaps="handled">
           <View style={{ alignItems: 'center', marginBottom: 24 }}>
             <View style={s.avatar}><Text style={s.avatarTxt}>{ini(editInfo.name || project.name)}</Text></View>
             {isB ? (
@@ -2089,7 +2089,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
             ];
 
             return (
-              <ScrollView style={{ flex: 1 }} contentContainerStyle={[s.scroll, { maxWidth: 1200 }]}>
+              <ScrollView style={{ flex: 1 }} contentContainerStyle={[s.scroll, { maxWidth: windowWidth * 0.9 }]}>
                 <Text style={[s.sectionTitle, { textAlign: 'center', marginBottom: 16 }]}>Job Progress</Text>
                 <View style={s.twoColRow}>
                   <View style={s.twoColLeft}>
@@ -2166,7 +2166,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
       const pendingCOs = changeOrders.filter(co => co.status !== 'approved');
 
       return (
-        <ScrollView style={{ flex: 1 }} contentContainerStyle={[s.scroll, { maxWidth: 1200 }]}>
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={[s.scroll, { maxWidth: windowWidth * 0.9 }]}>
           <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
             <View style={{ flex: 1 }} />
             <Text style={[s.sectionTitle, { textAlign: 'center' }]}>Change Orders</Text>
@@ -2306,7 +2306,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
       };
 
       return (
-        <ScrollView style={{ flex: 1 }} contentContainerStyle={[s.scroll, { maxWidth: 1200 }]}>
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={[s.scroll, { maxWidth: windowWidth * 0.9 }]}>
           <Text style={[s.sectionTitle, { marginBottom: 16 }]}>Selections</Text>
 
           {selections.length === 0 ? <Empty icon="🎨" text="No selections yet" sub={isC ? "Your builder will add selections here" : "Add selections in Settings → Manage Selections"} /> : (
