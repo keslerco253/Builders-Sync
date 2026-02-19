@@ -96,7 +96,8 @@ class Projects(db.Model):
     status = db.Column(db.String(50), default='Pre-Construction')
     phase = db.Column(db.String(50), default='Planning')
     customer_id = db.Column(db.Integer, db.ForeignKey('login_info.id'), nullable=True)
-    customer_name = db.Column(db.String(200), default='')
+    customer_first_name = db.Column(db.String(100), default='')
+    customer_last_name = db.Column(db.String(100), default='')
     start_date = db.Column(db.String(20), default='')
     est_completion = db.Column(db.String(20), default='')
     progress = db.Column(db.Integer, default=0)
@@ -131,7 +132,9 @@ class Projects(db.Model):
             'status': self.status,
             'phase': self.phase,
             'customer_id': self.customer_id,
-            'customer_name': self.customer_name or '',
+            'customer_name': f'{self.customer_first_name or ""} {self.customer_last_name or ""}'.strip(),
+            'customer_first_name': self.customer_first_name or '',
+            'customer_last_name': self.customer_last_name or '',
             'start_date': self.start_date,
             'est_completion': self.est_completion,
             'progress': self.progress,
@@ -787,6 +790,8 @@ def get_projects():
             cust = LoginInfo.query.get(p.customer_id)
             if cust:
                 d['customer_name'] = f'{cust.firstName} {cust.lastName}'.strip()
+                d['customer_first_name'] = cust.firstName or ''
+                d['customer_last_name'] = cust.lastName or ''
         result.append(d)
     return jsonify(result)
 
@@ -881,7 +886,7 @@ def update_project(project_id):
     going_live = data.get('go_live') and not p.go_live
 
     for key in ('name', 'number', 'address', 'street_address', 'city', 'state', 'zip_code',
-                 'status', 'phase', 'customer_id', 'customer_name',
+                 'status', 'phase', 'customer_id', 'customer_first_name', 'customer_last_name',
                  'start_date', 'est_completion', 'progress', 'original_price',
                  'contract_price', 'sqft', 'bedrooms', 'bathrooms', 'garage',
                  'lot_size', 'style', 'stories', 'email', 'reconciliation', 'dates_from_schedule', 'go_live', 'subdivision_id'):
@@ -890,6 +895,15 @@ def update_project(project_id):
             if key == 'go_live' and p.go_live and not data[key]:
                 continue
             setattr(p, key, data[key])
+
+    # Sync customer name changes to the linked LoginInfo user
+    if p.customer_id and ('customer_first_name' in data or 'customer_last_name' in data):
+        cust = LoginInfo.query.get(p.customer_id)
+        if cust:
+            if 'customer_first_name' in data:
+                cust.firstName = data['customer_first_name']
+            if 'customer_last_name' in data:
+                cust.lastName = data['customer_last_name']
 
     # Auto-compute combined address from parts if any part was updated
     if any(k in data for k in ('street_address', 'city', 'state', 'zip_code')):
