@@ -241,7 +241,6 @@ export default function ScheduleCalendar({ schedule, onUpdateTask, onEditTask, o
   // Sync from external props
   React.useEffect(() => { if (extYear != null) setIntYear(extYear); }, [extYear]);
   React.useEffect(() => { if (extMonth != null) setIntMonth(extMonth); }, [extMonth]);
-  const [showBaseline, setShowBaseline] = useState(false);
   // previewMap: null | { id: { start_date, end_date } }
   const [previewMap, setPreviewMap] = useState(null);
   const [draggedId, setDraggedId] = useState(null);
@@ -295,21 +294,6 @@ export default function ScheduleCalendar({ schedule, onUpdateTask, onEditTask, o
   };
 
   const taskColor = useCallback((id) => TASK_COLORS[id % TASK_COLORS.length], []);
-  const hasBaselines = useMemo(() => schedule.some(t => t.baseline_start && t.baseline_end), [schedule]);
-
-  // Baseline bars (not draggable)
-  const getWeekBaselines = useCallback((week) => {
-    if (!showBaseline) return [];
-    const ws = week[0], we = week[6];
-    return schedule.filter(t => {
-      const s = toDate(t.baseline_start), e = toDate(t.baseline_end);
-      return s && e && s <= we && e >= ws;
-    }).map(t => {
-      const s = toDate(t.baseline_start), e = toDate(t.baseline_end);
-      const sc = s < ws ? 0 : s.getDay(), ec = e > we ? 6 : e.getDay();
-      return { ...t, startCol: sc, span: ec - sc + 1, isBaseline: true };
-    });
-  }, [schedule, showBaseline]);
 
   // Task First mode: get tasks starting on a specific day
   const getTasksForDay = useCallback((day) => {
@@ -627,8 +611,8 @@ export default function ScheduleCalendar({ schedule, onUpdateTask, onEditTask, o
         </View>
       </View>
 
-      {/* Toggle row: Go Live + Baseline */}
-      {(isBuilder || (mode === 'gantt' && goLive && hasBaselines)) && (
+      {/* Toggle row: Go Live */}
+      {isBuilder && (
         <View style={st.baselineToggleRow}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
             {isBuilder && goLive && (
@@ -647,25 +631,7 @@ export default function ScheduleCalendar({ schedule, onUpdateTask, onEditTask, o
                 <Text style={st.baselineToggleTxt}>Go Live</Text>
               </TouchableOpacity>
             )}
-            {mode === 'gantt' && goLive && hasBaselines && (
-              <TouchableOpacity
-                onPress={() => setShowBaseline(p => !p)}
-                style={[st.baselineToggle, showBaseline && st.baselineToggleOn]}
-                activeOpacity={0.7}
-              >
-                <View style={[st.toggleDot, showBaseline && st.toggleDotOn]} />
-                <Text style={[st.baselineToggleTxt, showBaseline && st.baselineToggleTxtOn]}>Baseline</Text>
-              </TouchableOpacity>
-            )}
           </View>
-          {mode === 'gantt' && goLive && hasBaselines && (
-            <View style={st.legendRow}>
-              <View style={[st.legendSwatch, { backgroundColor: 'rgba(59,130,246,0.25)' }]} />
-              <Text style={st.legendTxt}>Baseline</Text>
-              <View style={[st.legendSwatch, { backgroundColor: C.bl, marginLeft: 10 }]} />
-              <Text style={st.legendTxt}>Current</Text>
-            </View>
-          )}
         </View>
       )}
 
@@ -697,8 +663,6 @@ export default function ScheduleCalendar({ schedule, onUpdateTask, onEditTask, o
 
           {weeks.map((week, wi) => {
             const weekTasks = getWeekTasks(week);
-            const weekBaselines = getWeekBaselines(week);
-
             // Build lanes for current tasks
             const lanes = [];
             weekTasks.forEach(task => {
@@ -712,24 +676,8 @@ export default function ScheduleCalendar({ schedule, onUpdateTask, onEditTask, o
               if (!placed) lanes.push([task]);
             });
 
-            // Build lanes for baselines independently
-            const bLanes = [];
-            if (hasBaselines && showBaseline) {
-              weekBaselines.forEach(bl => {
-                let placed = false;
-                for (let l = 0; l < bLanes.length; l++) {
-                  const last = bLanes[l][bLanes[l].length - 1];
-                  if (bl.startCol > last.startCol + last.span - 1) {
-                    bLanes[l].push(bl); placed = true; break;
-                  }
-                }
-                if (!placed) bLanes.push([bl]);
-              });
-            }
-
-            const baselineSection = (hasBaselines && showBaseline) ? bLanes.length * 22 : 0;
             const laneH = 32;
-            const rowMinH = Math.max(125, 38 + baselineSection + lanes.length * laneH);
+            const rowMinH = Math.max(125, 38 + lanes.length * laneH);
 
             return (
               <View key={wi} style={[st.weekRow, { minHeight: rowMinH }]}>
@@ -755,24 +703,7 @@ export default function ScheduleCalendar({ schedule, onUpdateTask, onEditTask, o
                   );
                 })}
 
-                {/* Baseline bars — rendered independently */}
-                {hasBaselines && showBaseline && bLanes.map((lane, li) => (
-                  lane.map(bl => {
-                    const color = bl.progress === 100 ? C.gn : taskColor(bl.id);
-                    return (
-                      <View key={`bl-${bl.id}-${wi}`} style={[st.taskBar, st.baselineBar, {
-                        left: `${(bl.startCol / 7) * 100}%`,
-                        width: `${(bl.span / 7) * 100}%`,
-                        top: 48 + li * 22,
-                        backgroundColor: color,
-                      }]}>
-                        <Text style={st.baselineBarTxt} numberOfLines={1}>⌖ {bl.task}</Text>
-                      </View>
-                    );
-                  })
-                ))}
-
-                {/* Current task bars — below baselines */}
+                {/* Current task bars */}
                 {lanes.map((lane, li) => (
                   lane.map(task => {
                     const isExc = task.is_exception;
@@ -780,7 +711,7 @@ export default function ScheduleCalendar({ schedule, onUpdateTask, onEditTask, o
                     const color = isOnHold ? C.rd : (isExc ? C.og : (task.progress === 100 ? C.gn : taskColor(task.id)));
                     const leftPct = `${(task.startCol / 7) * 100}%`;
                     const widthPct = `${(task.span / 7) * 100}%`;
-                    const laneTop = 48 + baselineSection + li * laneH;
+                    const laneTop = 48 + li * laneH;
                     const isDragged = draggedId === task.id;
                     const isCascaded = affectedIds && affectedIds.has(task.id) && !isDragged;
 
@@ -1113,11 +1044,6 @@ const getStyles = (C) => StyleSheet.create({
   taskBarTxt: { fontSize: 16, fontWeight: '600', color: C.text, flex: 1 },
   taskBarLink: { fontSize: 12, marginLeft: 2 },
   taskCheck: { fontSize: 15, color: C.gn, marginRight: 3 },
-  baselineBar: {
-    opacity: 0.25, height: 27, borderRadius: 6, borderWidth: 1, borderColor: C.mode === 'light' ? 'rgba(0,0,0,0.15)' : C.w15,
-    ...(Platform.OS === 'web' ? { cursor: 'default', pointerEvents: 'none' } : {}),
-  },
-  baselineBarTxt: { fontSize: 14, fontWeight: '500', color: C.text, flex: 1 },
   baselineToggleRow: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: 16, paddingVertical: 6,
@@ -1128,14 +1054,8 @@ const getStyles = (C) => StyleSheet.create({
     paddingHorizontal: 12, paddingVertical: 5, borderRadius: 6,
     borderWidth: 1, borderColor: C.mode === 'light' ? 'rgba(0,0,0,0.10)' : C.w08, backgroundColor: C.mode === 'light' ? '#ffffff' : C.w02,
   },
-  baselineToggleOn: { borderColor: 'rgba(59,130,246,0.4)', backgroundColor: 'rgba(59,130,246,0.08)' },
   toggleDot: { width: 12, height: 12, borderRadius: 6, backgroundColor: C.w15 },
-  toggleDotOn: { backgroundColor: C.bl },
   baselineToggleTxt: { fontSize: 16, fontWeight: '500', color: C.dm },
-  baselineToggleTxtOn: { color: '#60a5fa' },
-  legendRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  legendSwatch: { width: 24, height: 12, borderRadius: 3 },
-  legendTxt: { fontSize: 15, color: C.dm },
   hint: { paddingVertical: 6, alignItems: 'center', borderTopWidth: 1, borderTopColor: C.mode === 'light' ? 'rgba(0,0,0,0.06)' : C.bd },
   hintTxt: { fontSize: 15, color: C.dm },
 

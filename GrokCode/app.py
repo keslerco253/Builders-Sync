@@ -1383,10 +1383,29 @@ def sign_change_order(co_id):
             if co.task_id and co.task_extension_days:
                 task = Schedule.query.get(co.task_id)
                 if task and task.end_date:
-                    from datetime import timedelta
-                    end = datetime.strptime(task.end_date, '%Y-%m-%d')
-                    new_end = end + timedelta(days=co.task_extension_days)
-                    task.end_date = new_end.strftime('%Y-%m-%d')
+                    old_end = _to_date(task.end_date)
+                    new_end = _add_workdays(old_end, co.task_extension_days)
+                    task.end_date = _fmt(new_end)
+                    # Cascade: push all dependent tasks in the chain
+                    all_items = Schedule.query.filter_by(job_id=co.job_id).all()
+                    by_id = {t.id: t for t in all_items}
+                    for _ in range(len(all_items) + 1):
+                        changed = False
+                        for t in all_items:
+                            if not t.predecessor_id or t.predecessor_id not in by_id:
+                                continue
+                            if t.id == task.id:
+                                continue
+                            pred = by_id[t.predecessor_id]
+                            new_start = _calc_start_from_pred(pred, t.rel_type or 'FS', t.lag_days or 0)
+                            if new_start and new_start != t.start_date:
+                                dur = _workday_count(t.start_date, t.end_date)
+                                t.start_date = new_start
+                                t.end_date = _calc_end_from_workdays(new_start, dur)
+                                changed = True
+                        if not changed:
+                            break
+                    sync_project_dates(co.job_id)
             # Copy change order documents into project Documents folder
             co_docs = ChangeOrderDocument.query.filter_by(change_order_id=co.id).all()
             for cd in co_docs:
