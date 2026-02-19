@@ -3007,6 +3007,11 @@ const NewChangeOrderModal = ({ project, api, onClose, onCreated, user, schedule 
   const [subsLoading, setSubsLoading] = useState(false);
   const [attachments, setAttachments] = useState([]); // [{ b64, ext, originalName, size, docName, docDesc }]
 
+  // Helper: get display name from user object, handling both camelCase and snake_case API formats
+  const getSubDisplayName = (u) => {
+    return u.company_name || u.companyName || u.name || `${u.first_name || u.firstName || ''} ${u.last_name || u.lastName || ''}`.trim() || 'Unknown';
+  };
+
   // Fetch subcontractors list on mount
   useEffect(() => {
     setSubsLoading(true);
@@ -3044,11 +3049,12 @@ const NewChangeOrderModal = ({ project, api, onClose, onCreated, user, schedule 
     setSelectedTask(task);
     setShowTaskPicker(false);
     if (task.contractor && task.contractor.trim()) {
-      const match = subsList.find(u =>
-        u.name === task.contractor ||
-        u.company_name === task.contractor
-      );
-      if (match) setSubInfo({ id: match.id, name: match.company_name || match.name });
+      const match = subsList.find(u => {
+        const fullName = u.name || `${u.first_name || u.firstName || ''} ${u.last_name || u.lastName || ''}`.trim();
+        const compName = u.company_name || u.companyName || '';
+        return fullName === task.contractor || compName === task.contractor;
+      });
+      if (match) setSubInfo({ id: match.id, name: getSubDisplayName(match) });
       else setSubInfo(null);
     } else {
       // Don't clear sub if user manually selected one
@@ -3279,7 +3285,7 @@ const NewChangeOrderModal = ({ project, api, onClose, onCreated, user, schedule 
               </View>
             ) : subsList.map(u => (
               <TouchableOpacity key={u.id} onPress={() => {
-                setSubInfo({ id: u.id, name: u.company_name || u.name });
+                setSubInfo({ id: u.id, name: getSubDisplayName(u) });
                 setShowSubPicker(false);
               }}
                 style={{ paddingVertical: 10, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: C.w04,
@@ -3288,10 +3294,10 @@ const NewChangeOrderModal = ({ project, api, onClose, onCreated, user, schedule 
                 activeOpacity={0.7}
               >
                 <Text style={{ fontSize: 17, fontWeight: '500', color: C.text }}>
-                  {u.company_name || u.name}
+                  {getSubDisplayName(u)}
                 </Text>
-                {u.company_name && u.first_name ? (
-                  <Text style={{ fontSize: 14, color: C.dm, marginTop: 2 }}>{u.name}</Text>
+                {(u.company_name || u.companyName) && (u.name || u.first_name || u.firstName) ? (
+                  <Text style={{ fontSize: 14, color: C.dm, marginTop: 2 }}>{u.name || `${u.first_name || u.firstName || ''} ${u.last_name || u.lastName || ''}`.trim()}</Text>
                 ) : null}
               </TouchableOpacity>
             ))}
