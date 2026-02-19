@@ -184,8 +184,11 @@ class ChangeOrders(db.Model):
     sub_sig = db.Column(db.Boolean, default=False)
     sub_sig_date = db.Column(db.String(20), nullable=True)
     builder_sig_initials = db.Column(db.String(10), nullable=True)
+    builder_sig_name = db.Column(db.String(200), nullable=True)
     customer_sig_initials = db.Column(db.String(10), nullable=True)
+    customer_sig_name = db.Column(db.String(200), nullable=True)
     sub_sig_initials = db.Column(db.String(10), nullable=True)
+    sub_sig_name = db.Column(db.String(200), nullable=True)
     task_id = db.Column(db.Integer, nullable=True)
     task_name = db.Column(db.String(200), nullable=True)
     task_extension_days = db.Column(db.Integer, default=0)
@@ -202,8 +205,11 @@ class ChangeOrders(db.Model):
             'sub_id': self.sub_id, 'sub_name': self.sub_name,
             'sub_sig': self.sub_sig, 'sub_sig_date': self.sub_sig_date,
             'builder_sig_initials': self.builder_sig_initials,
+            'builder_sig_name': self.builder_sig_name,
             'customer_sig_initials': self.customer_sig_initials,
+            'customer_sig_name': self.customer_sig_name,
             'sub_sig_initials': self.sub_sig_initials,
+            'sub_sig_name': self.sub_sig_name,
             'task_id': self.task_id, 'task_name': self.task_name,
             'task_extension_days': self.task_extension_days,
             'created_at': self.created_at, 'due_date': self.due_date,
@@ -1191,7 +1197,9 @@ def get_change_orders(pid):
 @app.route('/projects/<int:pid>/change-orders', methods=['POST'])
 def add_change_order(pid):
     data = request.get_json()
-    today = datetime.utcnow().strftime('%Y-%m-%d')
+    now = datetime.utcnow()
+    today = now.strftime('%Y-%m-%d')
+    timestamp = now.strftime('%Y-%m-%d %H:%M:%S')
     created_by = data.get('created_by', 'builder')  # 'builder' or 'sub'
     try:
         if created_by == 'sub':
@@ -1202,8 +1210,9 @@ def add_change_order(pid):
                 builder_sig=False, builder_sig_date=None,
                 customer_sig=False, customer_sig_date=None,
                 sub_id=data.get('sub_id', None), sub_name=data.get('sub_name', None),
-                sub_sig=True, sub_sig_date=today,
+                sub_sig=True, sub_sig_date=timestamp,
                 sub_sig_initials=data.get('sub_initials', None),
+                sub_sig_name=data.get('sub_signer_name', None),
                 task_id=data.get('task_id', None), task_name=data.get('task_name', None),
                 task_extension_days=data.get('task_extension_days', 0),
                 created_at=today, due_date=data.get('due_date', None),
@@ -1213,8 +1222,9 @@ def add_change_order(pid):
             co = ChangeOrders(
                 job_id=pid, title=data['title'], description=data.get('description', ''),
                 amount=data.get('amount', 0), status='pending_customer',
-                builder_sig=True, builder_sig_date=today,
+                builder_sig=True, builder_sig_date=timestamp,
                 builder_sig_initials=data.get('builder_initials', None),
+                builder_sig_name=data.get('builder_signer_name', None),
                 customer_sig=False, customer_sig_date=None,
                 sub_id=data.get('sub_id', None), sub_name=data.get('sub_name', None),
                 sub_sig=False, sub_sig_date=None,
@@ -1234,7 +1244,9 @@ def add_change_order(pid):
 def sign_change_order(co_id):
     data = request.get_json()
     co = ChangeOrders.query.get_or_404(co_id)
-    today = datetime.utcnow().strftime('%Y-%m-%d')
+    now = datetime.utcnow()
+    today = now.strftime('%Y-%m-%d')
+    timestamp = now.strftime('%Y-%m-%d %H:%M:%S')
     role = data.get('role', '')
 
     # Enforce due date for customer signing
@@ -1249,18 +1261,22 @@ def sign_change_order(co_id):
 
     try:
         initials = data.get('initials', '')
+        signer_name = data.get('signer_name', '')
         if role == 'builder':
             co.builder_sig = True
-            co.builder_sig_date = today
+            co.builder_sig_date = timestamp
             co.builder_sig_initials = initials
+            co.builder_sig_name = signer_name
         elif role == 'customer':
             co.customer_sig = True
-            co.customer_sig_date = today
+            co.customer_sig_date = timestamp
             co.customer_sig_initials = initials
+            co.customer_sig_name = signer_name
         elif role == 'sub':
             co.sub_sig = True
-            co.sub_sig_date = today
+            co.sub_sig_date = timestamp
             co.sub_sig_initials = initials
+            co.sub_sig_name = signer_name
 
         # Determine if fully approved: builder + customer + sub (if sub required)
         all_signed = co.builder_sig and co.customer_sig

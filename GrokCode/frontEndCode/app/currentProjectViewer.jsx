@@ -39,8 +39,20 @@ const getInitials = (name) => {
 };
 const fD = d => {
   if (!d) return '--';
-  try { return new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); }
-  catch { return d; }
+  try {
+    const dateStr = d.includes(' ') ? d.replace(' ', 'T') : d + 'T00:00:00';
+    return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  } catch { return d; }
+};
+const fDT = d => {
+  if (!d) return '--';
+  try {
+    const dateStr = d.includes(' ') ? d.replace(' ', 'T') : d + 'T00:00:00';
+    const dt = new Date(dateStr);
+    const date = dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    const time = dt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+    return `${date} at ${time}`;
+  } catch { return d; }
 };
 const sD = d => {
   if (!d) return '--';
@@ -682,12 +694,12 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
   }, [syncProjectData]);
 
   // Sign change order
-  const signCO = async (coId, role, initials) => {
+  const signCO = async (coId, role, initials, signerName) => {
     try {
       const res = await fetch(`${API_BASE}/change-orders/${coId}/sign`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ role, initials }),
+        body: JSON.stringify({ role, initials, signer_name: signerName }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -2923,8 +2935,9 @@ const ChangeOrderDetailModal = ({ co, isB, isC, isCon, signCO, onClose, user }) 
       <View style={[s.card, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }]}>
         <View>
           <Text style={{ fontSize: 21, fontWeight: '600', color: C.text }}>Builder</Text>
+          {co.builder_sig_name ? <Text style={{ fontSize: 16, color: C.bl, marginTop: 1 }}>{co.builder_sig_name}</Text> : null}
           <Text style={{ fontSize: 18, color: C.dm, marginTop: 2 }}>
-            {co.builder_sig ? `Signed ${fD(co.builder_sig_date)}` : 'Not yet signed'}
+            {co.builder_sig ? `Signed ${fDT(co.builder_sig_date)}` : 'Not yet signed'}
           </Text>
         </View>
         {co.builder_sig ? (
@@ -2932,7 +2945,7 @@ const ChangeOrderDetailModal = ({ co, isB, isC, isCon, signCO, onClose, user }) 
             <Text style={{ color: C.textBold, fontSize: 18, fontWeight: '700' }}>{co.builder_sig_initials || '✓'}</Text>
           </View>
         ) : canBuilderSign ? (
-          <Btn onPress={() => signCO(co.id, 'builder', getInitials(user?.name))} style={{ paddingVertical: 8, paddingHorizontal: 14 }}>
+          <Btn onPress={() => signCO(co.id, 'builder', getInitials(user?.name), user?.name)} style={{ paddingVertical: 8, paddingHorizontal: 14 }}>
             <Text style={s.btnTxt}>✍ Sign</Text>
           </Btn>
         ) : (
@@ -2943,8 +2956,9 @@ const ChangeOrderDetailModal = ({ co, isB, isC, isCon, signCO, onClose, user }) 
       <View style={[s.card, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }]}>
         <View>
           <Text style={{ fontSize: 21, fontWeight: '600', color: C.text }}>Customer</Text>
+          {co.customer_sig_name ? <Text style={{ fontSize: 16, color: C.bl, marginTop: 1 }}>{co.customer_sig_name}</Text> : null}
           <Text style={{ fontSize: 18, color: C.dm, marginTop: 2 }}>
-            {co.customer_sig ? `Signed ${fD(co.customer_sig_date)}` : 'Not yet signed'}
+            {co.customer_sig ? `Signed ${fDT(co.customer_sig_date)}` : 'Not yet signed'}
           </Text>
         </View>
         {co.customer_sig ? (
@@ -2966,9 +2980,9 @@ const ChangeOrderDetailModal = ({ co, isB, isC, isCon, signCO, onClose, user }) 
         <View style={[s.card, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }]}>
           <View>
             <Text style={{ fontSize: 21, fontWeight: '600', color: C.text }}>Subcontractor</Text>
-            <Text style={{ fontSize: 16, color: C.bl, marginTop: 1 }}>{co.sub_name}</Text>
+            <Text style={{ fontSize: 16, color: C.bl, marginTop: 1 }}>{co.sub_sig_name || co.sub_name}</Text>
             <Text style={{ fontSize: 18, color: C.dm, marginTop: 2 }}>
-              {co.sub_sig ? `Signed ${fD(co.sub_sig_date)}` : 'Not yet signed'}
+              {co.sub_sig ? `Signed ${fDT(co.sub_sig_date)}` : 'Not yet signed'}
             </Text>
           </View>
           {co.sub_sig ? (
@@ -2976,7 +2990,7 @@ const ChangeOrderDetailModal = ({ co, isB, isC, isCon, signCO, onClose, user }) 
               <Text style={{ color: C.textBold, fontSize: 18, fontWeight: '700' }}>{co.sub_sig_initials || '✓'}</Text>
             </View>
           ) : isCon && !co.sub_sig ? (
-            <Btn onPress={() => signCO(co.id, 'sub', getInitials(user?.name))} bg={C.bl} style={{ paddingVertical: 8, paddingHorizontal: 14 }}>
+            <Btn onPress={() => signCO(co.id, 'sub', getInitials(user?.name), user?.name)} bg={C.bl} style={{ paddingVertical: 8, paddingHorizontal: 14 }}>
               <Text style={s.btnTxt}>✍ Sign</Text>
             </Btn>
           ) : (
@@ -3042,7 +3056,7 @@ const ChangeOrderDetailModal = ({ co, isB, isC, isCon, signCO, onClose, user }) 
                 </TouchableOpacity>
                 <TouchableOpacity onPress={() => {
                     setShowSignConfirm(false);
-                    signCO(co.id, 'customer', getInitials(user?.name));
+                    signCO(co.id, 'customer', getInitials(user?.name), user?.name);
                   }}
                   style={{ flex: 1, paddingVertical: 13, borderRadius: 8, backgroundColor: C.gn, alignItems: 'center' }}
                   activeOpacity={0.8}>
@@ -3136,7 +3150,7 @@ const NewChangeOrderModal = ({ project, api, onClose, onCreated, user, schedule 
     const amt = isCredit ? -Math.abs(parseFloat(amount)) : Math.abs(parseFloat(amount));
     setLoading(true);
     try {
-      const body = { title, description: desc, amount: amt, due_date: dueDate || null, builder_initials: getInitials(user?.name) };
+      const body = { title, description: desc, amount: amt, due_date: dueDate || null, builder_initials: getInitials(user?.name), builder_signer_name: user?.name || '' };
       if (selectedTask) {
         body.task_id = selectedTask.id;
         body.task_name = selectedTask.task;
@@ -3479,6 +3493,7 @@ const SubChangeOrderModal = ({ project, api, user, task: initialTask, schedule, 
         sub_id: user?.id || null,
         sub_name: user?.company_name || user?.name || '',
         sub_initials: getInitials(user?.name),
+        sub_signer_name: user?.name || '',
         task_id: task.id,
         task_name: task.task || null,
       };
