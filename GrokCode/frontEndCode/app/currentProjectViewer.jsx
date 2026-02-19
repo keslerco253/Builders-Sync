@@ -285,7 +285,7 @@ const HoverTab = ({ onPress, active, style, activeStyle, children }) => {
 // ============================================================
 // MAIN COMPONENT
 // ============================================================
-const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onClientViewToggle, activeTab, activeSub, onTabChange, onSubChange, onProjectUpdate, onProjectDeleted, scheduleVersion, onScheduleChange, syncRef, calYear, calMonth, onMonthChange, subdivisions = [] }) => {
+const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onClientViewToggle, activeTab, activeSub, onTabChange, onSubChange, onProjectUpdate, onProjectDeleted, scheduleVersion, onScheduleChange, syncRef, calYear, calMonth, onMonthChange, subdivisions = [], pendingCOTask, onPendingCOTaskHandled }) => {
   const C = React.useContext(ThemeContext);
   const s = React.useMemo(() => getStyles(C), [C]);
   const bl = React.useMemo(() => getBLStyles(C), [C]);
@@ -609,6 +609,14 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
       if (onSubChange) onSubChange('calendar');
     }
   }, [activeSub]);
+
+  // Auto-open SubChangeOrderModal when pendingCOTask is passed (e.g. from dashboard task popup)
+  useEffect(() => {
+    if (pendingCOTask) {
+      setModal({ type: 'subco', task: pendingCOTask });
+      if (onPendingCOTaskHandled) onPendingCOTaskHandled();
+    }
+  }, [pendingCOTask]);
 
   const viewToggle = ['gantt', 'taskfirst', 'list'].map(v => (
     <TouchableOpacity key={v} onPress={() => setCalView(v)}

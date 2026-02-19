@@ -252,6 +252,7 @@ export default function Dashboard() {
     }
   }, [selectedSub]);
   const [contractorProject, setContractorProject] = useState(null); // for contractor viewing a project
+  const [pendingCOTask, setPendingCOTask] = useState(null); // task to auto-open SubChangeOrderModal
   const [showBuilderCal, setShowBuilderCal] = useState(false);
   const [builderTasks, setBuilderTasks] = useState([]);
   const [builderCalView, setBuilderCalView] = useState('gantt');
@@ -2671,9 +2672,19 @@ export default function Dashboard() {
                       <Text style={{ marginLeft: 'auto', fontSize: 14, color: C.dm }}>Coming Soon</Text>
                     </TouchableOpacity>
                     <TouchableOpacity onPress={() => taskActionNav(taskActionPopup.project, 'docs', 'documents')}
-                      style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, paddingHorizontal: 16, borderBottomWidth: taskActionPopup.project.subdivision_id ? 1 : 0, borderBottomColor: C.w06 }} activeOpacity={0.7}>
+                      style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: C.w06 }} activeOpacity={0.7}>
                       <Text style={{ fontSize: 22 }}>📄</Text>
                       <Text style={{ fontSize: 18, fontWeight: '600', color: C.text }}>Documents</Text>
+                      <Text style={{ marginLeft: 'auto', fontSize: 18, color: C.dm }}>›</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => {
+                        const { task, project } = taskActionPopup;
+                        setPendingCOTask(task);
+                        taskActionNav(project, 'changeorders');
+                      }}
+                      style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, paddingHorizontal: 16, borderBottomWidth: taskActionPopup.project.subdivision_id ? 1 : 0, borderBottomColor: C.w06 }} activeOpacity={0.7}>
+                      <Text style={{ fontSize: 22 }}>📝</Text>
+                      <Text style={{ fontSize: 18, fontWeight: '600', color: C.text }}>Make a Change Order</Text>
                       <Text style={{ marginLeft: 'auto', fontSize: 18, color: C.dm }}>›</Text>
                     </TouchableOpacity>
                     {taskActionPopup.project.subdivision_id && (
@@ -3813,6 +3824,10 @@ export default function Dashboard() {
               project={contractorProject}
               clientView={clientView}
               onClientViewToggle={() => setClientView(false)}
+              activeTab={activeTab}
+              activeSub={activeSub}
+              onTabChange={setActiveTab}
+              onSubChange={setActiveSub}
               onProjectUpdate={handleProjectUpdate}
               onProjectDeleted={handleProjectDeleted}
               scheduleVersion={scheduleVersion}
@@ -3822,6 +3837,8 @@ export default function Dashboard() {
               calYear={globalCalMonth.getFullYear()}
               calMonth={globalCalMonth.getMonth()}
               onMonthChange={(y, m) => setGlobalCalMonth(new Date(y, m, 1))}
+              pendingCOTask={pendingCOTask}
+              onPendingCOTaskHandled={() => setPendingCOTask(null)}
             />
           </View>
         ) : (
