@@ -4859,7 +4859,7 @@ const getStyles = (C) => StyleSheet.create({
   docIcon: { width: 60, height: 60, borderRadius: 15, backgroundColor: 'rgba(239,68,68,0.12)', alignItems: 'center', justifyContent: 'center' },
   photoCard: { width: (SCREEN_W - 50) / 2, backgroundColor: C.card, borderWidth: 1, borderColor: C.bd, borderRadius: 12, overflow: 'hidden' },
   photoThumb: { height: 150, alignItems: 'center', justifyContent: 'center' },
-  statCard: { backgroundColor: C.card, borderWidth: 1, borderColor: C.bd, borderRadius: 12, padding: 16, width: (SCREEN_W - 50) / 2 },
+  statCard: { backgroundColor: C.card, borderWidth: 1, borderColor: C.bd, borderRadius: 12, padding: 16, width: '48%' },
 
   empty: { alignItems: 'center', paddingVertical: 60 },
   emptyTxt: { color: C.mt, fontSize: 24, fontWeight: '600' },
