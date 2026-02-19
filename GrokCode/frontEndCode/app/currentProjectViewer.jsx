@@ -4838,7 +4838,7 @@ const getStyles = (C) => StyleSheet.create({
   twoColLeft: { width: SCREEN_W > 800 ? '49%' : '100%' },
   twoColRight: { width: SCREEN_W > 800 ? '49%' : '100%' },
   threeColRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
-  threeColCell: { width: SCREEN_W > 800 ? '35%' : '100%' },
+  threeColCell: { width: SCREEN_W > 800 ? '32%' : '100%' },
   groupSubtitle: { fontSize: 22, fontWeight: '700', color: C.textBold, marginBottom: 10, marginTop: 16, paddingBottom: 8, borderBottomWidth: 2, borderBottomColor: C.gd + '40' },
 
   priceRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 18, borderBottomWidth: 1, borderBottomColor: C.w04 },
