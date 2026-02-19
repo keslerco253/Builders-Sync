@@ -271,7 +271,8 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
         addr_state: project.state || '',
         zip_code: project.zip_code || '',
         email: project.email || '',
-        customer_name: project.customer_name || '',
+        customer_first_name: project.customer_first_name || '',
+        customer_last_name: project.customer_last_name || '',
         customer_phone: project.customer_phone || '',
         start_date: project.start_date || '',
         sqft: String(project.sqft || ''),
@@ -299,7 +300,8 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
     try {
       const body = {
         name: editInfo.name.trim(),
-        customer_name: editInfo.customer_name.trim(),
+        customer_first_name: editInfo.customer_first_name.trim(),
+        customer_last_name: editInfo.customer_last_name.trim(),
         street_address: editInfo.street_address.trim(),
         city: editInfo.city.trim(),
         state: editInfo.addr_state,
@@ -899,7 +901,10 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
               <Text style={s.infoLbl}>PROJECT NUMBER</Text>
               <Text style={s.infoVal}>{editInfo.number || '—'}</Text>
             </View>
-            {infoField("CUSTOMER NAME", "customer_name", undefined, "John Smith")}
+            <View style={{ flexDirection: 'row', gap: 12 }}>
+              <View style={{ flex: 1 }}>{infoField("FIRST NAME", "customer_first_name", undefined, "Jane")}</View>
+              <View style={{ flex: 1 }}>{infoField("LAST NAME", "customer_last_name", undefined, "Parker")}</View>
+            </View>
             {infoField("PHONE", "customer_phone", "phone-pad", "(208) 555-1234")}
             {infoField("EMAIL", "email", "email-address", "client@email.com")}
             {infoField("STREET ADDRESS", "street_address", undefined, "1245 Oakwood Dr")}
