@@ -199,6 +199,25 @@ class ChangeOrders(db.Model):
         }
 
 
+class ChangeOrderDocument(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    change_order_id = db.Column(db.Integer, db.ForeignKey('change_orders.id'), nullable=False)
+    name = db.Column(db.String(200), default='')
+    description = db.Column(db.Text, default='')
+    file_url = db.Column(db.String(500), default='')
+    file_size = db.Column(db.Integer, default=0)
+    uploaded_by = db.Column(db.String(100), default='')
+    created_at = db.Column(db.String(20), default='')
+
+    def to_dict(self):
+        return {
+            'id': self.id, 'change_order_id': self.change_order_id,
+            'name': self.name, 'description': self.description,
+            'file_url': self.file_url, 'file_size': self.file_size,
+            'uploaded_by': self.uploaded_by, 'created_at': self.created_at,
+        }
+
+
 class SelectionItem(db.Model):
     """Global selection catalog - not tied to any project"""
     id = db.Column(db.Integer, primary_key=True)
@@ -1222,6 +1241,20 @@ def sign_change_order(co_id):
                     end = datetime.strptime(task.end_date, '%Y-%m-%d')
                     new_end = end + timedelta(days=co.task_extension_days)
                     task.end_date = new_end.strftime('%Y-%m-%d')
+            # Copy change order documents into project Documents folder
+            co_docs = ChangeOrderDocument.query.filter_by(change_order_id=co.id).all()
+            for cd in co_docs:
+                proj_doc = Documents(
+                    job_id=co.job_id,
+                    name=f"CO: {co.title} — {cd.name}",
+                    category='Change Order',
+                    media_type='document',
+                    file_size=cd.file_size,
+                    uploaded_by=cd.uploaded_by,
+                    created_at=today,
+                    file_url=cd.file_url,
+                )
+                db.session.add(proj_doc)
         else:
             if not co.builder_sig:
                 co.status = 'pending_builder'
@@ -1235,6 +1268,46 @@ def sign_change_order(co_id):
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
+
+
+@app.route('/change-orders/<int:co_id>/documents', methods=['GET'])
+def get_co_documents(co_id):
+    """List documents attached to a change order."""
+    docs = ChangeOrderDocument.query.filter_by(change_order_id=co_id).order_by(ChangeOrderDocument.created_at.desc()).all()
+    return jsonify([d.to_dict() for d in docs])
+
+
+@app.route('/change-orders/<int:co_id>/documents', methods=['POST'])
+def add_co_document(co_id):
+    """Attach a document to a change order."""
+    ChangeOrders.query.get_or_404(co_id)
+    data = request.get_json()
+    today = datetime.utcnow().strftime('%Y-%m-%d')
+    doc = ChangeOrderDocument(
+        change_order_id=co_id,
+        name=data.get('name', ''),
+        description=data.get('description', ''),
+        file_url=data.get('file_url', ''),
+        file_size=data.get('file_size', 0),
+        uploaded_by=data.get('uploaded_by', ''),
+        created_at=today,
+    )
+    db.session.add(doc)
+    db.session.commit()
+    return jsonify(doc.to_dict()), 201
+
+
+@app.route('/change-order-documents/<int:doc_id>', methods=['DELETE'])
+def delete_co_document(doc_id):
+    """Delete a change order document."""
+    doc = ChangeOrderDocument.query.get_or_404(doc_id)
+    if doc.file_url:
+        fpath = os.path.join(UPLOAD_DIR, doc.file_url.replace('/uploads/', ''))
+        if os.path.exists(fpath):
+            os.remove(fpath)
+    db.session.delete(doc)
+    db.session.commit()
+    return jsonify({'ok': True})
 
 
 @app.route('/users/<int:uid>/change-orders', methods=['GET'])
