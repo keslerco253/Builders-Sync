@@ -2428,131 +2428,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
   const renderModal = () => {
     // --- Change Order Detail with Digital Signatures ---
     if (modal?.type === 'co') {
-      const co = modal.data;
-      const isExpired = co.due_date && new Date(co.due_date + 'T23:59:59') < new Date();
-      const canBuilderSign = isB && !co.builder_sig;
-      const canCustomerSign = isC && !co.customer_sig && !isExpired;
-
-      return (
-        <ModalSheet visible title="Change Order" onClose={() => setModal(null)}>
-          <Text style={{ fontSize: 26, fontWeight: '700', color: C.text, marginBottom: 4 }}>{co.title}</Text>
-          <Text style={{ fontSize: 21, color: C.mt, lineHeight: 33, marginBottom: 14 }}>{co.description}</Text>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20 }}>
-            <Text style={{ color: C.dm, fontSize: 20 }}>Created: {fD(co.created_at)}</Text>
-            <Text style={{ fontSize: 30, fontWeight: '700', color: co.amount >= 0 ? C.yl : C.gn }}>
-              {co.amount >= 0 ? '+' : ''}{f$(co.amount)}
-            </Text>
-          </View>
-
-          {co.due_date && (
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-              <Text style={{ color: C.dm, fontSize: 20 }}>Due: {fD(co.due_date)}</Text>
-              {isExpired && co.status !== 'approved' && (
-                <View style={{ backgroundColor: C.rd + '18', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 }}>
-                  <Text style={{ fontSize: 16, fontWeight: '600', color: C.rd }}>Expired</Text>
-                </View>
-              )}
-            </View>
-          )}
-
-          {/* Linked task info */}
-          {co.task_name && (
-            <View style={{ backgroundColor: C.w04, borderRadius: 10, padding: 14, marginBottom: 16, borderWidth: 1, borderColor: C.w08 }}>
-              <Text style={{ fontSize: 14, fontWeight: '700', color: C.dm, letterSpacing: 0.5, marginBottom: 6 }}>LINKED TASK</Text>
-              <Text style={{ fontSize: 19, fontWeight: '600', color: C.text }}>{co.task_name}</Text>
-              {co.task_extension_days > 0 && (
-                <Text style={{ fontSize: 16, color: C.yl, marginTop: 4 }}>+{co.task_extension_days} day extension (applied on approval)</Text>
-              )}
-              {co.sub_name && (
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6 }}>
-                  <Text style={{ fontSize: 16 }}>👷</Text>
-                  <Text style={{ fontSize: 16, fontWeight: '500', color: C.bl }}>{co.sub_name}</Text>
-                </View>
-              )}
-            </View>
-          )}
-
-          <Text style={{ fontSize: 21, fontWeight: '600', color: C.text, marginBottom: 14 }}>Digital Signatures</Text>
-
-          {/* Builder signature */}
-          <View style={[s.card, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }]}>
-            <View>
-              <Text style={{ fontSize: 21, fontWeight: '600', color: C.text }}>Builder</Text>
-              <Text style={{ fontSize: 18, color: C.dm, marginTop: 2 }}>
-                {co.builder_sig ? `Signed ${fD(co.builder_sig_date)}` : 'Not yet signed'}
-              </Text>
-            </View>
-            {co.builder_sig ? (
-              <Text style={{ color: C.gn, fontSize: 20, fontWeight: '600' }}>✓ Signed</Text>
-            ) : canBuilderSign ? (
-              <Btn onPress={() => signCO(co.id, 'builder')} style={{ paddingVertical: 8, paddingHorizontal: 14 }}>
-                <Text style={s.btnTxt}>✍ Sign</Text>
-              </Btn>
-            ) : (
-              <Text style={{ color: C.dm, fontSize: 18 }}>Awaiting</Text>
-            )}
-          </View>
-
-          {/* Customer signature */}
-          <View style={[s.card, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }]}>
-            <View>
-              <Text style={{ fontSize: 21, fontWeight: '600', color: C.text }}>Customer</Text>
-              <Text style={{ fontSize: 18, color: C.dm, marginTop: 2 }}>
-                {co.customer_sig ? `Signed ${fD(co.customer_sig_date)}` : 'Not yet signed'}
-              </Text>
-            </View>
-            {co.customer_sig ? (
-              <Text style={{ color: C.gn, fontSize: 20, fontWeight: '600' }}>✓ Signed</Text>
-            ) : canCustomerSign ? (
-              <Btn onPress={() => signCO(co.id, 'customer')} bg={C.gn} style={{ paddingVertical: 8, paddingHorizontal: 14 }}>
-                <Text style={s.btnTxt}>✍ Sign</Text>
-              </Btn>
-            ) : isExpired && isC && !co.customer_sig ? (
-              <Text style={{ color: C.rd, fontSize: 18, fontWeight: '600' }}>Expired</Text>
-            ) : (
-              <Text style={{ color: C.dm, fontSize: 18 }}>Awaiting</Text>
-            )}
-          </View>
-
-          {/* Subcontractor signature (only if sub is involved) */}
-          {co.sub_id && (
-            <View style={[s.card, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }]}>
-              <View>
-                <Text style={{ fontSize: 21, fontWeight: '600', color: C.text }}>Subcontractor</Text>
-                <Text style={{ fontSize: 16, color: C.bl, marginTop: 1 }}>{co.sub_name}</Text>
-                <Text style={{ fontSize: 18, color: C.dm, marginTop: 2 }}>
-                  {co.sub_sig ? `Signed ${fD(co.sub_sig_date)}` : 'Not yet signed'}
-                </Text>
-              </View>
-              {co.sub_sig ? (
-                <Text style={{ color: C.gn, fontSize: 20, fontWeight: '600' }}>✓ Signed</Text>
-              ) : (
-                <Text style={{ color: C.dm, fontSize: 18 }}>Awaiting</Text>
-              )}
-            </View>
-          )}
-
-          <View style={[s.warnBox, {
-            backgroundColor: co.status === 'approved' ? 'rgba(16,185,129,0.08)'
-              : isExpired && co.status !== 'approved' ? 'rgba(239,68,68,0.08)' : undefined,
-            borderColor: co.status === 'approved' ? 'rgba(16,185,129,0.2)'
-              : isExpired && co.status !== 'approved' ? 'rgba(239,68,68,0.2)' : undefined,
-          }]}>
-            <Text style={[s.warnTxt, {
-              color: co.status === 'approved' ? C.gnB
-                : isExpired && co.status !== 'approved' ? C.rd : C.yl
-            }]}>
-              {co.status === 'approved'
-                ? '✓ Approved — reflected in Price Summary'
-                : isExpired && co.status !== 'approved'
-                  ? 'This change order has expired — the due date has passed'
-                  : co.sub_id
-                    ? 'Requires all signatures (builder, customer, sub) to update Price Summary'
-                    : 'Requires both signatures to update Price Summary'}
-            </Text>
-          </View>
-        </ModalSheet>
-      );
+      return <ChangeOrderDetailModal co={modal.data} isB={isB} isC={isC} isCon={isCon} signCO={signCO} onClose={() => setModal(null)} user={user} />;
     }
 
     // --- Change Order Type Picker ---
@@ -2741,6 +2617,289 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
 // ISOLATED MODAL COMPONENTS
 // ============================================================
 
+const ChangeOrderDetailModal = ({ co, isB, isC, isCon, signCO, onClose, user }) => {
+  const C = React.useContext(ThemeContext);
+  const s = React.useMemo(() => getStyles(C), [C]);
+  const [coDocs, setCoDocs] = useState([]);
+  const [showUpload, setShowUpload] = useState(false);
+  const [docName, setDocName] = useState('');
+  const [docDesc, setDocDesc] = useState('');
+  const [fileData, setFileData] = useState(null);
+  const [uploading, setUploading] = useState(false);
+
+  const isExpired = co.due_date && new Date(co.due_date + 'T23:59:59') < new Date();
+  const canBuilderSign = isB && !co.builder_sig;
+  const canCustomerSign = isC && !co.customer_sig && !isExpired;
+
+  useEffect(() => {
+    fetch(`${API_BASE}/change-orders/${co.id}/documents`)
+      .then(r => r.json())
+      .then(d => { if (Array.isArray(d)) setCoDocs(d); })
+      .catch(() => {});
+  }, [co.id]);
+
+  const pickFile = () => {
+    if (Platform.OS !== 'web') return;
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.onchange = (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const ext = file.name.split('.').pop() || 'bin';
+      const reader = new FileReader();
+      reader.onload = () => {
+        setFileData({ b64: reader.result, ext, originalName: file.name, size: file.size });
+        if (!docName) setDocName(file.name.replace(/\.[^/.]+$/, ''));
+      };
+      reader.readAsDataURL(file);
+    };
+    input.click();
+  };
+
+  const uploadDoc = async () => {
+    if (!docName) return Alert.alert('Error', 'Name is required');
+    if (!fileData) return Alert.alert('Error', 'Please select a file');
+    setUploading(true);
+    try {
+      const upRes = await fetch(`${API_BASE}/upload-file`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ file: fileData.b64, ext: fileData.ext, name: fileData.originalName }),
+      });
+      if (!upRes.ok) throw new Error('File upload failed');
+      const upData = await upRes.json();
+      const res = await fetch(`${API_BASE}/change-orders/${co.id}/documents`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: docName, description: docDesc,
+          file_url: upData.path, file_size: upData.file_size || fileData.size || 0,
+          uploaded_by: user?.name || '',
+        }),
+      });
+      if (!res.ok) throw new Error('Failed to save document');
+      const newDoc = await res.json();
+      setCoDocs(prev => [newDoc, ...prev]);
+      setShowUpload(false); setDocName(''); setDocDesc(''); setFileData(null);
+    } catch (e) { Alert.alert('Error', e.message); }
+    finally { setUploading(false); }
+  };
+
+  const deleteCoDoc = async (docId) => {
+    try {
+      const res = await fetch(`${API_BASE}/change-order-documents/${docId}`, { method: 'DELETE' });
+      if (res.ok) setCoDocs(prev => prev.filter(d => d.id !== docId));
+    } catch (e) { Alert.alert('Error', e.message); }
+  };
+
+  const openFile = (url) => {
+    const full = url.startsWith('http') ? url : `${API_BASE}${url}`;
+    if (Platform.OS === 'web') window.open(full, '_blank');
+    else Linking.openURL(full);
+  };
+
+  const formatSize = (bytes) => {
+    if (!bytes) return '';
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
+  return (
+    <ModalSheet visible title="Change Order" onClose={onClose}>
+      <Text style={{ fontSize: 26, fontWeight: '700', color: C.text, marginBottom: 4 }}>{co.title}</Text>
+      <Text style={{ fontSize: 21, color: C.mt, lineHeight: 33, marginBottom: 14 }}>{co.description}</Text>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20 }}>
+        <Text style={{ color: C.dm, fontSize: 20 }}>Created: {fD(co.created_at)}</Text>
+        <Text style={{ fontSize: 30, fontWeight: '700', color: co.amount >= 0 ? C.yl : C.gn }}>
+          {co.amount >= 0 ? '+' : ''}{f$(co.amount)}
+        </Text>
+      </View>
+
+      {co.due_date && (
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+          <Text style={{ color: C.dm, fontSize: 20 }}>Due: {fD(co.due_date)}</Text>
+          {isExpired && co.status !== 'approved' && (
+            <View style={{ backgroundColor: C.rd + '18', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 }}>
+              <Text style={{ fontSize: 16, fontWeight: '600', color: C.rd }}>Expired</Text>
+            </View>
+          )}
+        </View>
+      )}
+
+      {co.task_name && (
+        <View style={{ backgroundColor: C.w04, borderRadius: 10, padding: 14, marginBottom: 16, borderWidth: 1, borderColor: C.w08 }}>
+          <Text style={{ fontSize: 14, fontWeight: '700', color: C.dm, letterSpacing: 0.5, marginBottom: 6 }}>LINKED TASK</Text>
+          <Text style={{ fontSize: 19, fontWeight: '600', color: C.text }}>{co.task_name}</Text>
+          {co.task_extension_days > 0 && (
+            <Text style={{ fontSize: 16, color: C.yl, marginTop: 4 }}>+{co.task_extension_days} day extension (applied on approval)</Text>
+          )}
+          {co.sub_name && (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6 }}>
+              <Text style={{ fontSize: 16 }}>👷</Text>
+              <Text style={{ fontSize: 16, fontWeight: '500', color: C.bl }}>{co.sub_name}</Text>
+            </View>
+          )}
+        </View>
+      )}
+
+      {/* Documents section */}
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+        <Text style={{ fontSize: 21, fontWeight: '600', color: C.text }}>Documents</Text>
+        {(isB || isCon) && co.status !== 'approved' && (
+          <TouchableOpacity onPress={() => setShowUpload(p => !p)}
+            style={{ width: 36, height: 36, borderRadius: 9, backgroundColor: showUpload ? C.rd + '18' : C.gd, alignItems: 'center', justifyContent: 'center' }}
+            activeOpacity={0.7}>
+            <Text style={{ fontSize: 22, color: showUpload ? C.rd : C.chromeTxt, fontWeight: '600' }}>{showUpload ? '✕' : '+'}</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+
+      {showUpload && (
+        <View style={{ backgroundColor: C.w04, borderRadius: 10, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: C.w08 }}>
+          <TouchableOpacity onPress={pickFile} activeOpacity={0.7}
+            style={{
+              borderWidth: 2, borderStyle: 'dashed', borderColor: fileData ? C.gn : C.w10,
+              borderRadius: 10, padding: 16, alignItems: 'center', marginBottom: 12,
+              backgroundColor: fileData ? C.gn + '08' : C.w03,
+            }}>
+            {fileData ? (
+              <>
+                <Text style={{ fontSize: 24, marginBottom: 4 }}>✓</Text>
+                <Text style={{ color: C.gn, fontSize: 16, fontWeight: '600' }} numberOfLines={1}>{fileData.originalName}</Text>
+                <Text style={{ color: C.dm, fontSize: 13, marginTop: 2 }}>{formatSize(fileData.size)}</Text>
+              </>
+            ) : (
+              <>
+                <Text style={{ fontSize: 28, marginBottom: 4 }}>⬆</Text>
+                <Text style={{ color: C.gd, fontSize: 16, fontWeight: '600' }}>Select file</Text>
+              </>
+            )}
+          </TouchableOpacity>
+          <Inp label="DOCUMENT NAME" value={docName} onChange={setDocName} placeholder="e.g., Updated floor plan" />
+          <Inp label="DESCRIPTION" value={docDesc} onChange={setDocDesc} placeholder="Describe this document..." rows={2} />
+          <Btn onPress={uploadDoc} disabled={uploading || !docName || !fileData}>
+            <Text style={s.btnTxt}>{uploading ? 'Uploading...' : 'Upload Document'}</Text>
+          </Btn>
+        </View>
+      )}
+
+      {coDocs.length > 0 ? coDocs.map(d => (
+        <TouchableOpacity key={d.id} onPress={() => d.file_url && openFile(d.file_url)} activeOpacity={0.7}
+          style={{
+            flexDirection: 'row', alignItems: 'center', gap: 10,
+            backgroundColor: C.w06 + '40', borderRadius: 10, padding: 12, marginBottom: 8,
+            borderWidth: 1, borderColor: C.w08,
+          }}>
+          <Text style={{ fontSize: 20 }}>📎</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 17, fontWeight: '600', color: C.text }} numberOfLines={1}>{d.name}</Text>
+            {d.description ? <Text style={{ fontSize: 14, color: C.mt, marginTop: 2 }} numberOfLines={2}>{d.description}</Text> : null}
+            <Text style={{ fontSize: 13, color: C.dm, marginTop: 2 }}>
+              {fD(d.created_at)}{d.uploaded_by ? ` · ${d.uploaded_by}` : ''}{d.file_size ? ` · ${formatSize(d.file_size)}` : ''}
+            </Text>
+          </View>
+          {(isB || isCon) && co.status !== 'approved' && (
+            <TouchableOpacity onPress={(e) => { e.stopPropagation(); deleteCoDoc(d.id); }}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} activeOpacity={0.6}
+              style={{ paddingHorizontal: 8, paddingVertical: 6, borderRadius: 6, backgroundColor: C.rd + '12' }}>
+              <Text style={{ fontSize: 16, color: C.rd }}>✕</Text>
+            </TouchableOpacity>
+          )}
+        </TouchableOpacity>
+      )) : (
+        <View style={{ alignItems: 'center', paddingVertical: 14 }}>
+          <Text style={{ fontSize: 15, color: C.dm }}>No documents attached</Text>
+        </View>
+      )}
+
+      {co.status === 'approved' && coDocs.length > 0 && (
+        <View style={{ backgroundColor: C.gn + '10', borderRadius: 8, padding: 10, marginTop: 4, marginBottom: 12, borderWidth: 1, borderColor: C.gn + '25' }}>
+          <Text style={{ fontSize: 14, color: C.gnB }}>Documents have been copied to the project Documents folder</Text>
+        </View>
+      )}
+
+      <Text style={{ fontSize: 21, fontWeight: '600', color: C.text, marginTop: 8, marginBottom: 14 }}>Digital Signatures</Text>
+
+      <View style={[s.card, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }]}>
+        <View>
+          <Text style={{ fontSize: 21, fontWeight: '600', color: C.text }}>Builder</Text>
+          <Text style={{ fontSize: 18, color: C.dm, marginTop: 2 }}>
+            {co.builder_sig ? `Signed ${fD(co.builder_sig_date)}` : 'Not yet signed'}
+          </Text>
+        </View>
+        {co.builder_sig ? (
+          <Text style={{ color: C.gn, fontSize: 20, fontWeight: '600' }}>✓ Signed</Text>
+        ) : canBuilderSign ? (
+          <Btn onPress={() => signCO(co.id, 'builder')} style={{ paddingVertical: 8, paddingHorizontal: 14 }}>
+            <Text style={s.btnTxt}>✍ Sign</Text>
+          </Btn>
+        ) : (
+          <Text style={{ color: C.dm, fontSize: 18 }}>Awaiting</Text>
+        )}
+      </View>
+
+      <View style={[s.card, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }]}>
+        <View>
+          <Text style={{ fontSize: 21, fontWeight: '600', color: C.text }}>Customer</Text>
+          <Text style={{ fontSize: 18, color: C.dm, marginTop: 2 }}>
+            {co.customer_sig ? `Signed ${fD(co.customer_sig_date)}` : 'Not yet signed'}
+          </Text>
+        </View>
+        {co.customer_sig ? (
+          <Text style={{ color: C.gn, fontSize: 20, fontWeight: '600' }}>✓ Signed</Text>
+        ) : canCustomerSign ? (
+          <Btn onPress={() => signCO(co.id, 'customer')} bg={C.gn} style={{ paddingVertical: 8, paddingHorizontal: 14 }}>
+            <Text style={s.btnTxt}>✍ Sign</Text>
+          </Btn>
+        ) : isExpired && isC && !co.customer_sig ? (
+          <Text style={{ color: C.rd, fontSize: 18, fontWeight: '600' }}>Expired</Text>
+        ) : (
+          <Text style={{ color: C.dm, fontSize: 18 }}>Awaiting</Text>
+        )}
+      </View>
+
+      {co.sub_id && (
+        <View style={[s.card, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }]}>
+          <View>
+            <Text style={{ fontSize: 21, fontWeight: '600', color: C.text }}>Subcontractor</Text>
+            <Text style={{ fontSize: 16, color: C.bl, marginTop: 1 }}>{co.sub_name}</Text>
+            <Text style={{ fontSize: 18, color: C.dm, marginTop: 2 }}>
+              {co.sub_sig ? `Signed ${fD(co.sub_sig_date)}` : 'Not yet signed'}
+            </Text>
+          </View>
+          {co.sub_sig ? (
+            <Text style={{ color: C.gn, fontSize: 20, fontWeight: '600' }}>✓ Signed</Text>
+          ) : (
+            <Text style={{ color: C.dm, fontSize: 18 }}>Awaiting</Text>
+          )}
+        </View>
+      )}
+
+      <View style={[s.warnBox, {
+        backgroundColor: co.status === 'approved' ? 'rgba(16,185,129,0.08)'
+          : isExpired && co.status !== 'approved' ? 'rgba(239,68,68,0.08)' : undefined,
+        borderColor: co.status === 'approved' ? 'rgba(16,185,129,0.2)'
+          : isExpired && co.status !== 'approved' ? 'rgba(239,68,68,0.2)' : undefined,
+      }]}>
+        <Text style={[s.warnTxt, {
+          color: co.status === 'approved' ? C.gnB
+            : isExpired && co.status !== 'approved' ? C.rd : C.yl
+        }]}>
+          {co.status === 'approved'
+            ? '✓ Approved — reflected in Price Summary'
+            : isExpired && co.status !== 'approved'
+              ? 'This change order has expired — the due date has passed'
+              : co.sub_id
+                ? 'Requires all signatures (builder, customer, sub) to update Price Summary'
+                : 'Requires both signatures to update Price Summary'}
+        </Text>
+      </View>
+    </ModalSheet>
+  );
+};
+
+
 const NewChangeOrderModal = ({ project, api, onClose, onCreated, user, schedule }) => {
   const C = React.useContext(ThemeContext);
   const s = React.useMemo(() => getStyles(C), [C]);
@@ -2755,6 +2914,27 @@ const NewChangeOrderModal = ({ project, api, onClose, onCreated, user, schedule 
   const [showTaskPicker, setShowTaskPicker] = useState(false);
   const [extensionDays, setExtensionDays] = useState('');
   const [subInfo, setSubInfo] = useState(null); // { id, name }
+  const [attachments, setAttachments] = useState([]); // [{ b64, ext, originalName, size, docName, docDesc }]
+
+  const pickAttachment = () => {
+    if (Platform.OS !== 'web') return;
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.onchange = (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const ext = file.name.split('.').pop() || 'bin';
+      const reader = new FileReader();
+      reader.onload = () => {
+        setAttachments(prev => [...prev, {
+          b64: reader.result, ext, originalName: file.name, size: file.size,
+          docName: file.name.replace(/\.[^/.]+$/, ''), docDesc: '',
+        }]);
+      };
+      reader.readAsDataURL(file);
+    };
+    input.click();
+  };
 
   // When a task is selected, look up the subcontractor
   const onTaskSelect = async (task) => {
@@ -2799,6 +2979,28 @@ const NewChangeOrderModal = ({ project, api, onClose, onCreated, user, schedule 
       if (!res) {
         Alert.alert('Error', 'Failed to create change order. Please try again.');
         return;
+      }
+      // Upload any attached documents
+      for (const att of attachments) {
+        try {
+          const upRes = await fetch(`${API_BASE}/upload-file`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ file: att.b64, ext: att.ext, name: att.originalName }),
+          });
+          if (upRes.ok) {
+            const upData = await upRes.json();
+            await fetch(`${API_BASE}/change-orders/${res.id}/documents`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                name: att.docName, description: att.docDesc,
+                file_url: upData.path, file_size: upData.file_size || att.size || 0,
+                uploaded_by: user?.name || '',
+              }),
+            });
+          }
+        } catch {}
       }
       onCreated(res);
     } catch (e) { Alert.alert('Error', e.message); } finally { setLoading(false); }
@@ -2951,6 +3153,42 @@ const NewChangeOrderModal = ({ project, api, onClose, onCreated, user, schedule 
       {selectedTask && (
         <Inp label="EXTEND TASK (DAYS)" value={extensionDays} onChange={setExtensionDays} type="number" placeholder="0 (no extension)" />
       )}
+
+      {/* Attachments */}
+      <View style={{ marginBottom: 14 }}>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+          <Lbl style={{ marginBottom: 0 }}>DOCUMENTS (OPTIONAL)</Lbl>
+          <TouchableOpacity onPress={pickAttachment}
+            style={{ paddingHorizontal: 12, paddingVertical: 5, borderRadius: 7, backgroundColor: C.gd }}
+            activeOpacity={0.7}>
+            <Text style={{ fontSize: 14, fontWeight: '600', color: C.chromeTxt }}>+ Add File</Text>
+          </TouchableOpacity>
+        </View>
+        {attachments.map((att, idx) => (
+          <View key={idx} style={{
+            backgroundColor: C.w04, borderRadius: 10, padding: 12, marginBottom: 8,
+            borderWidth: 1, borderColor: C.w08,
+          }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+              <Text style={{ fontSize: 18 }}>📎</Text>
+              <Text style={{ flex: 1, fontSize: 15, fontWeight: '500', color: C.text }} numberOfLines={1}>{att.originalName}</Text>
+              <TouchableOpacity onPress={() => setAttachments(prev => prev.filter((_, i) => i !== idx))}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} activeOpacity={0.6}>
+                <Text style={{ fontSize: 16, color: C.rd }}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            <Inp label="NAME" value={att.docName}
+              onChange={(v) => setAttachments(prev => prev.map((a, i) => i === idx ? { ...a, docName: v } : a))}
+              placeholder="Document name" />
+            <Inp label="DESCRIPTION" value={att.docDesc}
+              onChange={(v) => setAttachments(prev => prev.map((a, i) => i === idx ? { ...a, docDesc: v } : a))}
+              placeholder="Brief description..." rows={2} />
+          </View>
+        ))}
+        {attachments.length === 0 && (
+          <Text style={{ fontSize: 14, color: C.dm, textAlign: 'center', paddingVertical: 6 }}>No documents attached</Text>
+        )}
+      </View>
 
       <DatePicker value={dueDate} onChange={setDueDate} label="DUE DATE" placeholder="Select due date" />
       <Btn onPress={() => {
