@@ -776,7 +776,8 @@ export default function ScheduleCalendar({ schedule, onUpdateTask, onEditTask, o
                 {lanes.map((lane, li) => (
                   lane.map(task => {
                     const isExc = task.is_exception;
-                    const color = isExc ? C.rd : (task.progress === 100 ? C.gn : taskColor(task.id));
+                    const isOnHold = onHold;
+                    const color = isOnHold ? C.rd : (isExc ? C.og : (task.progress === 100 ? C.gn : taskColor(task.id)));
                     const leftPct = `${(task.startCol / 7) * 100}%`;
                     const widthPct = `${(task.span / 7) * 100}%`;
                     const laneTop = 48 + baselineSection + li * laneH;
@@ -791,7 +792,8 @@ export default function ScheduleCalendar({ schedule, onUpdateTask, onEditTask, o
                           { left: leftPct, width: widthPct, top: laneTop,
                             borderColor: color,
                             opacity: (isDragged || isCascaded) ? 0.85 : 1 },
-                          isExc && { backgroundColor: C.rd, borderColor: C.rd },
+                          isExc && !isOnHold && { backgroundColor: C.og, borderColor: C.og },
+                          isOnHold && { backgroundColor: C.rd, borderColor: C.rd },
                           isDragged && st.taskBarDragged,
                           isCascaded && st.taskBarCascade,
                         ]}
@@ -804,8 +806,8 @@ export default function ScheduleCalendar({ schedule, onUpdateTask, onEditTask, o
                           },
                         } : {})}
                       >
-                        {task.progress === 100 && <Text style={[st.taskCheck, isExc && { color: '#fff' }]}>✓</Text>}
-                        <Text style={[st.taskBarTxt, isExc && { color: '#fff' }]} numberOfLines={1}>{task.task}</Text>
+                        {task.progress === 100 && <Text style={[st.taskCheck, (isExc || isOnHold) && { color: '#fff' }]}>✓</Text>}
+                        <Text style={[st.taskBarTxt, (isExc || isOnHold) && { color: '#fff' }]} numberOfLines={1}>{task.task}</Text>
                         {task.predecessor_id && <Text style={st.taskBarLink}>🔗</Text>}
                       </View>
                     );
@@ -876,7 +878,8 @@ export default function ScheduleCalendar({ schedule, onUpdateTask, onEditTask, o
                       {/* Task chips */}
                       {dayTasks.map(task => {
                         const isExc = task.is_exception;
-                        const color = isExc ? C.rd : (task.progress === 100 ? C.gn : taskColor(task.id));
+                        const isOnHold = onHold;
+                        const color = isOnHold ? C.rd : (isExc ? C.og : (task.progress === 100 ? C.gn : taskColor(task.id)));
                         const isDragged = draggedId === task.id;
                         const isCascaded = affectedIds && affectedIds.has(task.id) && !isDragged;
                         const isComplete = task.progress === 100;
@@ -887,7 +890,8 @@ export default function ScheduleCalendar({ schedule, onUpdateTask, onEditTask, o
                             style={[
                               st.tfChip,
                               { borderLeftColor: color, opacity: (isDragged || isCascaded) ? 0.7 : 1 },
-                              isExc && { backgroundColor: C.rd, borderLeftColor: C.rd },
+                              isExc && !isOnHold && { backgroundColor: C.og, borderLeftColor: C.og },
+                              isOnHold && { backgroundColor: C.rd, borderLeftColor: C.rd },
                               isDragged && { borderWidth: 2, borderColor: C.textBold, borderStyle: 'dashed', borderLeftWidth: 2 },
                               isCascaded && { borderWidth: 2, borderColor: C.gd, borderStyle: 'dashed', borderLeftWidth: 2 },
                             ]}
@@ -900,10 +904,10 @@ export default function ScheduleCalendar({ schedule, onUpdateTask, onEditTask, o
                               },
                             } : {})}
                           >
-                            <Text style={[st.tfChipName, isComplete && { textDecorationLine: 'line-through', color: C.dm }, isExc && { color: '#fff' }]}>
+                            <Text style={[st.tfChipName, isComplete && { textDecorationLine: 'line-through', color: C.dm }, (isExc || isOnHold) && { color: '#fff' }]}>
                               {isComplete ? '✓ ' : ''}{task.task}{task.predecessor_id ? ' 🔗' : ''}
                             </Text>
-                            <Text style={[st.tfChipDate, isExc && { color: 'rgba(255,255,255,0.8)' }]} numberOfLines={1}>→ {shortDate(task.end_date)}</Text>
+                            <Text style={[st.tfChipDate, (isExc || isOnHold) && { color: 'rgba(255,255,255,0.8)' }]} numberOfLines={1}>→ {shortDate(task.end_date)}</Text>
                           </View>
                         );
                       })}

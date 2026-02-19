@@ -2451,7 +2451,9 @@ export default function Dashboard() {
                         const isDragged = subDraggedId === task.id;
                         const isLive = task.go_live !== false;
                         const isExc = task.is_exception;
-                        const isRed = isExc || task.on_hold;
+                        const isOnHold = task.on_hold;
+                        const isHighlight = isExc || isOnHold;
+                        const highlightColor = isOnHold ? C.rd : (isExc ? C.og : null);
 
                         return (
                           <TouchableOpacity
@@ -2463,10 +2465,10 @@ export default function Dashboard() {
                             }}
                             style={[st.subCalTaskBar, {
                               left: leftPct, width: widthPct, top: laneTop,
-                              borderColor: isRed ? C.rd : pColor, opacity: isDragged ? 0.7 : 1,
+                              borderColor: isHighlight ? highlightColor : pColor, opacity: isDragged ? 0.7 : 1,
                             },
-                            isRed && { backgroundColor: C.rd, borderColor: C.rd },
-                            !isRed && !isLive && { backgroundColor: C.mode === 'light' ? 'rgba(250,204,21,0.35)' : 'rgba(250,204,21,0.30)' },
+                            isHighlight && { backgroundColor: highlightColor, borderColor: highlightColor },
+                            !isHighlight && !isLive && { backgroundColor: C.mode === 'light' ? 'rgba(250,204,21,0.35)' : 'rgba(250,204,21,0.30)' },
                             isDragged && { borderWidth: 2, borderColor: C.textBold, borderStyle: 'dashed' },
                             Platform.OS === 'web' ? { cursor: 'pointer' } : {},
                             ]}
@@ -2474,8 +2476,8 @@ export default function Dashboard() {
                               onPointerDown: (e) => subHandleDragStart(task, e),
                             } : {})}
                           >
-                            {calcTaskProgress(task).pct >= 100 && <Text style={{ fontSize: 15, color: isRed ? '#fff' : C.gn, marginRight: 3 }}>✓</Text>}
-                            <Text style={[st.subCalTaskTxt, isRed && { color: '#fff' }]} numberOfLines={1}>{task.project_name || 'Unknown'}</Text>
+                            {calcTaskProgress(task).pct >= 100 && <Text style={{ fontSize: 15, color: isHighlight ? '#fff' : C.gn, marginRight: 3 }}>✓</Text>}
+                            <Text style={[st.subCalTaskTxt, isHighlight && { color: '#fff' }]} numberOfLines={1}>{task.project_name || 'Unknown'}</Text>
                           </TouchableOpacity>
                         );
                       })
@@ -2521,7 +2523,9 @@ export default function Dashboard() {
                             const isComplete = calcTaskProgress(task).pct >= 100;
                             const isLive = task.go_live !== false;
                             const isExc = task.is_exception;
-                            const isRed = isExc || task.on_hold;
+                            const isOnHold = task.on_hold;
+                            const isHighlight = isExc || isOnHold;
+                            const highlightColor = isOnHold ? C.rd : (isExc ? C.og : null);
 
                             return (
                               <TouchableOpacity
@@ -2534,8 +2538,8 @@ export default function Dashboard() {
                                 style={[{
                                   flexDirection: 'column', gap: 2, marginTop: 4, marginRight: 4,
                                   paddingVertical: 7, paddingHorizontal: 8,
-                                  backgroundColor: isRed ? C.rd : (!isLive ? (C.mode === 'light' ? 'rgba(250,204,21,0.35)' : 'rgba(250,204,21,0.30)') : (C.mode === 'light' ? 'rgba(0,0,0,0.04)' : C.w04)),
-                                  borderRadius: 6, borderLeftWidth: 5, borderLeftColor: isRed ? C.rd : pColor,
+                                  backgroundColor: isHighlight ? highlightColor : (!isLive ? (C.mode === 'light' ? 'rgba(250,204,21,0.35)' : 'rgba(250,204,21,0.30)') : (C.mode === 'light' ? 'rgba(0,0,0,0.04)' : C.w04)),
+                                  borderRadius: 6, borderLeftWidth: 5, borderLeftColor: isHighlight ? highlightColor : pColor,
                                   opacity: isDragged ? 0.7 : 1,
                                 },
                                 Platform.OS === 'web' ? { cursor: 'pointer', userSelect: 'none' } : {},
@@ -2545,10 +2549,10 @@ export default function Dashboard() {
                                   onPointerDown: (e) => subHandleDragStart(task, e),
                                 } : {})}
                               >
-                                <Text style={{ fontSize: 18, fontWeight: '600', color: isRed ? '#fff' : C.text, lineHeight: 24, textDecorationLine: isComplete ? 'line-through' : 'none' }}>
+                                <Text style={{ fontSize: 18, fontWeight: '600', color: isHighlight ? '#fff' : C.text, lineHeight: 24, textDecorationLine: isComplete ? 'line-through' : 'none' }}>
                                   {isComplete ? '✓ ' : ''}{task.project_name || 'Unknown'}
                                 </Text>
-                                <Text style={{ fontSize: 15, color: isRed ? 'rgba(255,255,255,0.8)' : C.dm, fontWeight: '500' }}>→ {subShortDate(task.end_date)}</Text>
+                                <Text style={{ fontSize: 15, color: isHighlight ? 'rgba(255,255,255,0.8)' : C.dm, fontWeight: '500' }}>→ {subShortDate(task.end_date)}</Text>
                               </TouchableOpacity>
                             );
                           })}
@@ -3396,7 +3400,9 @@ export default function Dashboard() {
                                 const isDragged = builderDraggedId === task.id;
                                 const isLive = task.go_live !== false;
                                 const isExc = task.is_exception;
-                                const isRed = isExc || task.on_hold;
+                                const isOnHold = task.on_hold;
+                                const isHighlight = isExc || isOnHold;
+                                const highlightColor = isOnHold ? C.rd : (isExc ? C.og : null);
                                 return (
                                   <TouchableOpacity
                                     key={`${task.id}-${wi}`}
@@ -3411,10 +3417,10 @@ export default function Dashboard() {
                                     }}
                                     style={[st.subCalTaskBar, {
                                       left: leftPct, width: widthPct, top: laneTop,
-                                      borderColor: isRed ? C.rd : pColor, opacity: isDragged ? 0.7 : 1,
+                                      borderColor: isHighlight ? highlightColor : pColor, opacity: isDragged ? 0.7 : 1,
                                     },
-                                    isRed && { backgroundColor: C.rd, borderColor: C.rd },
-                                    !isRed && !isLive && { backgroundColor: C.mode === 'light' ? 'rgba(250,204,21,0.35)' : 'rgba(250,204,21,0.30)' },
+                                    isHighlight && { backgroundColor: highlightColor, borderColor: highlightColor },
+                                    !isHighlight && !isLive && { backgroundColor: C.mode === 'light' ? 'rgba(250,204,21,0.35)' : 'rgba(250,204,21,0.30)' },
                                     isDragged && { borderWidth: 2, borderColor: C.textBold, borderStyle: 'dashed' },
                                     Platform.OS === 'web' ? { cursor: 'pointer' } : {},
                                     ]}
@@ -3422,8 +3428,8 @@ export default function Dashboard() {
                                       onPointerDown: (e) => builderHandleDragStart(task, e),
                                     } : {})}
                                   >
-                                    {calcTaskProgress(task).pct >= 100 && <Text style={{ fontSize: 15, color: isRed ? '#fff' : C.gn, marginRight: 3 }}>✓</Text>}
-                                    <Text style={[st.subCalTaskTxt, isRed && { color: '#fff' }]} numberOfLines={1}>{task.project_name || 'Unknown'}</Text>
+                                    {calcTaskProgress(task).pct >= 100 && <Text style={{ fontSize: 15, color: isHighlight ? '#fff' : C.gn, marginRight: 3 }}>✓</Text>}
+                                    <Text style={[st.subCalTaskTxt, isHighlight && { color: '#fff' }]} numberOfLines={1}>{task.project_name || 'Unknown'}</Text>
                                   </TouchableOpacity>
                                 );
                               })
@@ -3469,7 +3475,9 @@ export default function Dashboard() {
                                     const isComplete = calcTaskProgress(task).pct >= 100;
                                     const isLive = task.go_live !== false;
                                     const isExc = task.is_exception;
-                                    const isRed = isExc || task.on_hold;
+                                    const isOnHold = task.on_hold;
+                                    const isHighlight = isExc || isOnHold;
+                                    const highlightColor = isOnHold ? C.rd : (isExc ? C.og : null);
 
                                     return (
                                       <TouchableOpacity
@@ -3486,8 +3494,8 @@ export default function Dashboard() {
                                         style={[{
                                           flexDirection: 'column', gap: 2, marginTop: 4, marginRight: 4,
                                           paddingVertical: 7, paddingHorizontal: 8,
-                                          backgroundColor: isRed ? C.rd : (!isLive ? (C.mode === 'light' ? 'rgba(250,204,21,0.35)' : 'rgba(250,204,21,0.30)') : (C.mode === 'light' ? 'rgba(0,0,0,0.04)' : C.w04)),
-                                          borderRadius: 6, borderLeftWidth: 5, borderLeftColor: isRed ? C.rd : pColor,
+                                          backgroundColor: isHighlight ? highlightColor : (!isLive ? (C.mode === 'light' ? 'rgba(250,204,21,0.35)' : 'rgba(250,204,21,0.30)') : (C.mode === 'light' ? 'rgba(0,0,0,0.04)' : C.w04)),
+                                          borderRadius: 6, borderLeftWidth: 5, borderLeftColor: isHighlight ? highlightColor : pColor,
                                           opacity: isDragged ? 0.7 : 1,
                                         },
                                         Platform.OS === 'web' ? { cursor: 'pointer', userSelect: 'none' } : {},
@@ -3497,10 +3505,10 @@ export default function Dashboard() {
                                           onPointerDown: (e) => builderHandleDragStart(task, e),
                                         } : {})}
                                       >
-                                        <Text style={{ fontSize: 18, fontWeight: '600', color: isRed ? '#fff' : C.text, lineHeight: 24, textDecorationLine: isComplete ? 'line-through' : 'none' }}>
+                                        <Text style={{ fontSize: 18, fontWeight: '600', color: isHighlight ? '#fff' : C.text, lineHeight: 24, textDecorationLine: isComplete ? 'line-through' : 'none' }}>
                                           {isComplete ? '✓ ' : ''}{task.project_name || 'Unknown'}
                                         </Text>
-                                        <Text style={{ fontSize: 15, color: isRed ? 'rgba(255,255,255,0.8)' : C.dm, fontWeight: '500' }}>→ {bShortDate(task.end_date)}</Text>
+                                        <Text style={{ fontSize: 15, color: isHighlight ? 'rgba(255,255,255,0.8)' : C.dm, fontWeight: '500' }}>→ {bShortDate(task.end_date)}</Text>
                                       </TouchableOpacity>
                                     );
                                   })}

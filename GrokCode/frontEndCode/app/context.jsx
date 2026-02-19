@@ -40,7 +40,7 @@ export const DARK_COLORS = {
   gd: '#e8a838', gdD: '#d4832f',
   gn: '#10b981', gnB: '#34d399',
   bl: '#3b82f6', blB: '#60a5fa',
-  yl: '#f59e0b', rd: '#ef4444', pp: '#8b5cf6',
+  yl: '#f59e0b', rd: '#ef4444', og: '#f97316', pp: '#8b5cf6',
   bH: 'rgba(232,168,56,0.3)', bH05: 'rgba(232,168,56,0.05)', bH08: 'rgba(232,168,56,0.08)', bH12: 'rgba(232,168,56,0.12)',
 };
 
@@ -78,7 +78,7 @@ export const LIGHT_COLORS = {
   gd: '#e8a838', gdD: '#d4832f',
   gn: '#27AE60', gnB: '#2ecc71',
   bl: '#3b82f6', blB: '#60a5fa',
-  yl: '#f59e0b', rd: '#ef4444', pp: '#8b5cf6',
+  yl: '#f59e0b', rd: '#ef4444', og: '#f97316', pp: '#8b5cf6',
   bH: 'rgba(232,168,56,0.12)', bH05: 'rgba(232,168,56,0.05)', bH08: 'rgba(232,168,56,0.08)', bH12: 'rgba(232,168,56,0.12)',
 };
 
