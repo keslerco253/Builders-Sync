@@ -2577,7 +2577,7 @@ export default function Dashboard() {
                   }
                   if (!placed) lanes.push([task]);
                 });
-                const laneH = 32;
+                const laneH = 50;
                 const rowMinH = Math.max(125, 40 + lanes.length * laneH);
 
                 return (
@@ -2630,8 +2630,11 @@ export default function Dashboard() {
                               onPointerDown: (e) => subHandleDragStart(task, e),
                             } : {})}
                           >
-                            {calcTaskProgress(task).pct >= 100 && <Text style={{ fontSize: 15, color: isHighlight ? '#fff' : C.gn, marginRight: 3 }}>✓</Text>}
-                            <Text style={[st.subCalTaskTxt, isHighlight && { color: '#fff' }]} numberOfLines={1}>{task.project_name || 'Unknown'}</Text>
+                            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                              {calcTaskProgress(task).pct >= 100 && <Text style={{ fontSize: 12, color: isHighlight ? '#fff' : C.gn, marginRight: 3 }}>✓</Text>}
+                              <Text style={[st.subCalTaskTxt, isHighlight && { color: '#fff' }]} numberOfLines={1}>{task.task || 'Untitled'}</Text>
+                            </View>
+                            <Text style={[st.subCalTaskTxtSub, isHighlight && { color: 'rgba(255,255,255,0.8)' }]} numberOfLines={1}>{task.project_name || 'Unknown'}</Text>
                           </TouchableOpacity>
                         );
                       })
@@ -2654,7 +2657,7 @@ export default function Dashboard() {
               {weeks.map((week, wi) => {
                 const dayCounts = week.map(day => getTasksForDay(day).length);
                 const maxTasks = Math.max(0, ...dayCounts);
-                const rowMinH = Math.max(125, 48 + maxTasks * 80);
+                const rowMinH = Math.max(125, 48 + maxTasks * 95);
 
                 return (
                   <View key={wi} style={[st.subCalWeekRow, { minHeight: rowMinH }]}>
@@ -2703,10 +2706,13 @@ export default function Dashboard() {
                                   onPointerDown: (e) => subHandleDragStart(task, e),
                                 } : {})}
                               >
-                                <Text style={{ fontSize: 18, fontWeight: '600', color: isHighlight ? '#fff' : C.text, lineHeight: 24, textDecorationLine: isComplete ? 'line-through' : 'none' }}>
-                                  {isComplete ? '✓ ' : ''}{task.project_name || 'Unknown'}
+                                <Text style={{ fontSize: 14, fontWeight: '700', color: isHighlight ? '#fff' : C.text, textDecorationLine: isComplete ? 'line-through' : 'none' }} numberOfLines={1}>
+                                  {isComplete ? '✓ ' : ''}{task.task || 'Untitled'}
                                 </Text>
-                                <Text style={{ fontSize: 15, color: isHighlight ? 'rgba(255,255,255,0.8)' : C.dm, fontWeight: '500' }}>→ {subShortDate(task.end_date)}</Text>
+                                <Text style={{ fontSize: 16, fontWeight: '600', color: isHighlight ? 'rgba(255,255,255,0.9)' : C.text, lineHeight: 22 }} numberOfLines={1}>
+                                  {task.project_name || 'Unknown'}
+                                </Text>
+                                <Text style={{ fontSize: 13, color: isHighlight ? 'rgba(255,255,255,0.7)' : C.dm, fontWeight: '500' }}>→ {subShortDate(task.end_date)}</Text>
                               </TouchableOpacity>
                             );
                           })}
@@ -3705,7 +3711,7 @@ export default function Dashboard() {
                           }
                           if (!placed) lanes.push([task]);
                         });
-                        const laneH = 32;
+                        const laneH = 50;
                         const rowMinH = Math.max(125, 40 + lanes.length * laneH);
 
                         return (
@@ -3760,8 +3766,11 @@ export default function Dashboard() {
                                       onPointerDown: (e) => builderHandleDragStart(task, e),
                                     } : {})}
                                   >
-                                    {calcTaskProgress(task).pct >= 100 && <Text style={{ fontSize: 15, color: isHighlight ? '#fff' : C.gn, marginRight: 3 }}>✓</Text>}
-                                    <Text style={[st.subCalTaskTxt, isHighlight && { color: '#fff' }]} numberOfLines={1}>{task.project_name || 'Unknown'}</Text>
+                                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                                      {calcTaskProgress(task).pct >= 100 && <Text style={{ fontSize: 12, color: isHighlight ? '#fff' : C.gn, marginRight: 3 }}>✓</Text>}
+                                      <Text style={[st.subCalTaskTxt, isHighlight && { color: '#fff' }]} numberOfLines={1}>{task.task || 'Untitled'}</Text>
+                                    </View>
+                                    <Text style={[st.subCalTaskTxtSub, isHighlight && { color: 'rgba(255,255,255,0.8)' }]} numberOfLines={1}>{task.project_name || 'Unknown'}</Text>
                                   </TouchableOpacity>
                                 );
                               })
@@ -3784,7 +3793,7 @@ export default function Dashboard() {
                       {weeks.map((week, wi) => {
                         const dayCounts = week.map(day => getTasksForDay(day).length);
                         const maxTasks = Math.max(0, ...dayCounts);
-                        const rowMinH = Math.max(125, 48 + maxTasks * 80);
+                        const rowMinH = Math.max(125, 48 + maxTasks * 95);
 
                         return (
                           <View key={wi} style={[st.subCalWeekRow, { minHeight: rowMinH }]}>
@@ -3837,10 +3846,13 @@ export default function Dashboard() {
                                           onPointerDown: (e) => builderHandleDragStart(task, e),
                                         } : {})}
                                       >
-                                        <Text style={{ fontSize: 18, fontWeight: '600', color: isHighlight ? '#fff' : C.text, lineHeight: 24, textDecorationLine: isComplete ? 'line-through' : 'none' }}>
-                                          {isComplete ? '✓ ' : ''}{task.project_name || 'Unknown'}
+                                        <Text style={{ fontSize: 14, fontWeight: '700', color: isHighlight ? '#fff' : C.text, textDecorationLine: isComplete ? 'line-through' : 'none' }} numberOfLines={1}>
+                                          {isComplete ? '✓ ' : ''}{task.task || 'Untitled'}
                                         </Text>
-                                        <Text style={{ fontSize: 15, color: isHighlight ? 'rgba(255,255,255,0.8)' : C.dm, fontWeight: '500' }}>→ {bShortDate(task.end_date)}</Text>
+                                        <Text style={{ fontSize: 16, fontWeight: '600', color: isHighlight ? 'rgba(255,255,255,0.9)' : C.text, lineHeight: 22 }} numberOfLines={1}>
+                                          {task.project_name || 'Unknown'}
+                                        </Text>
+                                        <Text style={{ fontSize: 13, color: isHighlight ? 'rgba(255,255,255,0.7)' : C.dm, fontWeight: '500' }}>→ {bShortDate(task.end_date)}</Text>
                                       </TouchableOpacity>
                                     );
                                   })}
@@ -6686,13 +6698,14 @@ const getStyles = (C) => StyleSheet.create({
   subCalDayOther: { color: C.w20 },
   subCalDayNumToday: { color: C.textBold, fontWeight: '700' },
   subCalTaskBar: {
-    position: 'absolute', height: 22, borderRadius: 4,
-    paddingHorizontal: 6, flexDirection: 'row', alignItems: 'center', marginHorizontal: 2,
+    position: 'absolute', height: 42, borderRadius: 4,
+    paddingHorizontal: 6, paddingVertical: 2, flexDirection: 'column', justifyContent: 'center', marginHorizontal: 2,
     backgroundColor: C.mode === 'light' ? 'rgba(0,0,0,0.03)' : C.w04,
     borderWidth: 2.5,
     ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
   },
-  subCalTaskTxt: { fontSize: 16, fontWeight: '600', color: C.text, flex: 1 },
+  subCalTaskTxt: { fontSize: 13, fontWeight: '600', color: C.text, flex: 0 },
+  subCalTaskTxtSub: { fontSize: 11, fontWeight: '500', color: C.dm, flex: 0 },
 
   // Template manager
   tmplRow: {
