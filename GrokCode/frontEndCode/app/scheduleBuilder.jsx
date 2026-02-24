@@ -4,7 +4,7 @@ import {
   Alert,
 } from 'react-native';
 import DatePicker from './datePicker';
-import { ThemeContext, API_BASE } from './context';
+import { AuthContext, ThemeContext, API_BASE } from './context';
 
 const TASK_COLORS = [
   '#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981',
@@ -286,6 +286,7 @@ const buildFromTemplate = (template, startDate) => {
 // ============================================================
 const TemplatePicker = ({ onApply, existingCount }) => {
   const C = React.useContext(ThemeContext);
+  const { user } = React.useContext(AuthContext);
   const st = React.useMemo(() => getStyles(C), [C]);
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState(null);
@@ -296,7 +297,7 @@ const TemplatePicker = ({ onApply, existingCount }) => {
   const fetchTemplates = async () => {
     setLoadingTemplates(true);
     try {
-      const res = await fetch(`${API_BASE}/schedule-templates`);
+      const res = await fetch(`${API_BASE}/schedule-templates${user?.company_id ? `?company_id=${user.company_id}` : ''}`);
       if (res.ok) {
         const data = await res.json();
         setSavedTemplates(data);
@@ -754,6 +755,7 @@ const TradeSelect = ({ value, onChange, trades }) => {
 // ============================================================
 export default function ScheduleBuilder({ tasks, onTasksChange, templateMode, collapsed, templateInfo, onReviewTemplate, onChangeTemplate, tradesList }) {
   const C = React.useContext(ThemeContext);
+  const { user } = React.useContext(AuthContext);
   const st = React.useMemo(() => getStyles(C), [C]);
   const [year, setYear] = useState(() => new Date().getFullYear());
   const [month, setMonth] = useState(() => new Date().getMonth());
@@ -762,13 +764,13 @@ export default function ScheduleBuilder({ tasks, onTasksChange, templateMode, co
   // Fetch subcontractors once (not needed in template mode)
   useEffect(() => {
     if (templateMode) return;
-    fetch(`${API_BASE}/users`)
+    fetch(`${API_BASE}/users${user?.company_id ? `?company_id=${user.company_id}` : ''}`)
       .then(r => r.json())
       .then(data => {
         if (Array.isArray(data)) setSubs(data.filter(u => (u.role === 'contractor' || u.role === 'builder') && u.active !== false));
       })
       .catch(() => {});
-  }, [templateMode]);
+  }, [templateMode, user?.company_id]);
 
   const today = useMemo(() => new Date(), []);
   const weeks = useMemo(() => getMonthGrid(year, month), [year, month]);
