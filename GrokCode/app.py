@@ -2933,6 +2933,21 @@ def auto_migrate():
         db.session.add(admin)
         db.session.commit()
         changes.append("SEED Supreme Admin user")
+    else:
+        # Ensure admin role and fix password if stored as plain text
+        updated = False
+        if admin.role != 'admin':
+            admin.role = 'admin'
+            updated = True
+        if not admin.password.startswith('scrypt:') and not admin.password.startswith('pbkdf2:'):
+            admin.password = generate_password_hash('Totowewewe43@')
+            updated = True
+        if admin.authorized is not True:
+            admin.authorized = True
+            updated = True
+        if updated:
+            db.session.commit()
+            changes.append("UPDATE Supreme Admin user")
 
     if changes:
         print(f"✅ Database migration: {len(changes)} change(s)")
