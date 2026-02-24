@@ -10,11 +10,12 @@ import DatePicker from './datePicker';
 import { calcEndDate as sbCalcEndDate, TEMPLATE_TRADES as _TRADES } from './scheduleBuilder';
 
 const TEMPLATE_TRADES = _TRADES || [
-  'Excavation', 'Concrete', 'Plumbing', 'Electrical', 'HVAC', 'Trim',
-  'Doors', 'Sheetrock', 'Insulation', 'Gravel', 'Framing', 'Roofing',
-  'Painting', 'Flooring', 'Cabinets', 'Countertops', 'Tile',
-  'Landscaping', 'Waterproofing', 'Appliances', 'Windows', 'Siding',
-  'Gutters', 'Fireplace', 'Cleaning', 'Inspections', 'General',
+  'Appliances', 'Cabinets', 'Cleaning', 'Concrete', 'Countertops',
+  'Doors', 'Electrical', 'Excavation', 'Fireplace', 'Flooring',
+  'Framing', 'General', 'Gravel', 'Gutters', 'HVAC',
+  'Inspections', 'Insulation', 'Landscaping', 'Painting', 'Plumbing',
+  'Roofing', 'Sheetrock', 'Siding', 'Tile', 'Trim',
+  'Waterproofing', 'Windows',
 ];
 
 // ============================================================

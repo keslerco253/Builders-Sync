@@ -294,9 +294,10 @@ export default function Dashboard() {
       const res = await fetch(`${API_BASE}/projects?user_id=${user.id}&role=${user.role}`);
       const data = await res.json();
       if (Array.isArray(data)) {
-        setProjects(data);
-        if (!selectedProject && data.length > 0 && isWide) {
-          setSelectedProject(data[0]);
+        const sorted = data.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+        setProjects(sorted);
+        if (!selectedProject && sorted.length > 0 && isWide) {
+          setSelectedProject(sorted[0]);
         }
       }
     } catch (e) {
@@ -320,7 +321,7 @@ export default function Dashboard() {
       const res = await fetch(`${API_BASE}/users/${user.id}/company-trades`);
       const data = await res.json();
       if (data.trades && data.trades.trim()) {
-        setBuilderTrades(data.trades.split(',').map(t => t.trim()).filter(Boolean));
+        setBuilderTrades(data.trades.split(',').map(t => t.trim()).filter(Boolean).sort((a, b) => a.localeCompare(b)));
       }
     } catch (e) { /* ignore */ }
   };
@@ -459,7 +460,8 @@ export default function Dashboard() {
       const res = await fetch(`${API_BASE}/users`);
       const data = await res.json();
       if (Array.isArray(data)) {
-        const contractors = data.filter(u => u.role === 'contractor' && u.active !== false);
+        const contractors = data.filter(u => u.role === 'contractor' && u.active !== false)
+          .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
         setSubs(contractors);
         if (!selectedSub && contractors.length > 0 && isWide) {
           selectSub(contractors[0]);
@@ -3468,7 +3470,7 @@ export default function Dashboard() {
                   onSubmitEditing={() => {
                     const t = newTradeName.trim();
                     if (t && !builderTrades.includes(t)) {
-                      const updated = [...builderTrades, t];
+                      const updated = [...builderTrades, t].sort((a, b) => a.localeCompare(b));
                       setBuilderTrades(updated);
                       setNewTradeName('');
                       fetch(`${API_BASE}/users/${user.id}`, {
@@ -3482,7 +3484,7 @@ export default function Dashboard() {
                   onPress={() => {
                     const t = newTradeName.trim();
                     if (t && !builderTrades.includes(t)) {
-                      const updated = [...builderTrades, t];
+                      const updated = [...builderTrades, t].sort((a, b) => a.localeCompare(b));
                       setBuilderTrades(updated);
                       setNewTradeName('');
                       fetch(`${API_BASE}/users/${user.id}`, {
@@ -5260,8 +5262,8 @@ const US_STATES = [
 ];
 
 const DEFAULT_TRADES = [
-  'Excavation', 'Concrete', 'Plumbing', 'Electrical', 'HVAC', 'Trim',
-  'Doors', 'Sheetrock', 'Insulation', 'Gravel',
+  'Concrete', 'Doors', 'Electrical', 'Excavation', 'Gravel',
+  'HVAC', 'Insulation', 'Plumbing', 'Sheetrock', 'Trim',
 ];
 
 const NewSubModal = ({ onClose, onCreated, tradesList }) => {

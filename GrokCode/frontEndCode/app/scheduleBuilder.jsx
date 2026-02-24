@@ -668,11 +668,12 @@ const ContractorSelect = ({ value, onChange, subs }) => {
 // TRADE SELECT DROPDOWN (for templates)
 // ============================================================
 export const TEMPLATE_TRADES = [
-  'Excavation', 'Concrete', 'Plumbing', 'Electrical', 'HVAC', 'Trim',
-  'Doors', 'Sheetrock', 'Insulation', 'Gravel', 'Framing', 'Roofing',
-  'Painting', 'Flooring', 'Cabinets', 'Countertops', 'Tile',
-  'Landscaping', 'Waterproofing', 'Appliances', 'Windows', 'Siding',
-  'Gutters', 'Fireplace', 'Cleaning', 'Inspections', 'General',
+  'Appliances', 'Cabinets', 'Cleaning', 'Concrete', 'Countertops',
+  'Doors', 'Electrical', 'Excavation', 'Fireplace', 'Flooring',
+  'Framing', 'General', 'Gravel', 'Gutters', 'HVAC',
+  'Inspections', 'Insulation', 'Landscaping', 'Painting', 'Plumbing',
+  'Roofing', 'Sheetrock', 'Siding', 'Tile', 'Trim',
+  'Waterproofing', 'Windows',
 ];
 
 const TradeSelect = ({ value, onChange }) => {
