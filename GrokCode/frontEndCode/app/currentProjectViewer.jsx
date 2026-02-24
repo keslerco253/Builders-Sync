@@ -31,7 +31,6 @@ export const fPhone = (v) => {
   return `(${digits.slice(0,3)}) ${digits.slice(3,6)}-${digits.slice(6)}`;
 };
 // Mask phone input as user types
-const maskPhone = (v) => fPhone(v);
 const getInitials = (name) => {
   if (!name) return '??';
   const parts = name.trim().split(/\s+/);
@@ -60,8 +59,6 @@ const sD = d => {
   try { return new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }); }
   catch { return d; }
 };
-
-const ini = n => n?.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() || '??';
 
 // Calculate task progress from dates
 export const calcTaskProgress = (item) => {
@@ -500,8 +497,6 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
   const [schedule, setSchedule] = useState([]);
   // Schedule views are now sub-tabs (calendar, list, baseline)
   const [prefillDate, setPrefillDate] = useState('');
-  const [listEditTask, setListEditTask] = useState(null);
-  const [listContractor, setListContractor] = useState('');
   const [subsList, setSubsList] = useState([]);
   const [subsSearch, setSubsSearch] = useState('');
   const [taskInfoEdit, setTaskInfoEdit] = useState(null);
@@ -520,9 +515,6 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
   const [photos, setPhotos] = useState([]);
   const [videos, setVideos] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [exemptions, setExemptions] = useState([]);
-  const [newExDate, setNewExDate] = useState('');
-  const [newExDesc, setNewExDesc] = useState('');
 
   // API helper
   const api = useCallback(async (path, opts = {}) => {
@@ -549,8 +541,39 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
     setDocuments([]);
     setPhotos([]);
     setVideos([]);
-    setListEditTask(null);
   }, [projectId]);
+
+  // Open task info edit modal on double-click (shared across calendar views)
+  const handleTaskDoubleClick = useCallback(async (task) => {
+    setPredDropOpen(false);
+    setTradeDropOpen(false);
+    setSubsSearch('');
+    setTaskInfoEdit({
+      id: task.id,
+      task: task.task || '',
+      trade: task.trade || '',
+      contractor: task.contractor || '',
+      workdays: String((() => {
+        if (!task.start_date || !task.end_date) return 1;
+        const s = new Date(task.start_date + 'T00:00:00');
+        const e = new Date(task.end_date + 'T00:00:00');
+        if (isNaN(s) || isNaN(e)) return 1;
+        let count = 1; let d = new Date(s);
+        while (d < e) { d.setDate(d.getDate() + 1); if (d.getDay() !== 0 && d.getDay() !== 6) count++; }
+        return count;
+      })()),
+      predecessor_id: task.predecessor_id || null,
+      rel_type: task.rel_type || 'FS',
+      lag_days: String(task.lag_days || '0'),
+      start_date: task.start_date || '',
+      end_date: task.end_date || '',
+    });
+    try {
+      const res = await fetch(`${API_BASE}/users${user?.company_id ? `?company_id=${user.company_id}` : ''}`);
+      const data = await res.json();
+      if (Array.isArray(data)) setSubsList(data.filter(u => (u.role === 'contractor' || u.role === 'builder') && u.active !== false));
+    } catch(e) { console.warn('fetch subs:', e); }
+  }, [user?.company_id]);
 
   // Update schedule tasks (supports single or batch from cascading drag)
   const updateScheduleTask = useCallback(async (updatesOrId, singleUpdates) => {
@@ -1558,36 +1581,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
                   goLive={goLive}
                   onGoLiveChange={isB ? toggleGoLive : undefined}
                   onHold={onHold}
-                  onTaskDoubleClick={async (task) => {
-                    setPredDropOpen(false);
-                    setTradeDropOpen(false);
-                    setSubsSearch('');
-                    setTaskInfoEdit({
-                      id: task.id,
-                      task: task.task || '',
-                      trade: task.trade || '',
-                      contractor: task.contractor || '',
-                      workdays: String((() => {
-                        if (!task.start_date || !task.end_date) return 1;
-                        const s = new Date(task.start_date + 'T00:00:00');
-                        const e = new Date(task.end_date + 'T00:00:00');
-                        if (isNaN(s) || isNaN(e)) return 1;
-                        let count = 1; let d = new Date(s);
-                        while (d < e) { d.setDate(d.getDate() + 1); if (d.getDay() !== 0 && d.getDay() !== 6) count++; }
-                        return count;
-                      })()),
-                      predecessor_id: task.predecessor_id || null,
-                      rel_type: task.rel_type || 'FS',
-                      lag_days: String(task.lag_days || '0'),
-                      start_date: task.start_date || '',
-                      end_date: task.end_date || '',
-                    });
-                    try {
-                      const res = await fetch(`${API_BASE}/users${user?.company_id ? `?company_id=${user.company_id}` : ''}`);
-                      const data = await res.json();
-                      if (Array.isArray(data)) setSubsList(data.filter(u => (u.role === 'contractor' || u.role === 'builder') && u.active !== false));
-                    } catch(e) { console.warn('fetch subs:', e); }
-                  }}
+                  onTaskDoubleClick={handleTaskDoubleClick}
                   calYear={calYear}
                   calMonth={calMonth}
                   onMonthChange={onMonthChange}
@@ -1608,36 +1602,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
                   goLive={goLive}
                   onGoLiveChange={isB ? toggleGoLive : undefined}
                   onHold={onHold}
-                  onTaskDoubleClick={async (task) => {
-                    setPredDropOpen(false);
-                    setTradeDropOpen(false);
-                    setSubsSearch('');
-                    setTaskInfoEdit({
-                      id: task.id,
-                      task: task.task || '',
-                      trade: task.trade || '',
-                      contractor: task.contractor || '',
-                      workdays: String((() => {
-                        if (!task.start_date || !task.end_date) return 1;
-                        const s = new Date(task.start_date + 'T00:00:00');
-                        const e = new Date(task.end_date + 'T00:00:00');
-                        if (isNaN(s) || isNaN(e)) return 1;
-                        let count = 1; let d = new Date(s);
-                        while (d < e) { d.setDate(d.getDate() + 1); if (d.getDay() !== 0 && d.getDay() !== 6) count++; }
-                        return count;
-                      })()),
-                      predecessor_id: task.predecessor_id || null,
-                      rel_type: task.rel_type || 'FS',
-                      lag_days: String(task.lag_days || '0'),
-                      start_date: task.start_date || '',
-                      end_date: task.end_date || '',
-                    });
-                    try {
-                      const res = await fetch(`${API_BASE}/users${user?.company_id ? `?company_id=${user.company_id}` : ''}`);
-                      const data = await res.json();
-                      if (Array.isArray(data)) setSubsList(data.filter(u => (u.role === 'contractor' || u.role === 'builder') && u.active !== false));
-                    } catch(e) { console.warn('fetch subs:', e); }
-                  }}
+                  onTaskDoubleClick={handleTaskDoubleClick}
                   calYear={calYear}
                   calMonth={calMonth}
                   onMonthChange={onMonthChange}
@@ -1858,188 +1823,6 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
                   </TouchableOpacity>
                 </Modal>
               )}
-
-              {/* Assign Subcontractor Modal */}
-                {listEditTask && (
-                  <Modal visible animationType="fade" transparent>
-                    <View style={s.listModalOverlay}>
-                      <View style={s.listModalBox}>
-                        <View style={s.listModalHeader}>
-                          <View style={{ flex: 1 }}>
-                            <Text style={s.listModalTitle}>{listEditTask.task}</Text>
-                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 2 }}>
-                              <Text style={s.listModalSub}>{sD(listEditTask.start_date)} — {sD(listEditTask.end_date)}</Text>
-                              {listEditTask.trade ? (
-                                <View style={{ backgroundColor: 'rgba(59,130,246,0.12)', paddingHorizontal: 7, paddingVertical: 2, borderRadius: 4 }}>
-                                  <Text style={{ fontSize: 14, fontWeight: '600', color: C.bl }}>{listEditTask.trade}</Text>
-                                </View>
-                              ) : null}
-                            </View>
-                          </View>
-                          <TouchableOpacity onPress={() => setListEditTask(null)} style={s.listModalCloseBtn}>
-                            <Text style={s.listModalCloseTxt}>×</Text>
-                          </TouchableOpacity>
-                        </View>
-                        {listEditTask.contractor ? (
-                          <View style={s.listModalCurrent}>
-                            <Text style={s.listModalCurrentLabel}>CURRENTLY ASSIGNED</Text>
-                            <Text style={s.listModalCurrentVal}>{listEditTask.contractor}</Text>
-                          </View>
-                        ) : null}
-                        <View style={{ padding: 18, flex: 1 }}>
-                          <Text style={s.listModalFieldLabel}>SELECT SUBCONTRACTOR</Text>
-                          <TextInput
-                            value={subsSearch}
-                            onChangeText={setSubsSearch}
-                            placeholder="Search subcontractors..."
-                            placeholderTextColor={C.w20}
-                            style={[s.listModalInput, { marginBottom: 10 }]}
-                            autoFocus
-                          />
-                          <ScrollView style={{ maxHeight: 220, borderRadius: 8, borderWidth: 1, borderColor: C.w06 }} nestedScrollEnabled>
-                            {(() => {
-                              const taskTrade = listEditTask.trade;
-                              let filtered = subsList;
-                              // If task has a trade, hide subs without matching trade (builders always shown)
-                              if (taskTrade) {
-                                filtered = filtered.filter(sub2 => {
-                                  if (sub2.role === 'builder' || sub2.role === 'company_admin') return true;
-                                  const subTrades = (sub2.trades || '').toLowerCase().split(',').map(t => t.trim());
-                                  return subTrades.includes(taskTrade.toLowerCase());
-                                });
-                              }
-                              // Apply search filter
-                              if (subsSearch.trim()) {
-                                const q = subsSearch.toLowerCase();
-                                filtered = filtered.filter(sub2 =>
-                                  (sub2.company_name || '').toLowerCase().includes(q) ||
-                                  (sub2.name || '').toLowerCase().includes(q) ||
-                                  (sub2.trades || '').toLowerCase().includes(q)
-                                );
-                              }
-                              // Sort: builders first, then subs
-                              const isBld = r => r === 'builder' || r === 'company_admin';
-                              filtered.sort((a, b) => {
-                                if (isBld(a.role) && !isBld(b.role)) return -1;
-                                if (!isBld(a.role) && isBld(b.role)) return 1;
-                                return 0;
-                              });
-                              if (filtered.length === 0) {
-                                return (
-                                  <View style={{ padding: 20, alignItems: 'center' }}>
-                                    <Text style={{ color: C.dm, fontSize: 20 }}>No subcontractors found</Text>
-                                  </View>
-                                );
-                              }
-                              return filtered.map(sub2 => {
-                                const isBuilder = sub2.role === 'builder';
-                                const isSelected = listContractor === sub2.name;
-                                const tradesArr = sub2.trades ? sub2.trades.split(',').map(t => t.trim()).filter(Boolean) : [];
-                                const displayName = isBuilder ? sub2.name : (sub2.company_name || sub2.name);
-                                return (
-                                  <TouchableOpacity
-                                    key={sub2.id}
-                                    onPress={() => setListContractor(sub2.name)}
-                                    style={[s.listModalSubItem, isSelected && s.listModalSubItemOn]}
-                                    activeOpacity={0.7}
-                                  >
-                                    <View style={{ flex: 1 }}>
-                                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                                        <Text style={[s.listModalSubName, isSelected && { color: C.bl }]}>
-                                          {displayName}
-                                        </Text>
-                                        {isBuilder && (
-                                          <View style={{ backgroundColor: 'rgba(218,165,32,0.15)', paddingHorizontal: 5, paddingVertical: 1, borderRadius: 3 }}>
-                                            <Text style={{ fontSize: 12, fontWeight: '700', color: C.gd }}>BUILDER</Text>
-                                          </View>
-                                        )}
-                                      </View>
-                                      {tradesArr.length > 0 && (
-                                        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: 4 }}>
-                                          {tradesArr.map(t => (
-                                            <View key={t} style={{ backgroundColor: taskTrade && t.toLowerCase() === taskTrade.toLowerCase() ? 'rgba(59,130,246,0.15)' : 'rgba(59,130,246,0.08)', paddingHorizontal: 5, paddingVertical: 1, borderRadius: 3 }}>
-                                              <Text style={{ fontSize: 14, color: taskTrade && t.toLowerCase() === taskTrade.toLowerCase() ? C.bl : 'rgba(59,130,246,0.8)', fontWeight: taskTrade && t.toLowerCase() === taskTrade.toLowerCase() ? '700' : '400' }}>{t}</Text>
-                                            </View>
-                                          ))}
-                                        </View>
-                                      )}
-                                    </View>
-                                    {isSelected && <Text style={{ fontSize: 24, color: C.bl }}>✓</Text>}
-                                  </TouchableOpacity>
-                                );
-                              });
-                            })()}
-                          </ScrollView>
-                        </View>
-                        <View style={s.listModalActions}>
-                          <TouchableOpacity onPress={() => setListEditTask(null)} style={s.listModalCancelBtn}>
-                            <Text style={s.listModalCancelTxt}>Cancel</Text>
-                          </TouchableOpacity>
-                          <TouchableOpacity
-                            onPress={async () => {
-                              const newContractor = listContractor.trim();
-                              await updateScheduleTask(listEditTask.id, { contractor: newContractor });
-                              // Propagate to all tasks with the same trade
-                              const taskTrade = listEditTask.trade;
-                              if (taskTrade && newContractor) {
-                                const sameTradeTasks = schedule.filter(t => t.id !== listEditTask.id && t.trade === taskTrade && t.contractor !== newContractor);
-                                for (const t of sameTradeTasks) {
-                                  await updateScheduleTask(t.id, { contractor: newContractor });
-                                }
-                              }
-                              setListEditTask(null);
-                            }}
-                            style={[s.listModalSaveBtn, !listContractor.trim() && s.listModalSaveBtnOff]}
-                            disabled={!listContractor.trim()}
-                          >
-                            <Text style={s.listModalSaveTxt}>Assign</Text>
-                          </TouchableOpacity>
-                        </View>
-                        {isB && (
-                          <View style={{ borderTopWidth: 1, borderTopColor: C.w06, margin: 18, marginTop: 0, paddingTop: 12 }}>
-                            <Text style={{ fontSize: 15, fontWeight: '600', color: C.dm, marginBottom: 8, letterSpacing: 0.5 }}>DANGER ZONE</Text>
-                            <View style={{ flexDirection: 'row', gap: 8 }}>
-                              <TouchableOpacity
-                                onPress={() => {
-                                  const doDelete = () => { deleteScheduleTask(listEditTask.id, 'single'); setListEditTask(null); };
-                                  if (Platform.OS === 'web') {
-                                    if (window.confirm(`Delete "${listEditTask.task}"?\n\nSuccessors will keep their current dates but lose their predecessor link.\n\nThis cannot be undone.`)) doDelete();
-                                  } else {
-                                    Alert.alert('Delete Task', `Delete "${listEditTask.task}"?\n\nThis cannot be undone.`, [
-                                      { text: 'Cancel' }, { text: 'Delete', style: 'destructive', onPress: doDelete },
-                                    ]);
-                                  }
-                                }}
-                                style={{ flex: 1, paddingVertical: 10, borderRadius: 8, borderWidth: 1, borderColor: C.rd + '40', backgroundColor: C.rd + '10', alignItems: 'center' }}
-                                activeOpacity={0.7}
-                              >
-                                <Text style={{ fontSize: 18, fontWeight: '600', color: C.rd }}>Delete Task</Text>
-                              </TouchableOpacity>
-                              {schedule.some(t => t.predecessor_id === listEditTask.id) && (
-                                <TouchableOpacity
-                                  onPress={() => {
-                                    const doDelete = () => { deleteScheduleTask(listEditTask.id, 'chain'); setListEditTask(null); };
-                                    if (Platform.OS === 'web') {
-                                      if (window.confirm(`Delete "${listEditTask.task}" and ALL successor tasks?\n\nThis cannot be undone.`)) doDelete();
-                                    } else {
-                                      Alert.alert('Delete Chain', `Delete "${listEditTask.task}" and all successor tasks?\n\nThis cannot be undone.`, [
-                                        { text: 'Cancel' }, { text: 'Delete', style: 'destructive', onPress: doDelete },
-                                      ]);
-                                    }
-                                  }}
-                                  style={{ flex: 1, paddingVertical: 10, borderRadius: 8, backgroundColor: C.rd, alignItems: 'center' }}
-                                  activeOpacity={0.7}
-                                >
-                                  <Text style={{ fontSize: 18, fontWeight: '600', color: '#fff' }}>Delete Chain</Text>
-                                </TouchableOpacity>
-                              )}
-                            </View>
-                          </View>
-                        )}
-                      </View>
-                    </View>
-                  </Modal>
-                )}
 
                 {/* Task Info Edit Modal */}
                 {taskInfoEdit && (
