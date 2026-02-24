@@ -621,7 +621,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
   const tabs = isB
     ? [
         { id: 'schedule', label: 'Schedule', subs: scheduleSubs },
-        { id: 'info', label: 'Info', subs: ['jobinfo', 'price'] },
+        { id: 'info', label: 'Info', subs: ['jobinfo', 'assignments', 'price'] },
         { id: 'changeorders', label: 'Change Orders' },
         { id: 'selections', label: 'Selections' },
         { id: 'docs', label: 'Docs', subs: ['documents', 'photos', 'videos'] },
@@ -647,7 +647,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
       ];
 
   const subLabels = {
-    jobinfo: 'Job Info', price: 'Job Price Summary',
+    jobinfo: 'Job Info', assignments: 'Assignments', price: 'Job Price Summary',
     calendar: 'Calendar', baseline: 'Baseline', progress: 'Job Progress',
     changeorders: 'Change Orders', selections: 'Selections',
     documents: 'Documents', photos: 'Photos', videos: 'Videos',
@@ -1287,6 +1287,115 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
               activeOpacity={0.8}>
               <Text style={{ fontSize: 22, fontWeight: '700', color: C.textBold }}>{infoSaving ? 'Saving...' : 'Save Changes'}</Text>
             </TouchableOpacity>
+          )}
+        </ScrollView>
+      );
+    }
+
+    // --- INFO: ASSIGNMENTS ---
+    if (tab === 'info' && sub === 'assignments') {
+      // Build trade→tasks mapping from schedule data
+      const tradeMap = {};
+      schedule.forEach(task => {
+        const trade = task.trade || 'Unassigned Trade';
+        if (!tradeMap[trade]) tradeMap[trade] = [];
+        tradeMap[trade].push(task);
+      });
+      const allTrades = Object.keys(tradeMap).sort((a, b) => {
+        if (a === 'Unassigned Trade') return 1;
+        if (b === 'Unassigned Trade') return -1;
+        return a.localeCompare(b);
+      });
+      const assignedTrades = allTrades.filter(t => tradeMap[t].some(task => task.contractor));
+      const unassignedTrades = allTrades.filter(t => !tradeMap[t].some(task => task.contractor));
+
+      const renderTradeCard = (trade) => {
+        const tasks = tradeMap[trade];
+        // Get unique contractors for this trade
+        const contractors = [...new Set(tasks.map(t => t.contractor).filter(Boolean))];
+        const hasAssignment = contractors.length > 0;
+        const unassignedCount = tasks.filter(t => !t.contractor).length;
+
+        return (
+          <View key={trade} style={{ marginBottom: 10 }}>
+            <View style={{
+              padding: 14, backgroundColor: C.card, borderRadius: 10,
+              borderWidth: 1, borderColor: hasAssignment ? C.gd + '40' : C.w08,
+            }}>
+              <Text style={{ fontSize: 17, fontWeight: '700', color: C.textBold }}>{trade}</Text>
+              <Text style={{ fontSize: 13, color: C.dm, marginTop: 2 }}>
+                {tasks.length} task{tasks.length !== 1 ? 's' : ''}
+                {unassignedCount > 0 && hasAssignment ? ` · ${unassignedCount} unassigned` : ''}
+              </Text>
+              {contractors.length > 0 ? (
+                <View style={{ marginTop: 10, gap: 6 }}>
+                  {contractors.map(name => {
+                    const subTasks = tasks.filter(t => t.contractor === name);
+                    return (
+                      <View key={name} style={{
+                        flexDirection: 'row', alignItems: 'center', padding: 10,
+                        backgroundColor: 'rgba(16,185,129,0.06)', borderRadius: 8,
+                        borderWidth: 1, borderColor: 'rgba(16,185,129,0.15)',
+                      }}>
+                        <View style={{
+                          width: 34, height: 34, borderRadius: 17,
+                          backgroundColor: C.gd + '20', alignItems: 'center', justifyContent: 'center', marginRight: 10,
+                        }}>
+                          <Text style={{ fontSize: 14, fontWeight: '700', color: C.gd }}>
+                            {name.split(' ').map(w => w[0] || '').slice(0, 2).join('').toUpperCase()}
+                          </Text>
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ fontSize: 16, fontWeight: '600', color: '#10b981' }}>{name}</Text>
+                          <Text style={{ fontSize: 13, color: C.dm }}>
+                            {subTasks.length} task{subTasks.length !== 1 ? 's' : ''}
+                          </Text>
+                        </View>
+                      </View>
+                    );
+                  })}
+                </View>
+              ) : (
+                <View style={{ marginTop: 8, paddingVertical: 6, paddingHorizontal: 10, backgroundColor: C.w04, borderRadius: 6 }}>
+                  <Text style={{ fontSize: 14, color: C.dm, fontStyle: 'italic' }}>No subcontractor assigned</Text>
+                </View>
+              )}
+            </View>
+          </View>
+        );
+      };
+
+      return (
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={[s.scroll, { maxWidth: 900 }]}>
+          {schedule.length === 0 ? (
+            <View style={{ alignItems: 'center', paddingVertical: 40 }}>
+              <Text style={{ fontSize: 40, marginBottom: 10 }}>📋</Text>
+              <Text style={{ fontSize: 18, fontWeight: '600', color: C.text }}>No Schedule Tasks</Text>
+              <Text style={{ fontSize: 14, color: C.dm, marginTop: 4, textAlign: 'center' }}>
+                Add tasks to the schedule to see trade assignments here.
+              </Text>
+            </View>
+          ) : (
+            <View style={{ flexDirection: 'row', gap: 16 }}>
+              {/* Left column — Assigned */}
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 18, fontWeight: '700', color: C.textBold, marginBottom: 12 }}>Assigned</Text>
+                {assignedTrades.length === 0 ? (
+                  <Text style={{ fontSize: 15, color: C.dm, fontStyle: 'italic' }}>No trades assigned yet</Text>
+                ) : (
+                  assignedTrades.map(t => renderTradeCard(t))
+                )}
+              </View>
+              {/* Right column — Unassigned */}
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 18, fontWeight: '700', color: C.textBold, marginBottom: 12 }}>Needs Assignment</Text>
+                {unassignedTrades.length === 0 ? (
+                  <Text style={{ fontSize: 15, color: C.gd, fontStyle: 'italic' }}>All trades assigned!</Text>
+                ) : (
+                  unassignedTrades.map(t => renderTradeCard(t))
+                )}
+              </View>
+            </View>
           )}
         </ScrollView>
       );
