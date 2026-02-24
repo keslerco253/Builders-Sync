@@ -3,7 +3,7 @@ import {
   View, Text, TextInput, TouchableOpacity, Alert,
   StyleSheet, ScrollView, KeyboardAvoidingView, Platform, StatusBar,
 } from 'react-native';
-import { AuthContext, ThemeContext, API_BASE } from './context';
+import { AuthContext, ThemeContext, API_BASE, setAuthToken } from './context';
 
 export const LoginScreen = ({ navigation }) => {
   const C = React.useContext(ThemeContext);
@@ -37,7 +37,7 @@ export const LoginScreen = ({ navigation }) => {
       const data = await response.json();
 
       if (response.ok && data.user) {
-        // Store full user object (matches buildersync pattern)
+        if (data.token) setAuthToken(data.token);
         signin(data.user);
       } else {
         setError(data.error || 'Login failed');

@@ -5,7 +5,7 @@ import {
   useWindowDimensions, Image, Linking,
 } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
-import { AuthContext, ThemeContext, API_BASE } from './context';
+import { AuthContext, ThemeContext, API_BASE, apiFetch } from './context';
 import CurrentProjectViewer, { calcTaskProgress, fPhone } from './currentProjectViewer';
 import ScheduleBuilder, { cascadeAll, calcEndDate, calcFromPredecessor } from './scheduleBuilder';
 import DatePicker from './datePicker';
@@ -109,7 +109,7 @@ export default function Dashboard() {
     if (!showDeleteConfirm) return;
     setDeletingProject(true);
     try {
-      const res = await fetch(`${API_BASE}/projects/${showDeleteConfirm.id}`, { method: 'DELETE' });
+      const res = await apiFetch(`/projects/${showDeleteConfirm.id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error('Failed to delete project');
       handleProjectDeleted(showDeleteConfirm.id);
       setShowDeleteConfirm(null);
@@ -126,7 +126,7 @@ export default function Dashboard() {
     const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
     setExcName(''); setExcDate(todayStr); setExcDuration('1'); setExcTaskId(null); setExcDescription(''); setExcSaving(false);
     try {
-      const res = await fetch(`${API_BASE}/projects/${project.id}/schedule`);
+      const res = await apiFetch(`/projects/${project.id}/schedule`);
       const data = await res.json();
       if (Array.isArray(data)) setExcTasks(data.filter(t => !t.is_exception));
     } catch (e) { setExcTasks([]); }
@@ -138,7 +138,7 @@ export default function Dashboard() {
     setExcSaving(true);
     try {
       const editedBy = user ? `${user.first_name} ${user.last_name}`.trim() : '';
-      const res = await fetch(`${API_BASE}/projects/${showExceptionModal.id}/exceptions`, {
+      const res = await apiFetch(`/projects/${showExceptionModal.id}/exceptions`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: excName.trim(), date: excDate, duration: parseInt(excDuration) || 1, task_id: excTaskId, description: excDescription.trim(), edited_by: editedBy }),
       });
@@ -147,7 +147,7 @@ export default function Dashboard() {
       setScheduleVersion(v => v + 1);
       // Refresh if this is the selected project
       if (selectedProject?.id === showExceptionModal.id) {
-        const schRes = await fetch(`${API_BASE}/projects/${showExceptionModal.id}/schedule`);
+        const schRes = await apiFetch(`/projects/${showExceptionModal.id}/schedule`);
         const schData = await schRes.json();
         // handled by scheduleVersion bump in CPV
       }
@@ -163,7 +163,7 @@ export default function Dashboard() {
     setHoldSubmitting(true);
     try {
       const editedBy = user ? `${user.first_name} ${user.last_name}`.trim() : '';
-      const res = await fetch(`${API_BASE}/projects/${project.id}/hold`, {
+      const res = await apiFetch(`/projects/${project.id}/hold`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'hold', edited_by: editedBy, hold_reason: reason }),
       });
@@ -197,7 +197,7 @@ export default function Dashboard() {
 
     try {
       const editedBy = user ? `${user.first_name} ${user.last_name}`.trim() : '';
-      const res = await fetch(`${API_BASE}/projects/${project.id}/hold`, {
+      const res = await apiFetch(`/projects/${project.id}/hold`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'release', edited_by: editedBy }),
       });
@@ -263,7 +263,7 @@ export default function Dashboard() {
   selectedSubRef.current = selectedSub;
   const handleScheduleChange = useCallback(() => {
     if (selectedSub) {
-      fetch(`${API_BASE}/users/${selectedSub.id}/tasks?viewer_role=${user?.role || ''}`)
+      apiFetch(`/users/${selectedSub.id}/tasks?viewer_role=${user?.role || ''}`)
         .then(r => r.json())
         .then(data => { if (Array.isArray(data)) setSubTasks(data); })
         .catch(() => {});
@@ -304,8 +304,8 @@ export default function Dashboard() {
   const fetchOwnSubProfile = async () => {
     try {
       const [projRes, taskRes] = await Promise.all([
-        fetch(`${API_BASE}/users/${user.id}/projects`),
-        fetch(`${API_BASE}/users/${user.id}/tasks`),
+        apiFetch(`/users/${user.id}/projects`),
+        apiFetch(`/users/${user.id}/tasks`),
       ]);
       const projData = await projRes.json();
       const taskData = await taskRes.json();
@@ -324,7 +324,7 @@ export default function Dashboard() {
 
   const fetchProjects = async () => {
     try {
-      const res = await fetch(`${API_BASE}/projects?user_id=${user.id}&role=${user.role}`);
+      const res = await apiFetch(`/projects?user_id=${user.id}&role=${user.role}`);
       const data = await res.json();
       if (Array.isArray(data)) {
         const sorted = data.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
@@ -343,7 +343,7 @@ export default function Dashboard() {
 
   const fetchSubdivisions = async () => {
     try {
-      const res = await fetch(`${API_BASE}/subdivisions${user.company_id ? `?company_id=${user.company_id}` : ''}`);
+      const res = await apiFetch(`/subdivisions${user.company_id ? `?company_id=${user.company_id}` : ''}`);
       const data = await res.json();
       if (Array.isArray(data)) setSubdivisions(data);
     } catch (e) { console.warn('Fetch subdivisions error:', e.message); }
@@ -351,7 +351,7 @@ export default function Dashboard() {
 
   const fetchCompanyTrades = async () => {
     try {
-      const res = await fetch(`${API_BASE}/users/${user.id}/company-trades`);
+      const res = await apiFetch(`/users/${user.id}/company-trades`);
       const data = await res.json();
       if (data.trades && data.trades.trim()) {
         setBuilderTrades(data.trades.split(',').map(t => t.trim()).filter(Boolean).sort((a, b) => a.localeCompare(b)));
@@ -363,7 +363,7 @@ export default function Dashboard() {
     if (!user?.company_id) return;
     setGoLiveStepsLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/go-live-steps?company_id=${user.company_id}`);
+      const res = await apiFetch(`/go-live-steps?company_id=${user.company_id}`);
       if (res.ok) { const data = await res.json(); setGoLiveStepsDef(Array.isArray(data) ? data : []); }
     } catch (e) { console.warn('Fetch go-live steps:', e); }
     setGoLiveStepsLoading(false);
@@ -372,7 +372,7 @@ export default function Dashboard() {
   const addGoLiveStepDef = async () => {
     if (!newGoLiveStep.trim() || !user?.company_id) return;
     try {
-      const res = await fetch(`${API_BASE}/go-live-steps`, {
+      const res = await apiFetch(`/go-live-steps`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ title: newGoLiveStep.trim(), company_id: user.company_id }),
       });
@@ -386,7 +386,7 @@ export default function Dashboard() {
 
   const deleteGoLiveStepDef = async (stepId) => {
     try {
-      await fetch(`${API_BASE}/go-live-steps/${stepId}`, { method: 'DELETE' });
+      await apiFetch(`/go-live-steps/${stepId}`, { method: 'DELETE' });
       setGoLiveStepsDef(prev => prev.filter(s => s.id !== stepId));
     } catch (e) { console.warn('Delete go-live step:', e); }
   };
@@ -394,7 +394,7 @@ export default function Dashboard() {
   const createSubdivision = async (name) => {
     setNewSubdivSaving(true);
     try {
-      const res = await fetch(`${API_BASE}/subdivisions`, {
+      const res = await apiFetch(`/subdivisions`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: name.trim(), user_id: user.id }),
       });
@@ -414,7 +414,7 @@ export default function Dashboard() {
 
   const deleteSubdivision = async (id) => {
     try {
-      await fetch(`${API_BASE}/subdivisions/${id}`, { method: 'DELETE' });
+      await apiFetch(`/subdivisions/${id}`, { method: 'DELETE' });
       setSubdivisions(prev => prev.filter(s => s.id !== id));
       setProjects(prev => prev.map(p => p.subdivision_id === id ? { ...p, subdivision_id: null } : p));
       if (selectedSubdivision?.id === id) setSelectedSubdivision(null);
@@ -424,7 +424,7 @@ export default function Dashboard() {
   const renameSubdivision = async (id, newName) => {
     if (!newName.trim()) return;
     try {
-      const res = await fetch(`${API_BASE}/subdivisions/${id}`, {
+      const res = await apiFetch(`/subdivisions/${id}`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: newName.trim() }),
       });
@@ -442,7 +442,7 @@ export default function Dashboard() {
     if (isContractor) {
       fetchOwnSubProfile();
       if (user?.id) {
-        fetch(`${API_BASE}/users/${user.id}/change-orders`)
+        apiFetch(`/users/${user.id}/change-orders`)
           .then(r => r.json())
           .then(data => { if (Array.isArray(data)) setSubChangeOrders(data); })
           .catch(() => {});
@@ -457,13 +457,13 @@ export default function Dashboard() {
     // Fetch company logo — try own logo first, then fallback to any builder's logo
     if (user?.id) {
       if (isBuilder) {
-        fetch(`${API_BASE}/users/${user.id}/logo`)
+        apiFetch(`/users/${user.id}/logo`)
           .then(r => r.json())
           .then(data => {
             if (data.logo) { setCompanyLogo(data.logo); }
             else {
               // Fallback: check if another builder in the company has a logo
-              fetch(`${API_BASE}/builder-logo`)
+              apiFetch(`/builder-logo`)
                 .then(r => r.json())
                 .then(d => { if (d.logo) setCompanyLogo(d.logo); else setCompanyLogo(null); })
                 .catch(() => {});
@@ -471,7 +471,7 @@ export default function Dashboard() {
           })
           .catch(() => {});
       } else {
-        fetch(`${API_BASE}/builder-logo`)
+        apiFetch(`/builder-logo`)
           .then(r => r.json())
           .then(data => { if (data.logo) setCompanyLogo(data.logo); else setCompanyLogo(null); })
           .catch(() => {});
@@ -576,8 +576,8 @@ export default function Dashboard() {
     (async () => {
       try {
         const [userRes, assignRes] = await Promise.all([
-          fetch(`${API_BASE}/users${user.company_id ? `?company_id=${user.company_id}` : ''}`),
-          fetch(`${API_BASE}/subdivisions/${sd.id}/contractors`),
+          apiFetch(`/users${user.company_id ? `?company_id=${user.company_id}` : ''}`),
+          apiFetch(`/subdivisions/${sd.id}/contractors`),
         ]);
         const allUsers = await userRes.json();
         if (Array.isArray(allUsers)) {
@@ -598,8 +598,8 @@ export default function Dashboard() {
     setSdDocsLoading(true);
     try {
       const [docsRes, tmplRes] = await Promise.all([
-        fetch(`${API_BASE}/subdivisions/${sid}/documents?type=document`),
-        fetch(`${API_BASE}/document-templates?scope=subdivisions${user.company_id ? `&company_id=${user.company_id}` : ''}`),
+        apiFetch(`/subdivisions/${sid}/documents?type=document`),
+        apiFetch(`/document-templates?scope=subdivisions${user.company_id ? `&company_id=${user.company_id}` : ''}`),
       ]);
       if (docsRes.ok) setSdDocs(await docsRes.json());
       if (tmplRes.ok) setSdDocTemplates(await tmplRes.json());
@@ -616,7 +616,7 @@ export default function Dashboard() {
   const fetchSubs = async () => {
     setSubsLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/users${user.company_id ? `?company_id=${user.company_id}` : ''}`);
+      const res = await apiFetch(`/users${user.company_id ? `?company_id=${user.company_id}` : ''}`);
       const data = await res.json();
       if (Array.isArray(data)) {
         const contractors = data.filter(u => u.role === 'contractor' && u.active !== false)
@@ -639,9 +639,9 @@ export default function Dashboard() {
     setSubTaskFilterOpen(false);
     try {
       const [projRes, taskRes, empRes] = await Promise.all([
-        fetch(`${API_BASE}/users/${sub.id}/projects`),
-        fetch(`${API_BASE}/users/${sub.id}/tasks?viewer_role=${user?.role || ''}`),
-        fetch(`${API_BASE}/users/${sub.id}/employees`),
+        apiFetch(`/users/${sub.id}/projects`),
+        apiFetch(`/users/${sub.id}/tasks?viewer_role=${user?.role || ''}`),
+        apiFetch(`/users/${sub.id}/employees`),
       ]);
       const projData = await projRes.json();
       const taskData = await taskRes.json();
@@ -659,7 +659,7 @@ export default function Dashboard() {
   // Fetch builder's own tasks when calendar opens
   React.useEffect(() => {
     if (!showBuilderCal || !user?.id) return;
-    fetch(`${API_BASE}/users/${user.id}/tasks`)
+    apiFetch(`/users/${user.id}/tasks`)
       .then(r => r.json())
       .then(data => { if (Array.isArray(data)) setBuilderTasks(data); })
       .catch(() => {});
@@ -945,7 +945,7 @@ export default function Dashboard() {
 
           const handleAssign = async (trade, contractorId) => {
             try {
-              const res = await fetch(`${API_BASE}/subdivisions/${selectedSubdivision.id}/contractors`, {
+              const res = await apiFetch(`/subdivisions/${selectedSubdivision.id}/contractors`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ trade, contractor_id: contractorId }),
@@ -959,7 +959,7 @@ export default function Dashboard() {
 
           const handleRemove = async (trade) => {
             try {
-              const res = await fetch(`${API_BASE}/subdivisions/${selectedSubdivision.id}/contractors/${encodeURIComponent(trade)}`, { method: 'DELETE' });
+              const res = await apiFetch(`/subdivisions/${selectedSubdivision.id}/contractors/${encodeURIComponent(trade)}`, { method: 'DELETE' });
               if (res.ok) {
                 setSdTradeAssignments(prev => { const next = { ...prev }; delete next[trade]; return next; });
               }
@@ -1072,7 +1072,7 @@ export default function Dashboard() {
           };
           const deleteDoc = async (docId) => {
             try {
-              const res = await fetch(`${API_BASE}/documents/${docId}`, { method: 'DELETE' });
+              const res = await apiFetch(`/documents/${docId}`, { method: 'DELETE' });
               if (res.ok) setSdDocs(prev => prev.filter(d => d.id !== docId));
             } catch (e) { Alert.alert('Error', e.message); }
           };
@@ -1412,7 +1412,7 @@ export default function Dashboard() {
 
       try {
         // Fetch full project schedule to cascade dependents
-        const schedRes = await fetch(`${API_BASE}/projects/${dr.jobId}/schedule`);
+        const schedRes = await apiFetch(`/projects/${dr.jobId}/schedule`);
         const fullSchedule = await schedRes.json();
         if (Array.isArray(fullSchedule) && fullSchedule.length > 0) {
           // Run cascade on the full project schedule
@@ -1434,7 +1434,7 @@ export default function Dashboard() {
           });
 
           if (updates.length > 0) {
-            await fetch(`${API_BASE}/schedule/batch-update`, {
+            await apiFetch(`/schedule/batch-update`, {
               method: 'PUT', headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify(updates),
             });
@@ -1449,7 +1449,7 @@ export default function Dashboard() {
           }
         } else {
           // Fallback: just move the single task
-          await fetch(`${API_BASE}/schedule/batch-update`, {
+          await apiFetch(`/schedule/batch-update`, {
             method: 'PUT', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify([{ id: dr.taskId, start_date: newStart, end_date: newEnd }]),
           });
@@ -1458,7 +1458,7 @@ export default function Dashboard() {
         // Re-fetch to get server-confirmed data
         const sub = selectedSubRef.current;
         if (sub) {
-          const res = await fetch(`${API_BASE}/users/${sub.id}/tasks?viewer_role=${user?.role || ''}`);
+          const res = await apiFetch(`/users/${sub.id}/tasks?viewer_role=${user?.role || ''}`);
           const data = await res.json();
           if (Array.isArray(data)) setSubTasks(data);
         }
@@ -1514,7 +1514,7 @@ export default function Dashboard() {
     const newEnd = subCalcEnd(taskActionDate, dur);
     setTaskActionSaving(true);
     try {
-      const res = await fetch(`${API_BASE}/schedule/${task.id}/edit`, {
+      const res = await apiFetch(`/schedule/${task.id}/edit`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1552,12 +1552,12 @@ export default function Dashboard() {
     setSubEditSaving(true);
     try {
       const editedBy = user ? `${user.first_name} ${user.last_name}`.trim() : '';
-      await fetch(`${API_BASE}/schedule/${task.id}/edit`, {
+      await apiFetch(`/schedule/${task.id}/edit`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ end_date: newEnd, reason: subEditReason.trim(), edited_by: editedBy }),
       });
       if (selectedSub) {
-        const res = await fetch(`${API_BASE}/users/${selectedSub.id}/tasks?viewer_role=${user?.role || ''}`);
+        const res = await apiFetch(`/users/${selectedSub.id}/tasks?viewer_role=${user?.role || ''}`);
         const data = await res.json();
         if (Array.isArray(data)) setSubTasks(data);
       }
@@ -1618,7 +1618,7 @@ export default function Dashboard() {
         task_id: task.id,
         task_name: task.task || null,
       };
-      const res = await fetch(`${API_BASE}/projects/${project.id}/change-orders`, {
+      const res = await apiFetch(`/projects/${project.id}/change-orders`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
@@ -1627,13 +1627,13 @@ export default function Dashboard() {
       // Upload attachments
       for (const att of subCOAttachments) {
         try {
-          const upRes = await fetch(`${API_BASE}/upload-file`, {
+          const upRes = await apiFetch(`/upload-file`, {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ file: att.b64, ext: att.ext, name: att.originalName }),
           });
           if (upRes.ok) {
             const upData = await upRes.json();
-            await fetch(`${API_BASE}/change-orders/${co.id}/documents`, {
+            await apiFetch(`/change-orders/${co.id}/documents`, {
               method: 'POST', headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 name: att.docName, description: att.docDesc,
@@ -1731,7 +1731,7 @@ export default function Dashboard() {
 
       try {
         // Fetch full project schedule to cascade
-        const schedRes = await fetch(`${API_BASE}/projects/${dr.jobId}/schedule`);
+        const schedRes = await apiFetch(`/projects/${dr.jobId}/schedule`);
         const fullSchedule = await schedRes.json();
         if (Array.isArray(fullSchedule) && fullSchedule.length > 0) {
           const { byId: pm, movedLag } = cascadeDates(fullSchedule, dr.taskId, newStart, newEnd);
@@ -1751,7 +1751,7 @@ export default function Dashboard() {
           });
 
           if (updates.length > 0) {
-            await fetch(`${API_BASE}/schedule/batch-update`, {
+            await apiFetch(`/schedule/batch-update`, {
               method: 'PUT', headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify(updates),
             });
@@ -1763,7 +1763,7 @@ export default function Dashboard() {
             }));
           }
         } else {
-          await fetch(`${API_BASE}/schedule/batch-update`, {
+          await apiFetch(`/schedule/batch-update`, {
             method: 'PUT', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify([{ id: dr.taskId, start_date: newStart, end_date: newEnd }]),
           });
@@ -1771,7 +1771,7 @@ export default function Dashboard() {
 
         // Re-fetch builder tasks
         if (user?.id) {
-          const res = await fetch(`${API_BASE}/users/${user.id}/tasks`);
+          const res = await apiFetch(`/users/${user.id}/tasks`);
           const data = await res.json();
           if (Array.isArray(data)) setBuilderTasks(data);
         }
@@ -1819,12 +1819,12 @@ export default function Dashboard() {
     setBuilderEditSaving(true);
     try {
       const editedBy = user ? `${user.first_name} ${user.last_name}`.trim() : '';
-      await fetch(`${API_BASE}/schedule/${task.id}/edit`, {
+      await apiFetch(`/schedule/${task.id}/edit`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ end_date: newEnd, reason: builderEditReason.trim(), edited_by: editedBy }),
       });
       if (user?.id) {
-        const res = await fetch(`${API_BASE}/users/${user.id}/tasks`);
+        const res = await apiFetch(`/users/${user.id}/tasks`);
         const data = await res.json();
         if (Array.isArray(data)) setBuilderTasks(data);
       }
@@ -1972,7 +1972,7 @@ export default function Dashboard() {
                   <TouchableOpacity
                     onPress={async () => {
                       try {
-                        const res = await fetch(`${API_BASE}/users/${selectedSub.id}`, { method: 'DELETE' });
+                        const res = await apiFetch(`/users/${selectedSub.id}`, { method: 'DELETE' });
                         if (res.ok) {
                           setSubs(prev => prev.filter(s => s.id !== selectedSub.id));
                           setSelectedSub(null);
@@ -2058,7 +2058,7 @@ export default function Dashboard() {
                   <TouchableOpacity
                     onPress={async () => {
                       try {
-                        const res = await fetch(`${API_BASE}/change-orders/${subCOSignModal.id}/sign`, {
+                        const res = await apiFetch(`/change-orders/${subCOSignModal.id}/sign`, {
                           method: 'PUT',
                           headers: { 'Content-Type': 'application/json' },
                           body: JSON.stringify({ role: 'sub' }),
@@ -2124,7 +2124,7 @@ export default function Dashboard() {
                 setSubTab(id);
                 if (id === 'changeorders' && selectedSub) {
                   setSubCOLoading(true);
-                  fetch(`${API_BASE}/users/${selectedSub.id}/change-orders`)
+                  apiFetch(`/users/${selectedSub.id}/change-orders`)
                     .then(r => r.json())
                     .then(data => { if (Array.isArray(data)) setSubChangeOrders(data); })
                     .catch(() => {})
@@ -2382,7 +2382,7 @@ export default function Dashboard() {
                     onPress={async () => {
                       setSubSaving(true);
                       try {
-                        const res = await fetch(`${API_BASE}/users/${selectedSub.id}`, {
+                        const res = await apiFetch(`/users/${selectedSub.id}`, {
                           method: 'PUT',
                           headers: { 'Content-Type': 'application/json' },
                           body: JSON.stringify({
@@ -2529,7 +2529,7 @@ export default function Dashboard() {
                     <TouchableOpacity onPress={async () => {
                       const ok = Platform.OS === 'web' ? window.confirm(`Remove ${emp.name}?`) : await new Promise(r => Alert.alert('Remove', `Remove ${emp.name}?`, [{ text: 'Cancel', onPress: () => r(false) }, { text: 'Remove', style: 'destructive', onPress: () => r(true) }]));
                       if (!ok) return;
-                      try { await fetch(`${API_BASE}/employees/${emp.id}`, { method: 'DELETE' }); setEmployees(prev => prev.filter(e => e.id !== emp.id)); } catch (e) {}
+                      try { await apiFetch(`/employees/${emp.id}`, { method: 'DELETE' }); setEmployees(prev => prev.filter(e => e.id !== emp.id)); } catch (e) {}
                     }} style={{ padding: 6 }} activeOpacity={0.6}>
                       <Text style={{ fontSize: 16, color: C.rd }}>✕</Text>
                     </TouchableOpacity>
@@ -3477,13 +3477,13 @@ export default function Dashboard() {
                     setEmpSaving(true);
                     try {
                       if (editingEmpId) {
-                        const res = await fetch(`${API_BASE}/employees/${editingEmpId}`, {
+                        const res = await apiFetch(`/employees/${editingEmpId}`, {
                           method: 'PUT', headers: { 'Content-Type': 'application/json' },
                           body: JSON.stringify({ name: empName.trim(), job_description: empJob.trim(), phone: empPhone }),
                         });
                         if (res.ok) { const updated = await res.json(); setEmployees(prev => prev.map(e => e.id === updated.id ? updated : e)); }
                       } else {
-                        const res = await fetch(`${API_BASE}/users/${selectedSub.id}/employees`, {
+                        const res = await apiFetch(`/users/${selectedSub.id}/employees`, {
                           method: 'POST', headers: { 'Content-Type': 'application/json' },
                           body: JSON.stringify({ name: empName.trim(), job_description: empJob.trim(), phone: empPhone }),
                         });
@@ -3640,7 +3640,7 @@ export default function Dashboard() {
                       const updated = [...builderTrades, t].sort((a, b) => a.localeCompare(b));
                       setBuilderTrades(updated);
                       setNewTradeName('');
-                      fetch(`${API_BASE}/users/${user.id}`, {
+                      apiFetch(`/users/${user.id}`, {
                         method: 'PUT', headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ trades: updated.join(', ') }),
                       }).catch(() => {});
@@ -3654,7 +3654,7 @@ export default function Dashboard() {
                       const updated = [...builderTrades, t].sort((a, b) => a.localeCompare(b));
                       setBuilderTrades(updated);
                       setNewTradeName('');
-                      fetch(`${API_BASE}/users/${user.id}`, {
+                      apiFetch(`/users/${user.id}`, {
                         method: 'PUT', headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ trades: updated.join(', ') }),
                       }).catch(() => {});
@@ -3679,7 +3679,7 @@ export default function Dashboard() {
                         const doDelete = () => {
                           const updated = builderTrades.filter(t => t !== trade);
                           setBuilderTrades(updated);
-                          fetch(`${API_BASE}/users/${user.id}`, {
+                          apiFetch(`/users/${user.id}`, {
                             method: 'PUT', headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ trades: updated.join(', ') }),
                           }).catch(() => {});
@@ -4194,7 +4194,7 @@ export default function Dashboard() {
             <TouchableOpacity onPress={() => {
               setContractorProject(null);
               if (user?.id) {
-                fetch(`${API_BASE}/users/${user.id}/change-orders`)
+                apiFetch(`/users/${user.id}/change-orders`)
                   .then(r => r.json())
                   .then(data => { if (Array.isArray(data)) setSubChangeOrders(data); })
                   .catch(() => {});
@@ -4326,7 +4326,7 @@ export default function Dashboard() {
                 onPress={() => {
                   setContractorProject(null);
                   if (user?.id) {
-                    fetch(`${API_BASE}/users/${user.id}/change-orders`)
+                    apiFetch(`/users/${user.id}/change-orders`)
                       .then(r => r.json())
                       .then(data => { if (Array.isArray(data)) setSubChangeOrders(data); })
                       .catch(() => {});
@@ -4791,7 +4791,7 @@ const TemplateManagerModal = ({ onClose }) => {
   const fetchTemplates = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/schedule-templates${user.company_id ? `?company_id=${user.company_id}` : ''}`);
+      const res = await apiFetch(`/schedule-templates${user.company_id ? `?company_id=${user.company_id}` : ''}`);
       const data = await res.json();
       if (Array.isArray(data)) setTemplates(data);
     } catch (e) { console.warn(e.message); }
@@ -4853,10 +4853,10 @@ const TemplateManagerModal = ({ onClose }) => {
       });
 
       const isNew = editTmpl === 'new';
-      const url = isNew ? `${API_BASE}/schedule-templates` : `${API_BASE}/schedule-templates/${editTmpl.id}`;
+      const path = isNew ? `/schedule-templates` : `/schedule-templates/${editTmpl.id}`;
       const method = isNew ? 'POST' : 'PUT';
 
-      const res = await fetch(url, {
+      const res = await apiFetch(path, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -4881,7 +4881,7 @@ const TemplateManagerModal = ({ onClose }) => {
   const handleDelete = (tmpl) => {
     const doDelete = async () => {
       try {
-        const res = await fetch(`${API_BASE}/schedule-templates/${tmpl.id}`, { method: 'DELETE' });
+        const res = await apiFetch(`/schedule-templates/${tmpl.id}`, { method: 'DELETE' });
         if (!res.ok) throw new Error('Failed to delete');
         if (editTmpl?.id === tmpl.id) setEditTmpl(null);
         fetchTemplates();
@@ -5055,7 +5055,7 @@ const NewProjectModal = ({ onClose, onCreated, subdivisions = [], builderTrades 
         subdivision_id: f.subdivision_id || null,
         created_by: user.id,
       };
-      const res = await fetch(`${API_BASE}/projects`, {
+      const res = await apiFetch(`/projects`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
@@ -5093,7 +5093,7 @@ const NewProjectModal = ({ onClose, onCreated, subdivisions = [], builderTrades 
         console.log('[SCHEDULE CREATE] Tasks with predecessors:', scheduleBody.map((t, i) => ({
           i, task: t.task, pred_index: t.pred_index, rel_type: t.rel_type, lag_days: t.lag_days,
         })));
-        const schedRes = await fetch(`${API_BASE}/projects/${newProject.id}/schedule`, {
+        const schedRes = await apiFetch(`/projects/${newProject.id}/schedule`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(scheduleBody),
         });
@@ -5535,7 +5535,7 @@ const NewSubModal = ({ onClose, onCreated, tradesList }) => {
     setSaving(true);
     setError('');
     try {
-      const res = await fetch(`${API_BASE}/users`, {
+      const res = await apiFetch(`/users`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -5796,7 +5796,7 @@ const DocumentManagerModal = ({ onClose }) => {
   const fetchTemplates = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/document-templates${user.company_id ? `?company_id=${user.company_id}` : ''}`);
+      const res = await apiFetch(`/document-templates${user.company_id ? `?company_id=${user.company_id}` : ''}`);
       if (res.ok) setTemplates(await res.json());
     } catch (e) { console.warn(e); }
     setLoading(false);
@@ -5807,7 +5807,7 @@ const DocumentManagerModal = ({ onClose }) => {
   const addTemplate = async () => {
     if (!name.trim()) return Alert.alert('Error', 'Document name is required');
     try {
-      const res = await fetch(`${API_BASE}/document-templates`, {
+      const res = await apiFetch(`/document-templates`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: name.trim(), doc_type: docType, applies_to: appliesTo, user_id: user.id }),
@@ -5824,7 +5824,7 @@ const DocumentManagerModal = ({ onClose }) => {
 
   const deleteTemplate = async (id) => {
     try {
-      const res = await fetch(`${API_BASE}/document-templates/${id}`, { method: 'DELETE' });
+      const res = await apiFetch(`/document-templates/${id}`, { method: 'DELETE' });
       if (res.ok) setTemplates(prev => prev.filter(t => t.id !== id));
     } catch (e) { Alert.alert('Error', e.message); }
   };
@@ -5960,7 +5960,7 @@ const SubdivisionUploadModal = ({ subdivision, user, templateId, templateName, o
     if (!fileData) return Alert.alert('Error', 'Please select a file');
     setLoading(true);
     try {
-      const uploadRes = await fetch(`${API_BASE}/upload-file`, {
+      const uploadRes = await apiFetch(`/upload-file`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ file: fileData.b64, ext: fileData.ext, name: fileData.originalName }),
@@ -5968,7 +5968,7 @@ const SubdivisionUploadModal = ({ subdivision, user, templateId, templateName, o
       if (!uploadRes.ok) throw new Error('File upload failed');
       const uploadData = await uploadRes.json();
 
-      const res = await fetch(`${API_BASE}/subdivisions/${subdivision.id}/documents`, {
+      const res = await apiFetch(`/subdivisions/${subdivision.id}/documents`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -6079,7 +6079,7 @@ const SelectionManagerModal = ({ onClose }) => {
   const fetchItems = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/selection-items${user.company_id ? `?company_id=${user.company_id}` : ''}`);
+      const res = await apiFetch(`/selection-items${user.company_id ? `?company_id=${user.company_id}` : ''}`);
       if (res.ok) setItems(await res.json());
     } catch (e) { console.warn(e); }
     setLoading(false);
@@ -6107,7 +6107,7 @@ const SelectionManagerModal = ({ onClose }) => {
 
   const uploadImage = async (b64) => {
     try {
-      const res = await fetch(`${API_BASE}/upload-image`, {
+      const res = await apiFetch(`/upload-image`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ image: b64, ext: 'jpg' }),
@@ -6158,9 +6158,9 @@ const SelectionManagerModal = ({ onClose }) => {
         });
       }
       const body = { category: finalCat, item: itemName, options: cleanOptions, user_id: user.id };
-      const url = editingId ? `${API_BASE}/selection-items/${editingId}` : `${API_BASE}/selection-items`;
+      const path = editingId ? `/selection-items/${editingId}` : `/selection-items`;
       const method = editingId ? 'PUT' : 'POST';
-      const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const res = await apiFetch(path, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       if (res.ok) {
         await fetchItems();
         resetForm();
@@ -6174,7 +6174,7 @@ const SelectionManagerModal = ({ onClose }) => {
     Alert.alert('Delete Selection', 'This will remove it from all projects. Continue?', [
       { text: 'Cancel' },
       { text: 'Delete', style: 'destructive', onPress: async () => {
-        await fetch(`${API_BASE}/selection-items/${id}`, { method: 'DELETE' });
+        await apiFetch(`/selection-items/${id}`, { method: 'DELETE' });
         fetchItems();
       }},
     ]);
@@ -6394,7 +6394,7 @@ const WorkdayExemptionsModal = ({ onClose }) => {
 
   const fetchExemptions = async () => {
     try {
-      const res = await fetch(`${API_BASE}/workday-exemptions${user.company_id ? `?company_id=${user.company_id}` : ''}`);
+      const res = await apiFetch(`/workday-exemptions${user.company_id ? `?company_id=${user.company_id}` : ''}`);
       const data = await res.json();
       setExemptions(data);
     } catch (e) { console.warn('Failed to load exemptions:', e); }
@@ -6407,7 +6407,7 @@ const WorkdayExemptionsModal = ({ onClose }) => {
     if (!newDate.trim()) return;
     setSaving(true);
     try {
-      const res = await fetch(`${API_BASE}/workday-exemptions`, {
+      const res = await apiFetch(`/workday-exemptions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ date: newDate.trim(), description: newDesc.trim(), recurring: newRecurring, user_id: user.id }),
@@ -6427,7 +6427,7 @@ const WorkdayExemptionsModal = ({ onClose }) => {
 
   const deleteExemption = async (id) => {
     try {
-      await fetch(`${API_BASE}/workday-exemptions/${id}`, { method: 'DELETE' });
+      await apiFetch(`/workday-exemptions/${id}`, { method: 'DELETE' });
       setExemptions(prev => prev.filter(e => e.id !== id));
     } catch (e) { console.warn('Delete failed:', e); }
   };

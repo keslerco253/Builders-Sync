@@ -5,7 +5,7 @@ import { createStackNavigator } from '@react-navigation/stack';
 import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
 
-import { AuthContext, ThemeContext, DARK_COLORS, LIGHT_COLORS, API_BASE } from './context';
+import { AuthContext, ThemeContext, DARK_COLORS, LIGHT_COLORS, API_BASE, setAuthToken, apiFetch } from './context';
 import { LoginScreen } from './login';
 import { Register } from './register';
 import Dashboard from './dashboard';
@@ -61,7 +61,7 @@ export default function RootLayout() {
     const uid = userId || user?.id;
     if (!uid) return;
     try {
-      await fetch(`${API_BASE}/users/${uid}/theme`, {
+      await apiFetch(`/users/${uid}/theme`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ theme_preference: pref }),
@@ -77,7 +77,7 @@ export default function RootLayout() {
       const pref = userData.theme_preference || 'system';
       setThemePreference(pref);
     },
-    signout: () => { setUser(null); setThemePreference('system'); },
+    signout: () => { setAuthToken(null); setUser(null); setThemePreference('system'); },
     updateUser: (updates) => setUser(prev => ({ ...prev, ...updates })),
   }), [user]);
 

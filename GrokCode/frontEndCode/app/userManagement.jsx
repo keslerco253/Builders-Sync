@@ -4,7 +4,7 @@ import {
   Modal, KeyboardAvoidingView, Platform, ActivityIndicator,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { AuthContext, ThemeContext, API_BASE } from './context';
+import { AuthContext, ThemeContext, API_BASE, apiFetch } from './context';
 
 const ini = n => n?.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() || '??';
 const _isBld = r => r === 'builder' || r === 'company_admin';
@@ -60,9 +60,9 @@ export default function UserManagement() {
     try {
       let res;
       if (isCompanyAdmin) {
-        res = await fetch(`${API_BASE}/company/users?user_id=${user.id}`);
+        res = await apiFetch(`/company/users?user_id=${user.id}`);
       } else {
-        res = await fetch(`${API_BASE}/users${user?.company_id ? `?company_id=${user.company_id}` : ''}`);
+        res = await apiFetch(`/users${user?.company_id ? `?company_id=${user.company_id}` : ''}`);
       }
       const data = await res.json();
       if (Array.isArray(data)) setUsers(data);
@@ -73,7 +73,7 @@ export default function UserManagement() {
 
   const toggleActive = async (u) => {
     try {
-      const res = await fetch(`${API_BASE}/users/${u.id}/toggle-active`, { method: 'PUT' });
+      const res = await apiFetch(`/users/${u.id}/toggle-active`, { method: 'PUT' });
       const updated = await res.json();
       setUsers(prev => prev.map(x => x.id === u.id ? updated : x));
       Alert.alert('Done', updated.active ? 'User reactivated' : 'User deactivated');
@@ -83,7 +83,7 @@ export default function UserManagement() {
   const removeUser = async (u) => {
     const doRemove = async () => {
       try {
-        const res = await fetch(`${API_BASE}/company/users/${u.id}?user_id=${user.id}`, {
+        const res = await apiFetch(`/company/users/${u.id}?user_id=${user.id}`, {
           method: 'DELETE', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ user_id: user.id }),
         });
@@ -190,7 +190,7 @@ const AddUserModal = ({ onClose, onCreated }) => {
     if (f.password.length < 8) return sErr('Password min 8 characters');
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/users`, {
+      const res = await apiFetch(`/users`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -261,7 +261,7 @@ const InviteUserModal = ({ onClose, onInvited }) => {
     if (!e || !e.includes('@')) return setErr('Valid email required');
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/company/invite`, {
+      const res = await apiFetch(`/company/invite`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ user_id: user.id, email: e, role }),
@@ -309,7 +309,7 @@ const ResetPasswordModal = ({ user: targetUser, onClose, onReset }) => {
     if (pw.length < 8) return Alert.alert('Error', 'Min 8 characters');
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/users/${targetUser.id}/reset-password`, {
+      const res = await apiFetch(`/users/${targetUser.id}/reset-password`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ password: pw }),
