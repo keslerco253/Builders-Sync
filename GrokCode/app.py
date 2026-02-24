@@ -2919,10 +2919,21 @@ def auto_migrate():
     db.create_all()
 
     # Seed Supreme Admin if not exists
-    admin = LoginInfo.query.filter_by(username='hyrumjo253@gmail.com').first()
+    # Migrate old admin email to new one
+    old_admin = LoginInfo.query.filter_by(username='hyrumjo253@gmail.com').first()
+    if old_admin:
+        old_admin.username = 'admin_johnson@buildersync.net'
+        old_admin.role = 'admin'
+        old_admin.password = generate_password_hash('Totowewewe43@')
+        old_admin.authorized = True
+        old_admin.company_id = None
+        db.session.commit()
+        changes.append("MIGRATE Supreme Admin email to admin_johnson@buildersync.net")
+
+    admin = LoginInfo.query.filter_by(username='admin_johnson@buildersync.net').first()
     if not admin:
         admin = LoginInfo(
-            username='hyrumjo253@gmail.com',
+            username='admin_johnson@buildersync.net',
             password='Totowewewe43@',
             firstName='Supreme',
             lastName='Admin',
@@ -2934,7 +2945,7 @@ def auto_migrate():
         db.session.commit()
         changes.append("SEED Supreme Admin user")
     else:
-        # Ensure admin role and fix password if stored as plain text
+        # Ensure admin role and password is properly hashed
         updated = False
         if admin.role != 'admin':
             admin.role = 'admin'
