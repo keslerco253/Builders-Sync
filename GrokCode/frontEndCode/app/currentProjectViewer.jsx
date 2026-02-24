@@ -644,7 +644,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
   const tabs = isB
     ? [
         { id: 'schedule', label: 'Schedule', subs: scheduleSubs },
-        { id: 'info', label: 'Info', subs: ['jobinfo', 'assignments', 'specifications', 'price'] },
+        { id: 'info', label: 'Info', subs: ['jobinfo', 'price', 'specifications', 'assignments'] },
         { id: 'changeorders', label: 'Change Orders' },
         { id: 'selections', label: 'Selections' },
         { id: 'docs', label: 'Docs', subs: ['documents', 'photos', 'videos'] },
