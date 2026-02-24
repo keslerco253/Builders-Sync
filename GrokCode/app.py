@@ -869,8 +869,9 @@ def admin_reset_database():
     if not admin:
         return jsonify({'error': 'Unauthorized'}), 403
     try:
-        # Delete all data from all tables except keep the admin user
         from sqlalchemy import text
+        # Disable FK checks so we can delete in any order
+        db.session.execute(text("SET FOREIGN_KEY_CHECKS = 0"))
         tables_to_clear = [
             'change_order_document', 'change_orders', 'documents', 'document_template',
             'daily_log', 'punch', 'todo', 'selection_item', 'project_selection',
@@ -879,12 +880,14 @@ def admin_reset_database():
         for table in tables_to_clear:
             try:
                 db.session.execute(text(f"DELETE FROM {table}"))
-            except Exception:
-                db.session.rollback()
+            except Exception as e:
+                print(f"  Could not clear {table}: {e}")
         # Delete all non-admin users
-        LoginInfo.query.filter(LoginInfo.role != 'admin').delete()
+        db.session.execute(text("DELETE FROM login_info WHERE role != 'admin'"))
         # Delete all companies
-        Company.query.delete()
+        db.session.execute(text("DELETE FROM company"))
+        # Re-enable FK checks
+        db.session.execute(text("SET FOREIGN_KEY_CHECKS = 1"))
         db.session.commit()
         return jsonify({'message': 'Database cleared successfully'})
     except Exception as e:
