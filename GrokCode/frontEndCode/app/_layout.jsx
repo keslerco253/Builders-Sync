@@ -12,6 +12,7 @@ import Dashboard from './dashboard';
 import AdminDashboard from './admin';
 import UserManagement from './userManagement';
 import AccountScreen from './account';
+import ReportsScreen from './reports';
 
 // Inject custom scrollbar styles on web (updated dynamically)
 let scrollStyleEl = null;
@@ -155,6 +156,11 @@ export default function RootLayout() {
                 name="Account"
                 component={AccountScreen}
                 options={{ title: 'Account' }}
+              />
+              <MainStack.Screen
+                name="Reports"
+                component={ReportsScreen}
+                options={{ headerShown: false }}
               />
             </MainStack.Navigator>
             )
