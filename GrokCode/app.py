@@ -57,10 +57,11 @@ class LoginInfo(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     company_id = db.Column(db.Integer, db.ForeignKey('company.id'), nullable=True)  # NULL for admin
     authorized = db.Column(db.Boolean, default=True)
+    registered = db.Column(db.Boolean, default=True)  # False = invited but hasn't completed registration
 
     def __init__(self, username, password, firstName, lastName, companyName='',
                  role='builder', phone='', trades='', street_address='', city='', state='', zip_code='',
-                 company_id=None, authorized=True):
+                 company_id=None, authorized=True, registered=True):
         self.username = username
         self.password = generate_password_hash(password)
         self.firstName = firstName
@@ -75,6 +76,7 @@ class LoginInfo(db.Model):
         self.zip_code = zip_code
         self.company_id = company_id
         self.authorized = authorized
+        self.registered = registered
 
     def to_dict(self):
         return {
@@ -96,6 +98,7 @@ class LoginInfo(db.Model):
             'theme_preference': self.theme_preference or 'system',
             'has_logo': bool(self.company_logo),
             'company_id': self.company_id,
+            'registered': self.registered if self.registered is not None else True,
             'created_at': self.created_at.isoformat() if self.created_at else None,
         }
 
@@ -815,6 +818,80 @@ def admin_reject_user(uid):
     return jsonify({'message': 'User rejected and deleted'})
 
 
+@app.route('/admin/companies/<int:cid>/invite', methods=['POST'])
+def admin_invite_user(cid):
+    admin = _require_admin()
+    if not admin:
+        return jsonify({'error': 'Unauthorized'}), 403
+    data = request.get_json()
+    email = (data.get('email') or '').lower().strip()
+    role = data.get('role', 'builder')
+    if not email or '@' not in email:
+        return jsonify({'error': 'Valid email is required'}), 400
+    if role not in ('builder', 'contractor', 'customer'):
+        return jsonify({'error': 'Invalid role'}), 400
+    company = Company.query.get_or_404(cid)
+    existing = LoginInfo.query.filter_by(username=email).first()
+    if existing:
+        return jsonify({'error': 'This email is already in the system'}), 409
+    invited = LoginInfo(
+        username=email,
+        password='INVITED_PLACEHOLDER',  # will be overwritten on registration
+        firstName='',
+        lastName='',
+        role=role,
+        company_id=company.id,
+        companyName=company.name,
+        authorized=True,
+        registered=False,
+    )
+    db.session.add(invited)
+    db.session.commit()
+    return jsonify(invited.to_dict()), 201
+
+
+@app.route('/admin/companies/<int:cid>/invited/<int:uid>', methods=['DELETE'])
+def admin_remove_invited(cid, uid):
+    admin = _require_admin()
+    if not admin:
+        return jsonify({'error': 'Unauthorized'}), 403
+    user = LoginInfo.query.get_or_404(uid)
+    if user.company_id != cid:
+        return jsonify({'error': 'User not in this company'}), 400
+    db.session.delete(user)
+    db.session.commit()
+    return jsonify({'message': 'User removed'})
+
+
+@app.route('/admin/reset-database', methods=['POST'])
+def admin_reset_database():
+    admin = _require_admin()
+    if not admin:
+        return jsonify({'error': 'Unauthorized'}), 403
+    try:
+        # Delete all data from all tables except keep the admin user
+        from sqlalchemy import text
+        tables_to_clear = [
+            'change_order_document', 'change_orders', 'documents', 'document_template',
+            'daily_log', 'punch', 'todo', 'selection_item', 'project_selection',
+            'schedule', 'projects', 'subdivision',
+        ]
+        for table in tables_to_clear:
+            try:
+                db.session.execute(text(f"DELETE FROM {table}"))
+            except Exception:
+                db.session.rollback()
+        # Delete all non-admin users
+        LoginInfo.query.filter(LoginInfo.role != 'admin').delete()
+        # Delete all companies
+        Company.query.delete()
+        db.session.commit()
+        return jsonify({'message': 'Database cleared successfully'})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+
 # ============================================================
 # AUTH ROUTES
 # ============================================================
@@ -827,22 +904,24 @@ def register_user():
         if not data or not all(k in data for k in required):
             return jsonify({'error': 'Missing required fields'}), 400
 
-        if LoginInfo.query.filter_by(username=data['username']).first():
-            return jsonify({'error': 'Email already registered'}), 409
+        email = data['username'].lower().strip()
+        existing = LoginInfo.query.filter_by(username=email).first()
 
-        new_user = LoginInfo(
-            username=data['username'],
-            password=data['password'],
-            firstName=data['firstName'],
-            lastName=data['lastName'],
-            companyName=data.get('companyName', ''),
-            role=data.get('role', 'builder'),
-            phone=data.get('phone', ''),
-            trades=data.get('trades', ''),
-        )
-        db.session.add(new_user)
+        if not existing:
+            return jsonify({'error': 'This email has not been invited. Please contact your administrator.'}), 403
+
+        if existing.registered:
+            return jsonify({'error': 'This email is already registered. Please log in instead.'}), 409
+
+        # Complete registration for invited user
+        existing.password = generate_password_hash(data['password'])
+        existing.firstName = data['firstName']
+        existing.lastName = data['lastName']
+        existing.phone = data.get('phone', '')
+        existing.trades = data.get('trades', '')
+        existing.registered = True
         db.session.commit()
-        return jsonify({'message': 'User registered', 'user': new_user.to_dict()}), 201
+        return jsonify({'message': 'Registration complete! Please log in.', 'user': existing.to_dict()}), 201
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
@@ -858,6 +937,8 @@ def login_user():
         user = LoginInfo.query.filter_by(username=data['username']).first()
         if not user or not user.active:
             return jsonify({'error': 'Invalid email or password'}), 401
+        if not user.registered:
+            return jsonify({'error': 'Please complete your registration first.'}), 403
         if not check_password_hash(user.password, data['password']):
             return jsonify({'error': 'Invalid email or password'}), 401
 

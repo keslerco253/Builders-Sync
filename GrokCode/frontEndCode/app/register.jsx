@@ -6,12 +6,6 @@ import {
 import { ThemeContext, API_BASE } from './context';
 import { fPhone } from './currentProjectViewer';
 
-const ROLES = [
-  { value: 'builder', label: 'Builder / Employee', ckey: 'gd' },
-  { value: 'contractor', label: 'Subcontractor', ckey: 'bl' },
-  { value: 'customer', label: 'Customer / Homeowner', ckey: 'gn' },
-];
-
 export const Register = ({ navigation }) => {
   const C = React.useContext(ThemeContext);
   const styles = React.useMemo(() => getStyles(C), [C]);
@@ -20,8 +14,6 @@ export const Register = ({ navigation }) => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
-  const [companyName, setCompanyName] = useState('');
-  const [role, setRole] = useState('builder');
   const [phone, setPhone] = useState('');
   const [trades, setTrades] = useState('');
   const [loading, setLoading] = useState(false);
@@ -51,7 +43,7 @@ export const Register = ({ navigation }) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           username: username.toLowerCase().trim(),
-          password, firstName, lastName, companyName, role, phone, trades,
+          password, firstName, lastName, phone, trades,
         }),
       });
 
@@ -78,33 +70,14 @@ export const Register = ({ navigation }) => {
 
         <View style={styles.brandContainer}>
           <View style={styles.logoBox}><Text style={styles.logoIcon}>⬡</Text></View>
-          <Text style={styles.title}>Create Account</Text>
-          <Text style={styles.subtitle}>Join BuilderSync to manage your projects</Text>
+          <Text style={styles.title}>Complete Registration</Text>
+          <Text style={styles.subtitle}>Your admin has invited you to BuilderSync</Text>
         </View>
 
         <View style={styles.card}>
 
-          {/* Role selector */}
-          <Text style={styles.label}>ROLE</Text>
-          <View style={styles.roleRow}>
-            {ROLES.map(r => (
-              <TouchableOpacity
-                key={r.value}
-                onPress={() => setRole(r.value)}
-                style={[
-                  styles.roleBtn,
-                  role === r.value && { borderColor: C[r.ckey], backgroundColor: C[r.ckey] + '18' },
-                ]}
-              >
-                <Text style={[styles.roleBtnTxt, role === r.value && { color: C[r.ckey], fontWeight: '700' }]}>
-                  {r.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-
           <View style={styles.inputContainer}>
-            <Text style={styles.label}>EMAIL</Text>
+            <Text style={styles.label}>EMAIL (MUST MATCH YOUR INVITATION)</Text>
             <TextInput style={styles.input} placeholder="you@company.com" placeholderTextColor={C.mode === "light" ? "#999999" : C.ph}
               value={username} onChangeText={setUsername} keyboardType="email-address" autoCapitalize="none" />
           </View>
@@ -121,21 +94,14 @@ export const Register = ({ navigation }) => {
           </View>
 
           <View style={styles.inputContainer}>
-            <Text style={styles.label}>COMPANY NAME</Text>
-            <TextInput style={styles.input} placeholder="Your company (optional)" placeholderTextColor={C.mode === "light" ? "#999999" : C.ph} value={companyName} onChangeText={setCompanyName} />
-          </View>
-
-          <View style={styles.inputContainer}>
             <Text style={styles.label}>PHONE</Text>
             <TextInput style={styles.input} placeholder="(555) 555-5555" placeholderTextColor={C.mode === "light" ? "#999999" : C.ph} value={fPhone(phone)} onChangeText={v => setPhone(v.replace(/\D/g, '').slice(0, 10))} keyboardType="phone-pad" />
           </View>
 
-          {role === 'contractor' && (
-            <View style={styles.inputContainer}>
-              <Text style={styles.label}>TRADES</Text>
-              <TextInput style={styles.input} placeholder="Plumbing, Electrical..." placeholderTextColor={C.mode === "light" ? "#999999" : C.ph} value={trades} onChangeText={setTrades} />
-            </View>
-          )}
+          <View style={styles.inputContainer}>
+            <Text style={styles.label}>TRADES (OPTIONAL)</Text>
+            <TextInput style={styles.input} placeholder="Plumbing, Electrical..." placeholderTextColor={C.mode === "light" ? "#999999" : C.ph} value={trades} onChangeText={setTrades} />
+          </View>
 
           <View style={styles.divider} />
 
@@ -149,7 +115,7 @@ export const Register = ({ navigation }) => {
           </View>
 
           <TouchableOpacity style={[styles.button, loading && styles.buttonDisabled]} onPress={handleRegister} disabled={loading} activeOpacity={0.8}>
-            <Text style={styles.buttonText}>{loading ? 'Creating Account...' : 'Create Account'}</Text>
+            <Text style={styles.buttonText}>{loading ? 'Completing Registration...' : 'Complete Registration'}</Text>
           </TouchableOpacity>
         </View>
 
@@ -190,10 +156,6 @@ const getStyles = (C) => {
   subtitle: { fontSize: 14, color: txtMuted, marginTop: 6 },
 
   card: { backgroundColor: cardBg, borderWidth: 1, borderColor: cardBd, borderRadius: 16, padding: 24 },
-
-  roleRow: { flexDirection: 'column', gap: 8, marginBottom: 20 },
-  roleBtn: { padding: 12, borderRadius: 8, borderWidth: 1, borderColor: isLight ? '#dde0e4' : inpBd, backgroundColor: isLight ? '#f9fafc' : C.w02 },
-  roleBtnTxt: { fontSize: 13, color: isLight ? '#777777' : txtMuted, textAlign: 'center' },
 
   inputContainer: { marginBottom: 16 },
   label: { fontSize: 11, fontWeight: '600', color: cardDim, letterSpacing: 1, marginBottom: 8 },
