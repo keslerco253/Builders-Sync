@@ -2630,10 +2630,7 @@ export default function Dashboard() {
                               onPointerDown: (e) => subHandleDragStart(task, e),
                             } : {})}
                           >
-                            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                              {calcTaskProgress(task).pct >= 100 && <Text style={{ fontSize: 12, color: isHighlight ? '#fff' : C.gn, marginRight: 3 }}>✓</Text>}
-                              <Text style={[st.subCalTaskTxt, isHighlight && { color: '#fff' }]} numberOfLines={1}>{task.task || 'Untitled'}</Text>
-                            </View>
+                            <Text style={[st.subCalTaskTxt, isHighlight && { color: '#fff' }]} numberOfLines={1}>{calcTaskProgress(task).pct >= 100 ? '✓ ' : ''}{task.task || 'Untitled'}</Text>
                             <Text style={[st.subCalTaskTxtSub, isHighlight && { color: 'rgba(255,255,255,0.8)' }]} numberOfLines={1}>{task.project_name || 'Unknown'}</Text>
                           </TouchableOpacity>
                         );
@@ -3766,10 +3763,7 @@ export default function Dashboard() {
                                       onPointerDown: (e) => builderHandleDragStart(task, e),
                                     } : {})}
                                   >
-                                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                                      {calcTaskProgress(task).pct >= 100 && <Text style={{ fontSize: 12, color: isHighlight ? '#fff' : C.gn, marginRight: 3 }}>✓</Text>}
-                                      <Text style={[st.subCalTaskTxt, isHighlight && { color: '#fff' }]} numberOfLines={1}>{task.task || 'Untitled'}</Text>
-                                    </View>
+                                    <Text style={[st.subCalTaskTxt, isHighlight && { color: '#fff' }]} numberOfLines={1}>{calcTaskProgress(task).pct >= 100 ? '✓ ' : ''}{task.task || 'Untitled'}</Text>
                                     <Text style={[st.subCalTaskTxtSub, isHighlight && { color: 'rgba(255,255,255,0.8)' }]} numberOfLines={1}>{task.project_name || 'Unknown'}</Text>
                                   </TouchableOpacity>
                                 );
@@ -6698,10 +6692,10 @@ const getStyles = (C) => StyleSheet.create({
   subCalDayOther: { color: C.w20 },
   subCalDayNumToday: { color: C.textBold, fontWeight: '700' },
   subCalTaskBar: {
-    position: 'absolute', height: 42, borderRadius: 4,
-    paddingHorizontal: 6, paddingVertical: 2, flexDirection: 'column', justifyContent: 'center', marginHorizontal: 2,
+    position: 'absolute', height: 44, borderRadius: 4,
+    paddingHorizontal: 6, paddingVertical: 1, flexDirection: 'column', justifyContent: 'center', marginHorizontal: 2,
     backgroundColor: C.mode === 'light' ? 'rgba(0,0,0,0.03)' : C.w04,
-    borderWidth: 2.5,
+    borderWidth: 2.5, overflow: 'visible',
     ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
   },
   subCalTaskTxt: { fontSize: 13, fontWeight: '600', color: C.text, flex: 0 },
