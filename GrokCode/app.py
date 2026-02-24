@@ -3,6 +3,7 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
 from datetime import datetime, timedelta
 from werkzeug.security import generate_password_hash, check_password_hash
+from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
 import json
 import os, uuid, base64
 
@@ -11,8 +12,45 @@ CORS(app)
 
 app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://root:auth_socket@localhost/liberty_homes'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'buildersync-dev-secret-change-in-production')
 
 db = SQLAlchemy(app)
+token_serializer = URLSafeTimedSerializer(app.config['SECRET_KEY'])
+
+TOKEN_MAX_AGE = 60 * 60 * 24 * 7  # 7 days
+
+def generate_token(user):
+    """Generate a signed auth token for the given user."""
+    return token_serializer.dumps({
+        'user_id': user.id,
+        'role': user.role,
+        'company_id': user.company_id,
+    })
+
+@app.before_request
+def require_auth():
+    """Protect all routes except public ones."""
+    # Public routes that don't require authentication
+    if request.path in ('/login', '/register') and request.method == 'POST':
+        return None
+    if request.path.startswith('/uploads/'):
+        return None
+    # CORS preflight requests
+    if request.method == 'OPTIONS':
+        return None
+
+    auth_header = request.headers.get('Authorization', '')
+    if not auth_header.startswith('Bearer '):
+        return jsonify({'error': 'Authentication required'}), 401
+
+    token = auth_header[7:]
+    try:
+        data = token_serializer.loads(token, max_age=TOKEN_MAX_AGE)
+        request.current_user = data
+    except SignatureExpired:
+        return jsonify({'error': 'Token expired, please log in again'}), 401
+    except BadSignature:
+        return jsonify({'error': 'Invalid token'}), 401
 
 
 # ============================================================
@@ -1077,7 +1115,8 @@ def login_user():
             if company and company.status == 'deleted':
                 return jsonify({'error': 'Your company account has been removed. Please contact the administrator.'}), 403
 
-        return jsonify({'message': 'Login successful', 'user': user.to_dict()}), 200
+        token = generate_token(user)
+        return jsonify({'message': 'Login successful', 'user': user.to_dict(), 'token': token}), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 

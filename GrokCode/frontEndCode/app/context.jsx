@@ -5,6 +5,28 @@ export const AuthContext = React.createContext();
 // Replace with your actual backend URL
 export const API_BASE = 'https://buildersync.net';
 
+// ============================================================
+// AUTH TOKEN MANAGEMENT
+// ============================================================
+let _authToken = null;
+
+export const setAuthToken = (token) => { _authToken = token; };
+export const getAuthToken = () => _authToken;
+
+/**
+ * Authenticated fetch wrapper. Automatically prepends API_BASE
+ * and injects the Authorization header when a token is stored.
+ *
+ * Usage: apiFetch('/users/123', { method: 'PUT', ... })
+ */
+export const apiFetch = (path, options = {}) => {
+  const headers = { ...(options.headers || {}) };
+  if (_authToken) {
+    headers['Authorization'] = `Bearer ${_authToken}`;
+  }
+  return fetch(`${API_BASE}${path}`, { ...options, headers });
+};
+
 // Full color superset for both themes
 export const DARK_COLORS = {
   mode: 'dark',

@@ -4,7 +4,7 @@ import {
   TextInput, Alert, ActivityIndicator, Modal, KeyboardAvoidingView, Dimensions, Image, AppState, useWindowDimensions,
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
-import { AuthContext, ThemeContext, API_BASE } from './context';
+import { AuthContext, ThemeContext, API_BASE, apiFetch } from './context';
 import ScheduleCalendar from './scheduleCalendar';
 import DatePicker from './datePicker';
 import { calcEndDate as sbCalcEndDate, TEMPLATE_TRADES as _TRADES } from './scheduleBuilder';
@@ -323,7 +323,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
     if (!project?.id) return;
     setGoLiveLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/projects/${project.id}/go-live-steps`);
+      const res = await apiFetch(`/projects/${project.id}/go-live-steps`);
       if (res.ok) { const data = await res.json(); setGoLiveSteps(Array.isArray(data) ? data : []); }
     } catch (e) { console.warn('Fetch go-live steps:', e); }
     setGoLiveLoading(false);
@@ -332,7 +332,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
   const toggleGoLiveStep = async (stepId, completed) => {
     const completedBy = user ? `${user.first_name} ${user.last_name}`.trim() : '';
     try {
-      const res = await fetch(`${API_BASE}/projects/${project.id}/go-live-steps/${stepId}`, {
+      const res = await apiFetch(`/projects/${project.id}/go-live-steps/${stepId}`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ completed, completed_by: completedBy }),
       });
@@ -354,14 +354,14 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
     setShowGoLiveModal(false);
     setGoLive(true);
     try {
-      const res = await fetch(`${API_BASE}/projects/${project.id}`, {
+      const res = await apiFetch(`/projects/${project.id}`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ go_live: true }),
       });
       if (res.ok) {
         const updated = await res.json();
         onProjectUpdate?.(updated);
-        const schRes = await fetch(`${API_BASE}/projects/${project.id}/schedule`);
+        const schRes = await apiFetch(`/projects/${project.id}/schedule`);
         if (schRes.ok) {
           const schData = await schRes.json();
           if (Array.isArray(schData)) setSchedule(schData);
@@ -444,7 +444,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
         reconciliation: parseFloat(editInfo.reconciliation) || 0,
         subdivision_id: editInfo.subdivision_id || null,
       };
-      const res = await fetch(`${API_BASE}/projects/${project.id}`, {
+      const res = await apiFetch(`/projects/${project.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
@@ -519,7 +519,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
   // API helper
   const api = useCallback(async (path, opts = {}) => {
     try {
-      const res = await fetch(`${API_BASE}${path}`, {
+      const res = await apiFetch(`${path}`, {
         headers: { 'Content-Type': 'application/json' },
         ...opts,
         body: opts.body ? JSON.stringify(opts.body) : undefined,
@@ -569,7 +569,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
       end_date: task.end_date || '',
     });
     try {
-      const res = await fetch(`${API_BASE}/users${user?.company_id ? `?company_id=${user.company_id}` : ''}`);
+      const res = await apiFetch(`/users${user?.company_id ? `?company_id=${user.company_id}` : ''}`);
       const data = await res.json();
       if (Array.isArray(data)) setSubsList(data.filter(u => (u.role === 'contractor' || u.role === 'builder') && u.active !== false));
     } catch(e) { console.warn('fetch subs:', e); }
@@ -793,7 +793,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
     }
 
     try {
-      await fetch(`${API_BASE}/projects/${proj.id}`, {
+      await apiFetch(`/projects/${proj.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ progress: overallPct, phase, status, start_date: schedStart, est_completion: estCompletion }),
@@ -847,7 +847,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
   // Sign change order
   const signCO = async (coId, role, initials, signerName) => {
     try {
-      const res = await fetch(`${API_BASE}/change-orders/${coId}/sign`, {
+      const res = await apiFetch(`/change-orders/${coId}/sign`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ role, initials, signer_name: signerName }),
@@ -1735,7 +1735,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
                                 end_date: item.end_date || '',
                               });
                               try {
-                                const res = await fetch(`${API_BASE}/users${user?.company_id ? `?company_id=${user.company_id}` : ''}`);
+                                const res = await apiFetch(`/users${user?.company_id ? `?company_id=${user.company_id}` : ''}`);
                                 const data = await res.json();
                                 if (Array.isArray(data)) setSubsList(data.filter(u => (u.role === 'contractor' || u.role === 'builder') && u.active !== false));
                               } catch(e) { console.warn('fetch subs:', e); }
@@ -2517,7 +2517,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
 
         const deleteDoc = async (docId) => {
           try {
-            const res = await fetch(`${API_BASE}/documents/${docId}`, { method: 'DELETE' });
+            const res = await apiFetch(`/documents/${docId}`, { method: 'DELETE' });
             if (res.ok) setDocuments(prev => prev.filter(d => d.id !== docId));
           } catch (e) { Alert.alert('Error', e.message); }
         };
@@ -3039,7 +3039,7 @@ const ChangeOrderDetailModal = ({ co, isB, isC, isCon, signCO, onClose, user }) 
   const canCustomerSign = isC && !co.customer_sig && !isExpired;
 
   useEffect(() => {
-    fetch(`${API_BASE}/change-orders/${co.id}/documents`)
+    apiFetch(`/change-orders/${co.id}/documents`)
       .then(r => r.json())
       .then(d => { if (Array.isArray(d)) setCoDocs(d); })
       .catch(() => {});
@@ -3068,14 +3068,14 @@ const ChangeOrderDetailModal = ({ co, isB, isC, isCon, signCO, onClose, user }) 
     if (!fileData) return Alert.alert('Error', 'Please select a file');
     setUploading(true);
     try {
-      const upRes = await fetch(`${API_BASE}/upload-file`, {
+      const upRes = await apiFetch(`/upload-file`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ file: fileData.b64, ext: fileData.ext, name: fileData.originalName }),
       });
       if (!upRes.ok) throw new Error('File upload failed');
       const upData = await upRes.json();
-      const res = await fetch(`${API_BASE}/change-orders/${co.id}/documents`, {
+      const res = await apiFetch(`/change-orders/${co.id}/documents`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -3094,7 +3094,7 @@ const ChangeOrderDetailModal = ({ co, isB, isC, isCon, signCO, onClose, user }) 
 
   const deleteCoDoc = async (docId) => {
     try {
-      const res = await fetch(`${API_BASE}/change-order-documents/${docId}`, { method: 'DELETE' });
+      const res = await apiFetch(`/change-order-documents/${docId}`, { method: 'DELETE' });
       if (res.ok) setCoDocs(prev => prev.filter(d => d.id !== docId));
     } catch (e) { Alert.alert('Error', e.message); }
   };
@@ -3368,7 +3368,7 @@ const NewChangeOrderModal = ({ project, api, onClose, onCreated, user, schedule 
   // Fetch subcontractors list on mount
   useEffect(() => {
     setSubsLoading(true);
-    fetch(`${API_BASE}/users${user?.company_id ? `?company_id=${user.company_id}` : ''}`)
+    apiFetch(`/users${user?.company_id ? `?company_id=${user.company_id}` : ''}`)
       .then(r => r.json())
       .then(data => {
         if (Array.isArray(data)) setSubsList(data.filter(u => (u.role === 'contractor' || u.role === 'builder') && u.active !== false));
@@ -3442,14 +3442,14 @@ const NewChangeOrderModal = ({ project, api, onClose, onCreated, user, schedule 
       // Upload any attached documents
       for (const att of attachments) {
         try {
-          const upRes = await fetch(`${API_BASE}/upload-file`, {
+          const upRes = await apiFetch(`/upload-file`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ file: att.b64, ext: att.ext, name: att.originalName }),
           });
           if (upRes.ok) {
             const upData = await upRes.json();
-            await fetch(`${API_BASE}/change-orders/${res.id}/documents`, {
+            await apiFetch(`/change-orders/${res.id}/documents`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
@@ -3784,14 +3784,14 @@ const SubChangeOrderModal = ({ project, api, user, task: initialTask, schedule, 
       }
       for (const att of attachments) {
         try {
-          const upRes = await fetch(`${API_BASE}/upload-file`, {
+          const upRes = await apiFetch(`/upload-file`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ file: att.b64, ext: att.ext, name: att.originalName }),
           });
           if (upRes.ok) {
             const upData = await upRes.json();
-            await fetch(`${API_BASE}/change-orders/${res.id}/documents`, {
+            await apiFetch(`/change-orders/${res.id}/documents`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
@@ -4312,7 +4312,7 @@ const UploadModal = ({ project, user, api, mediaType, templateId, templateName, 
       if (replaceMode && hasExisting) {
         for (const ed of existingDocs) {
           const oldName = ed.name.endsWith('(OLD)') ? ed.name : `${ed.name} (OLD)`;
-          await fetch(`${API_BASE}/documents/${ed.id}`, {
+          await apiFetch(`/documents/${ed.id}`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ name: oldName }),
@@ -4320,7 +4320,7 @@ const UploadModal = ({ project, user, api, mediaType, templateId, templateName, 
         }
       }
 
-      const uploadRes = await fetch(`${API_BASE}/upload-file`, {
+      const uploadRes = await apiFetch(`/upload-file`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ file: fileData.b64, ext: fileData.ext, name: fileData.originalName }),

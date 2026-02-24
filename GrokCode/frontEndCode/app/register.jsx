@@ -3,7 +3,7 @@ import {
   View, Text, TextInput, TouchableOpacity, Alert,
   StyleSheet, ScrollView, KeyboardAvoidingView, Platform,
 } from 'react-native';
-import { ThemeContext, API_BASE } from './context';
+import { ThemeContext, API_BASE, apiFetch } from './context';
 import { fPhone } from './currentProjectViewer';
 
 export const Register = ({ navigation }) => {
@@ -38,7 +38,7 @@ export const Register = ({ navigation }) => {
 
     setLoading(true);
     try {
-      const response = await fetch(`${API_BASE}/register`, {
+      const response = await apiFetch(`/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

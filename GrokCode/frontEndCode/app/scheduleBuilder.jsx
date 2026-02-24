@@ -4,7 +4,7 @@ import {
   Alert,
 } from 'react-native';
 import DatePicker from './datePicker';
-import { AuthContext, ThemeContext, API_BASE } from './context';
+import { AuthContext, ThemeContext, API_BASE, apiFetch } from './context';
 
 const TASK_COLORS = [
   '#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981',
@@ -297,7 +297,7 @@ const TemplatePicker = ({ onApply, existingCount }) => {
   const fetchTemplates = async () => {
     setLoadingTemplates(true);
     try {
-      const res = await fetch(`${API_BASE}/schedule-templates${user?.company_id ? `?company_id=${user.company_id}` : ''}`);
+      const res = await apiFetch(`/schedule-templates${user?.company_id ? `?company_id=${user.company_id}` : ''}`);
       if (res.ok) {
         const data = await res.json();
         setSavedTemplates(data);
@@ -316,7 +316,7 @@ const TemplatePicker = ({ onApply, existingCount }) => {
   const handleDelete = async (id) => {
     const doDelete = async () => {
       try {
-        await fetch(`${API_BASE}/schedule-templates/${id}`, { method: 'DELETE' });
+        await apiFetch(`/schedule-templates/${id}`, { method: 'DELETE' });
         setSavedTemplates(prev => prev.filter(t => t.id !== id));
         if (selected?._savedId === id) setSelected(null);
       } catch (e) { /* ignore */ }
@@ -764,7 +764,7 @@ export default function ScheduleBuilder({ tasks, onTasksChange, templateMode, co
   // Fetch subcontractors once (not needed in template mode)
   useEffect(() => {
     if (templateMode) return;
-    fetch(`${API_BASE}/users${user?.company_id ? `?company_id=${user.company_id}` : ''}`)
+    apiFetch(`/users${user?.company_id ? `?company_id=${user.company_id}` : ''}`)
       .then(r => r.json())
       .then(data => {
         if (Array.isArray(data)) setSubs(data.filter(u => (u.role === 'contractor' || u.role === 'builder' || u.role === 'company_admin') && u.active !== false));

@@ -3,7 +3,7 @@ import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView, TextInput,
   Alert, ActivityIndicator, Modal, Platform, useWindowDimensions,
 } from 'react-native';
-import { AuthContext, ThemeContext, API_BASE } from './context';
+import { AuthContext, ThemeContext, API_BASE, apiFetch } from './context';
 
 export default function AdminDashboard() {
   const C = React.useContext(ThemeContext);
@@ -32,9 +32,9 @@ export default function AdminDashboard() {
     setLoading(true);
     try {
       const [compRes, pendRes, statRes] = await Promise.all([
-        fetch(`${API_BASE}/admin/companies?admin_id=${user.id}`),
-        fetch(`${API_BASE}/admin/users/pending?admin_id=${user.id}`),
-        fetch(`${API_BASE}/admin/stats?admin_id=${user.id}`),
+        apiFetch(`/admin/companies?admin_id=${user.id}`),
+        apiFetch(`/admin/users/pending?admin_id=${user.id}`),
+        apiFetch(`/admin/stats?admin_id=${user.id}`),
       ]);
       const [compData, pendData, statData] = await Promise.all([
         compRes.json(), pendRes.json(), statRes.json(),
@@ -52,7 +52,7 @@ export default function AdminDashboard() {
     setSelectedCompany(company);
     setCompanyUsersLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/admin/companies/${company.id}/users?admin_id=${user.id}`);
+      const res = await apiFetch(`/admin/companies/${company.id}/users?admin_id=${user.id}`);
       const data = await res.json();
       if (Array.isArray(data)) setCompanyUsers(data);
     } catch (e) { console.warn(e); }
@@ -64,7 +64,7 @@ export default function AdminDashboard() {
     if (!name) return;
     setSaving(true);
     try {
-      const res = await fetch(`${API_BASE}/admin/companies`, {
+      const res = await apiFetch(`/admin/companies`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ admin_id: user.id, name }),
@@ -88,7 +88,7 @@ export default function AdminDashboard() {
     if (!selectedCompany) return;
     setSaving(true);
     try {
-      const res = await fetch(`${API_BASE}/admin/companies/${selectedCompany.id}/invite`, {
+      const res = await apiFetch(`/admin/companies/${selectedCompany.id}/invite`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ admin_id: user.id, email, role: inviteRole }),
@@ -110,7 +110,7 @@ export default function AdminDashboard() {
   const removeUser = async (uid, name) => {
     const doRemove = async () => {
       try {
-        const res = await fetch(`${API_BASE}/admin/companies/${selectedCompany.id}/invited/${uid}?admin_id=${user.id}`, {
+        const res = await apiFetch(`/admin/companies/${selectedCompany.id}/invited/${uid}?admin_id=${user.id}`, {
           method: 'DELETE', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ admin_id: user.id }),
         });
@@ -131,7 +131,7 @@ export default function AdminDashboard() {
   const resetDatabase = async () => {
     const doReset = async () => {
       try {
-        const res = await fetch(`${API_BASE}/admin/reset-database`, {
+        const res = await apiFetch(`/admin/reset-database`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ admin_id: user.id }),
@@ -161,10 +161,10 @@ export default function AdminDashboard() {
     const doAction = async () => {
       try {
         const method = action === 'delete' ? 'DELETE' : 'PUT';
-        const url = action === 'delete'
-          ? `${API_BASE}/admin/companies/${company.id}?admin_id=${user.id}`
-          : `${API_BASE}/admin/companies/${company.id}/${action}?admin_id=${user.id}`;
-        const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ admin_id: user.id }) });
+        const path = action === 'delete'
+          ? `/admin/companies/${company.id}?admin_id=${user.id}`
+          : `/admin/companies/${company.id}/${action}?admin_id=${user.id}`;
+        const res = await apiFetch(path, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ admin_id: user.id }) });
         if (res.ok) {
           fetchAll();
           if (selectedCompany?.id === company.id) {
@@ -190,7 +190,7 @@ export default function AdminDashboard() {
 
   const authorizeUser = async (uid) => {
     try {
-      const res = await fetch(`${API_BASE}/admin/users/${uid}/authorize?admin_id=${user.id}`, {
+      const res = await apiFetch(`/admin/users/${uid}/authorize?admin_id=${user.id}`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ admin_id: user.id }),
       });
@@ -204,7 +204,7 @@ export default function AdminDashboard() {
   const rejectUser = async (uid) => {
     const doReject = async () => {
       try {
-        await fetch(`${API_BASE}/admin/users/${uid}/reject?admin_id=${user.id}`, {
+        await apiFetch(`/admin/users/${uid}/reject?admin_id=${user.id}`, {
           method: 'PUT', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ admin_id: user.id }),
         });

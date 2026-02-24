@@ -3,7 +3,7 @@ import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert, TextInput,
   Modal, KeyboardAvoidingView, Platform, Image,
 } from 'react-native';
-import { AuthContext, ThemeContext, API_BASE } from './context';
+import { AuthContext, ThemeContext, API_BASE, apiFetch } from './context';
 import { fPhone } from './currentProjectViewer';
 
 const ini = n => n?.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() || '??';
@@ -36,7 +36,7 @@ export default function AccountScreen() {
   const saveProfile = async () => {
     setSaving(true);
     try {
-      const res = await fetch(`${API_BASE}/users/${user.id}`, {
+      const res = await apiFetch(`/users/${user.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -61,7 +61,7 @@ export default function AccountScreen() {
   // Fetch logo on mount
   useEffect(() => {
     if (!user?.id) return;
-    fetch(`${API_BASE}/users/${user.id}/logo`)
+    apiFetch(`/users/${user.id}/logo`)
       .then(r => r.json())
       .then(data => { if (data.logo) setLogo(data.logo); })
       .catch(() => {});
@@ -93,7 +93,7 @@ export default function AccountScreen() {
   const uploadLogo = async (b64) => {
     setLogoLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/users/${user.id}/logo`, {
+      const res = await apiFetch(`/users/${user.id}/logo`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ logo: b64 }),
@@ -111,7 +111,7 @@ export default function AccountScreen() {
     const doRemove = async () => {
       setLogoLoading(true);
       try {
-        await fetch(`${API_BASE}/users/${user.id}/logo`, {
+        await apiFetch(`/users/${user.id}/logo`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ logo: '' }),
@@ -359,7 +359,7 @@ const ChangePasswordModal = ({ userId, onClose }) => {
     if (np !== conf) return setErr("Passwords don't match");
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/change-password`, {
+      const res = await apiFetch(`/change-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ user_id: userId, current_password: cur, new_password: np }),
