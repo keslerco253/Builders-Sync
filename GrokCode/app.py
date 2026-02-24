@@ -720,6 +720,19 @@ def create_user():
         if LoginInfo.query.filter_by(username=data['username']).first():
             return jsonify({'error': 'Email already exists'}), 409
 
+        # --- Duplicate subcontractor check (company + first + last name) ---
+        co = (data.get('companyName') or '').strip().lower()
+        fn = data['firstName'].strip().lower()
+        ln = data['lastName'].strip().lower()
+        if co:
+            dup_user = LoginInfo.query.filter(
+                db.func.lower(LoginInfo.companyName) == co,
+                db.func.lower(LoginInfo.firstName) == fn,
+                db.func.lower(LoginInfo.lastName) == ln,
+            ).first()
+            if dup_user:
+                return jsonify({'error': f'A user named "{dup_user.firstName} {dup_user.lastName}" at "{dup_user.companyName}" already exists'}), 409
+
         new_user = LoginInfo(
             username=data['username'],
             password=data['password'],
@@ -984,6 +997,16 @@ def add_project():
         data = request.get_json()
         if not data or not data.get('name'):
             return jsonify({'error': 'Project name required'}), 400
+
+        # --- Duplicate project check (name + street address) ---
+        proj_name = data['name'].strip().lower()
+        proj_street = (data.get('street_address') or '').strip().lower()
+        dup_query = Projects.query.filter(db.func.lower(Projects.name) == proj_name)
+        if proj_street:
+            dup_query = dup_query.filter(db.func.lower(Projects.street_address) == proj_street)
+        existing_proj = dup_query.first()
+        if existing_proj:
+            return jsonify({'error': f'A project named "{existing_proj.name}" already exists at this address'}), 409
 
         # --- Auto-create homeowner user if email provided ---
         customer_id = data.get('customer_id')
