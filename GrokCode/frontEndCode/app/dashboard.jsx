@@ -3364,6 +3364,7 @@ export default function Dashboard() {
         <NewProjectModal
           onClose={() => setModal(null)}
           subdivisions={subdivisions}
+          builderTrades={builderTrades}
           onCreated={(newProj) => {
             setProjects(prev => [newProj, ...prev]);
             setSelectedProject(newProj);
@@ -4803,7 +4804,7 @@ const TemplateManagerModal = ({ onClose }) => {
   );
 };
 
-const NewProjectModal = ({ onClose, onCreated, subdivisions = [] }) => {
+const NewProjectModal = ({ onClose, onCreated, subdivisions = [], builderTrades = [] }) => {
   const C = React.useContext(ThemeContext);
   const { user } = React.useContext(AuthContext);
   const st = React.useMemo(() => getStyles(C), [C]);
