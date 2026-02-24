@@ -7,7 +7,7 @@ import {
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { AuthContext, ThemeContext, API_BASE } from './context';
 import CurrentProjectViewer, { calcTaskProgress, fPhone } from './currentProjectViewer';
-import ScheduleBuilder, { cascadeAll, calcEndDate, calcFromPredecessor, TEMPLATE_TRADES } from './scheduleBuilder';
+import ScheduleBuilder, { cascadeAll, calcEndDate, calcFromPredecessor } from './scheduleBuilder';
 import DatePicker from './datePicker';
 import { cascadeDates, buildDepMap, getAllDependents } from './scheduleCalendar';
 
@@ -825,8 +825,8 @@ export default function Dashboard() {
 
         {/* Tab content */}
         {subdivTab === 'subs' && (() => {
-          const assignedTrades = TEMPLATE_TRADES.filter(t => sdTradeAssignments[t]);
-          const unassignedTrades = TEMPLATE_TRADES.filter(t => !sdTradeAssignments[t]);
+          const assignedTrades = builderTrades.filter(t => sdTradeAssignments[t]);
+          const unassignedTrades = builderTrades.filter(t => !sdTradeAssignments[t]);
 
           const handleAssign = async (trade, contractorId) => {
             try {
@@ -4091,6 +4091,7 @@ export default function Dashboard() {
               onScheduleChange={handleScheduleChange}
               syncRef={syncRef}
               subdivisions={subdivisions}
+              builderTrades={builderTrades}
               calYear={globalCalMonth.getFullYear()}
               calMonth={globalCalMonth.getMonth()}
               onMonthChange={(y, m) => setGlobalCalMonth(new Date(y, m, 1))}
@@ -4413,6 +4414,7 @@ export default function Dashboard() {
                   onScheduleChange={handleScheduleChange}
                   syncRef={syncRef}
                   subdivisions={subdivisions}
+                  builderTrades={builderTrades}
               calYear={globalCalMonth.getFullYear()}
                   calMonth={globalCalMonth.getMonth()}
                   onMonthChange={(y, m) => setGlobalCalMonth(new Date(y, m, 1))}
@@ -4449,6 +4451,7 @@ export default function Dashboard() {
               onScheduleChange={handleScheduleChange}
               syncRef={syncRef}
               subdivisions={subdivisions}
+              builderTrades={builderTrades}
               calYear={globalCalMonth.getFullYear()}
               calMonth={globalCalMonth.getMonth()}
               onMonthChange={(y, m) => setGlobalCalMonth(new Date(y, m, 1))}
@@ -4776,7 +4779,7 @@ const TemplateManagerModal = ({ onClose }) => {
                 </Text>
 
                 {/* Schedule Builder (reused) */}
-                <ScheduleBuilder tasks={editTasks} onTasksChange={setEditTasks} templateMode />
+                <ScheduleBuilder tasks={editTasks} onTasksChange={setEditTasks} templateMode tradesList={builderTrades} />
 
                 <TouchableOpacity
                   onPress={handleSave}
@@ -4964,6 +4967,7 @@ const NewProjectModal = ({ onClose, onCreated, subdivisions = [] }) => {
                 onTasksChange={setScheduleTasks}
                 collapsed={!!appliedTemplate}
                 templateInfo={appliedTemplate}
+                tradesList={builderTrades}
                 onReviewTemplate={(builtTasks, tmplInfo) => {
                   setReviewTasks(builtTasks);
                   setReviewTmplInfo(tmplInfo);
@@ -5198,7 +5202,7 @@ const NewProjectModal = ({ onClose, onCreated, subdivisions = [] }) => {
                             <Text style={{ fontSize: 18, fontWeight: '700', color: C.textBold }}>Select Trade</Text>
                           </View>
                           <ScrollView style={{ maxHeight: 320 }}>
-                            {TEMPLATE_TRADES.map(trade => {
+                            {builderTrades.map(trade => {
                               const isActive = reviewTasks[tradeDropdownIdx]?.trade === trade;
                               return (
                                 <TouchableOpacity key={trade} onPress={() => {
