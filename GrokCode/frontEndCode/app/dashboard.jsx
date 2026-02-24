@@ -331,6 +331,16 @@ export default function Dashboard() {
     } catch (e) { console.warn('Fetch subdivisions error:', e.message); }
   };
 
+  const fetchCompanyTrades = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/users/${user.id}/company-trades`);
+      const data = await res.json();
+      if (data.trades && data.trades.trim()) {
+        setBuilderTrades(data.trades.split(',').map(t => t.trim()).filter(Boolean));
+      }
+    } catch (e) { /* ignore */ }
+  };
+
   const createSubdivision = async (name) => {
     setNewSubdivSaving(true);
     try {
@@ -374,15 +384,7 @@ export default function Dashboard() {
       fetchProjects();
       if (isBuilder) {
         fetchSubdivisions();
-        // Load company-wide trade list (shared across all builders in the company)
-        fetch(`${API_BASE}/users/${user.id}/company-trades`)
-          .then(r => r.json())
-          .then(data => {
-            if (data.trades && data.trades.trim()) {
-              setBuilderTrades(data.trades.split(',').map(t => t.trim()).filter(Boolean));
-            }
-          })
-          .catch(() => {});
+        fetchCompanyTrades();
       }
     }
     // Fetch company logo — try own logo first, then fallback to any builder's logo
@@ -410,7 +412,7 @@ export default function Dashboard() {
     }
   }, []));
 
-  const onRefresh = () => { setRefreshing(true); fetchProjects(); if (isBuilder) fetchSubdivisions(); };
+  const onRefresh = () => { setRefreshing(true); fetchProjects(); if (isBuilder) { fetchSubdivisions(); fetchCompanyTrades(); } };
 
   const selectProject = (p) => {
     setSelectedProject(p);
