@@ -286,7 +286,7 @@ const HoverTab = ({ onPress, active, style, activeStyle, children }) => {
 // ============================================================
 // MAIN COMPONENT
 // ============================================================
-const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onClientViewToggle, activeTab, activeSub, onTabChange, onSubChange, onProjectUpdate, onProjectDeleted, scheduleVersion, onScheduleChange, syncRef, calYear, calMonth, onMonthChange, subdivisions = [] }) => {
+const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onClientViewToggle, activeTab, activeSub, onTabChange, onSubChange, onProjectUpdate, onProjectDeleted, scheduleVersion, onScheduleChange, syncRef, calYear, calMonth, onMonthChange, subdivisions = [], builderTrades: builderTradesProp }) => {
   const C = React.useContext(ThemeContext);
   const s = React.useMemo(() => getStyles(C), [C]);
   const bl = React.useMemo(() => getBLStyles(C), [C]);
@@ -1957,7 +1957,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
                                 >
                                   <Text style={{ fontSize: 18, color: !taskInfoEdit.trade ? C.bl : C.dm, fontWeight: !taskInfoEdit.trade ? '600' : '400' }}>None</Text>
                                 </TouchableOpacity>
-                                {TEMPLATE_TRADES.map(t => {
+                                {(builderTradesProp || TEMPLATE_TRADES).map(t => {
                                   const isActive = taskInfoEdit.trade === t;
                                   return (
                                     <TouchableOpacity

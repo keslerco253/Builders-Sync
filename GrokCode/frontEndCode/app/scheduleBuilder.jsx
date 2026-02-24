@@ -676,13 +676,14 @@ export const TEMPLATE_TRADES = [
   'Waterproofing', 'Windows',
 ];
 
-const TradeSelect = ({ value, onChange }) => {
+const TradeSelect = ({ value, onChange, trades }) => {
   const C = React.useContext(ThemeContext);
   const st = React.useMemo(() => getStyles(C), [C]);
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
 
-  const filtered = TEMPLATE_TRADES.filter(t => {
+  const tradeList = trades || TEMPLATE_TRADES;
+  const filtered = tradeList.filter(t => {
     if (!search.trim()) return true;
     return t.toLowerCase().includes(search.toLowerCase());
   });
@@ -751,7 +752,7 @@ const TradeSelect = ({ value, onChange }) => {
 // ============================================================
 // MAIN COMPONENT
 // ============================================================
-export default function ScheduleBuilder({ tasks, onTasksChange, templateMode, collapsed, templateInfo, onReviewTemplate, onChangeTemplate }) {
+export default function ScheduleBuilder({ tasks, onTasksChange, templateMode, collapsed, templateInfo, onReviewTemplate, onChangeTemplate, tradesList }) {
   const C = React.useContext(ThemeContext);
   const st = React.useMemo(() => getStyles(C), [C]);
   const [year, setYear] = useState(() => new Date().getFullYear());
@@ -963,6 +964,7 @@ export default function ScheduleBuilder({ tasks, onTasksChange, templateMode, co
                     <TradeSelect
                       value={task.trade || ''}
                       onChange={v => updateTask(idx, 'trade', v)}
+                      trades={tradesList}
                     />
                   ) : (
                     <ContractorSelect
