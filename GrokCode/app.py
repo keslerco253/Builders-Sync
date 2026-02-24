@@ -928,11 +928,13 @@ def apply_subdivision_contractors(project_id):
             trade_map[a.trade.lower()] = (a.contractor_id, name)
     if not trade_map:
         return
-    # Update schedule tasks
+    # Update schedule tasks (skip completed tasks — their contractor is locked)
     tasks = Schedule.query.filter_by(job_id=project_id).all()
     assigned_ids = set()
     for t in tasks:
         if t.trade and t.trade.lower() in trade_map:
+            if t.progress == 100:
+                continue
             cid, cname = trade_map[t.trade.lower()]
             t.contractor = cname
             assigned_ids.add(cid)
