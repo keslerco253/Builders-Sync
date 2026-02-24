@@ -644,7 +644,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
   const tabs = isB
     ? [
         { id: 'schedule', label: 'Schedule', subs: scheduleSubs },
-        { id: 'info', label: 'Info', subs: ['jobinfo', 'assignments', 'price'] },
+        { id: 'info', label: 'Info', subs: ['jobinfo', 'assignments', 'specifications', 'price'] },
         { id: 'changeorders', label: 'Change Orders' },
         { id: 'selections', label: 'Selections' },
         { id: 'docs', label: 'Docs', subs: ['documents', 'photos', 'videos'] },
@@ -661,7 +661,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
     ? [
         { id: 'schedule', label: 'Schedule', subs: ['calendar'] },
         { id: 'changeorders', label: 'Change Orders' },
-        { id: 'info', label: 'Info', subs: ['jobinfo'] },
+        { id: 'info', label: 'Info', subs: ['jobinfo', 'specifications'] },
       ]
     : [
         { id: 'schedule', label: 'Schedule', subs: ['calendar'] },
@@ -670,7 +670,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
       ];
 
   const subLabels = {
-    jobinfo: 'Job Info', assignments: 'Assignments', price: 'Job Price Summary',
+    jobinfo: 'Job Info', assignments: 'Assignments', specifications: 'Job Specifications', price: 'Job Price Summary',
     calendar: 'Calendar', baseline: 'Baseline', progress: 'Job Progress',
     changeorders: 'Change Orders', selections: 'Selections',
     documents: 'Documents', photos: 'Photos', videos: 'Videos',
@@ -1421,6 +1421,19 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
             </View>
           )}
         </ScrollView>
+      );
+    }
+
+    // --- INFO: JOB SPECIFICATIONS ---
+    if (tab === 'info' && sub === 'specifications') {
+      return (
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 40 }}>
+          <Text style={{ fontSize: 48, marginBottom: 16 }}>📐</Text>
+          <Text style={{ fontSize: 22, fontWeight: '700', color: C.textBold, marginBottom: 8 }}>Job Specifications</Text>
+          <Text style={{ fontSize: 16, color: C.dm, textAlign: 'center', maxWidth: 340 }}>
+            Job specifications for this project will appear here. This feature is coming soon.
+          </Text>
+        </View>
       );
     }
 

@@ -2926,11 +2926,11 @@ export default function Dashboard() {
                       <Text style={{ fontSize: 18, fontWeight: '600', color: C.text }}>Job Schedule Report</Text>
                       <Text style={{ marginLeft: 'auto', fontSize: 18, color: C.dm }}>›</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity
-                      style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: C.w06, opacity: 0.5 }} activeOpacity={1}>
+                    <TouchableOpacity onPress={() => taskActionNav(taskActionPopup.project, 'info', 'specifications')}
+                      style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: C.w06 }} activeOpacity={0.7}>
                       <Text style={{ fontSize: 22 }}>📐</Text>
                       <Text style={{ fontSize: 18, fontWeight: '600', color: C.text }}>Job Specifications</Text>
-                      <Text style={{ marginLeft: 'auto', fontSize: 14, color: C.dm }}>Coming Soon</Text>
+                      <Text style={{ marginLeft: 'auto', fontSize: 18, color: C.dm }}>›</Text>
                     </TouchableOpacity>
                     <TouchableOpacity onPress={() => taskActionNav(taskActionPopup.project, 'docs', 'documents')}
                       style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: C.w06 }} activeOpacity={0.7}>
@@ -4282,6 +4282,11 @@ export default function Dashboard() {
           {isBuilder && (
             <TouchableOpacity onPress={() => setShowBuilderCal(true)} style={st.headerBtn}>
               <Text style={{ fontSize: 24 }}>📅</Text>
+            </TouchableOpacity>
+          )}
+          {isBuilder && (
+            <TouchableOpacity onPress={() => navigation.navigate('Reports')} style={st.headerBtn}>
+              <Text style={{ fontSize: 24 }}>📊</Text>
             </TouchableOpacity>
           )}
           <TouchableOpacity onPress={() => navigation.navigate('Account')} style={st.headerBtn}>
