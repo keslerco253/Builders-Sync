@@ -916,7 +916,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
       return (
         <ScrollView style={{ flex: 1 }} contentContainerStyle={[s.scroll, { maxWidth: windowWidth * 0.9 }]} keyboardShouldPersistTaps="handled">
           <View style={{ alignItems: 'center', marginBottom: 24 }}>
-            <View style={s.avatar}><Text style={s.avatarTxt}>{ini(editInfo.name || project.name)}</Text></View>
+            <View style={s.avatar}><Text style={s.avatarTxt}>{getInitials(editInfo.name || project.name)}</Text></View>
             {isB ? (
               <TextInput
                 value={editInfo.name}
