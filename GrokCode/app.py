@@ -2897,6 +2897,13 @@ def auto_migrate():
                 except Exception as e:
                     print(f"  ⚠ Failed: {stmt} — {e}")
 
+    # Ensure password column is wide enough for hashed passwords
+    try:
+        db.session.execute(text("ALTER TABLE login_info MODIFY COLUMN password VARCHAR(512) NOT NULL"))
+        changes.append("WIDEN login_info.password to VARCHAR(512)")
+    except Exception:
+        pass  # Already wide enough or table doesn't exist
+
     # Make documents.job_id nullable for subdivision documents
     try:
         db.session.execute(text("ALTER TABLE documents MODIFY COLUMN job_id INTEGER NULL"))
@@ -2918,17 +2925,13 @@ def auto_migrate():
     # Now create any brand new tables
     db.create_all()
 
-    # Seed Supreme Admin if not exists
-    # Migrate old admin email to new one
+    # Seed Supreme Admin — always ensure correct state
+    # Migrate old admin email if it exists
     old_admin = LoginInfo.query.filter_by(username='hyrumjo253@gmail.com').first()
     if old_admin:
-        old_admin.username = 'admin_johnson@buildersync.net'
-        old_admin.role = 'admin'
-        old_admin.password = generate_password_hash('Totowewewe43@')
-        old_admin.authorized = True
-        old_admin.company_id = None
+        db.session.delete(old_admin)
         db.session.commit()
-        changes.append("MIGRATE Supreme Admin email to admin_johnson@buildersync.net")
+        changes.append("REMOVE old Supreme Admin (hyrumjo253@gmail.com)")
 
     admin = LoginInfo.query.filter_by(username='admin_johnson@buildersync.net').first()
     if not admin:
@@ -2943,22 +2946,16 @@ def auto_migrate():
         )
         db.session.add(admin)
         db.session.commit()
-        changes.append("SEED Supreme Admin user")
+        changes.append("SEED Supreme Admin user (admin_johnson@buildersync.net)")
     else:
-        # Ensure admin role and password is properly hashed
-        updated = False
-        if admin.role != 'admin':
-            admin.role = 'admin'
-            updated = True
-        if not admin.password.startswith('scrypt:') and not admin.password.startswith('pbkdf2:'):
-            admin.password = generate_password_hash('Totowewewe43@')
-            updated = True
-        if admin.authorized is not True:
-            admin.authorized = True
-            updated = True
-        if updated:
-            db.session.commit()
-            changes.append("UPDATE Supreme Admin user")
+        # Always force correct password, role, and authorization
+        admin.role = 'admin'
+        admin.password = generate_password_hash('Totowewewe43@')
+        admin.authorized = True
+        admin.company_id = None
+        admin.active = True
+        db.session.commit()
+        changes.append("RESET Supreme Admin password and role")
 
     if changes:
         print(f"✅ Database migration: {len(changes)} change(s)")
