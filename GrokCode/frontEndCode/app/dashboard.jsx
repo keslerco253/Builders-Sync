@@ -64,6 +64,8 @@ export default function Dashboard() {
   const [showNewSubdivModal, setShowNewSubdivModal] = useState(false);
   const [newSubdivName, setNewSubdivName] = useState('');
   const [newSubdivSaving, setNewSubdivSaving] = useState(false);
+  const [editSubdivId, setEditSubdivId] = useState(null);
+  const [editSubdivName, setEditSubdivName] = useState('');
   const [selectedProject, setSelectedProject] = useState(null);
   const [activeTab, setActiveTab] = useState('schedule');
   const [activeSub, setActiveSub] = useState('calendar');
@@ -75,6 +77,10 @@ export default function Dashboard() {
   const [showSelectionManager, setShowSelectionManager] = useState(false);
   const [showDocumentManager, setShowDocumentManager] = useState(false);
   const [showTradeManager, setShowTradeManager] = useState(false);
+  const [showGoLiveManager, setShowGoLiveManager] = useState(false);
+  const [goLiveStepsDef, setGoLiveStepsDef] = useState([]);
+  const [newGoLiveStep, setNewGoLiveStep] = useState('');
+  const [goLiveStepsLoading, setGoLiveStepsLoading] = useState(false);
   const [builderTrades, setBuilderTrades] = useState(DEFAULT_TRADES);
   const [newTradeName, setNewTradeName] = useState('');
   const [clientView, setClientView] = useState(false);
@@ -149,34 +155,60 @@ export default function Dashboard() {
     setExcSaving(false);
   };
 
+  const [holdReasonModal, setHoldReasonModal] = useState(null); // project object or null
+  const [holdReasonText, setHoldReasonText] = useState('');
+  const [holdSubmitting, setHoldSubmitting] = useState(false);
+
+  const submitProjectHold = async (project, reason) => {
+    setHoldSubmitting(true);
+    try {
+      const editedBy = user ? `${user.first_name} ${user.last_name}`.trim() : '';
+      const res = await fetch(`${API_BASE}/projects/${project.id}/hold`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'hold', edited_by: editedBy, hold_reason: reason }),
+      });
+      if (!res.ok) { const err = await res.json(); Alert.alert('Error', err.error || 'Failed'); setHoldSubmitting(false); return; }
+      const result = await res.json();
+      const updatedProject = result.project || result;
+      setProjects(prev => prev.map(p => p.id === project.id ? { ...p, ...updatedProject } : p));
+      if (selectedProject?.id === project.id) {
+        setSelectedProject(prev => ({ ...prev, ...updatedProject }));
+      }
+      setHoldReasonModal(null);
+      setHoldReasonText('');
+    } catch (e) { console.warn('Hold error:', e); }
+    setHoldSubmitting(false);
+  };
+
   const toggleProjectHold = async (project, action) => {
     setProjectActionMenu(null);
-    const confirmMsg = action === 'hold'
-      ? `Put "${project.name}" on hold?\n\nThe currently in-progress task will be extended and all future tasks will be pushed back for each day the hold is active.`
-      : `Release hold on "${project.name}"?\n\nTask dates will be adjusted based on the number of workdays the project was on hold.`;
+    if (action === 'hold') {
+      setHoldReasonModal(project);
+      setHoldReasonText('');
+      return;
+    }
+    // Release flow — simple confirmation
+    const confirmMsg = `Release hold on "${project.name}"?\n\nTask dates will be adjusted based on the number of workdays the project was on hold.`;
     const confirmed = Platform.OS === 'web'
       ? window.confirm(confirmMsg)
-      : await new Promise(res => Alert.alert(action === 'hold' ? 'On Hold' : 'Release Hold', confirmMsg,
-          [{ text: 'Cancel', onPress: () => res(false) }, { text: action === 'hold' ? 'Put On Hold' : 'Release', onPress: () => res(true) }]));
+      : await new Promise(res => Alert.alert('Release Hold', confirmMsg,
+          [{ text: 'Cancel', onPress: () => res(false) }, { text: 'Release', onPress: () => res(true) }]));
     if (!confirmed) return;
 
     try {
       const editedBy = user ? `${user.first_name} ${user.last_name}`.trim() : '';
       const res = await fetch(`${API_BASE}/projects/${project.id}/hold`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action, edited_by: editedBy }),
+        body: JSON.stringify({ action: 'release', edited_by: editedBy }),
       });
       if (!res.ok) { const err = await res.json(); Alert.alert('Error', err.error || 'Failed'); return; }
       const result = await res.json();
       const updatedProject = result.project || result;
-      // Update project in list
       setProjects(prev => prev.map(p => p.id === project.id ? { ...p, ...updatedProject } : p));
       if (selectedProject?.id === project.id) {
         setSelectedProject(prev => ({ ...prev, ...updatedProject }));
       }
-      if (action === 'release') {
-        setScheduleVersion(v => v + 1);
-      }
+      setScheduleVersion(v => v + 1);
     } catch (e) { console.warn('Hold toggle error:', e); }
   };
 
@@ -261,6 +293,7 @@ export default function Dashboard() {
   const [showOpen, setShowOpen] = useState(true);
   const [showClosed, setShowClosed] = useState(false);
   const syncRef = useRef(null);
+  const lastProjectTapRef = useRef({});
   const [companyLogo, setCompanyLogo] = useState(null);
   const [scheduleVersion, setScheduleVersion] = useState(0);
 
@@ -326,6 +359,38 @@ export default function Dashboard() {
     } catch (e) { /* ignore */ }
   };
 
+  const fetchGoLiveStepsDef = async () => {
+    if (!user?.company_id) return;
+    setGoLiveStepsLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/go-live-steps?company_id=${user.company_id}`);
+      if (res.ok) { const data = await res.json(); setGoLiveStepsDef(Array.isArray(data) ? data : []); }
+    } catch (e) { console.warn('Fetch go-live steps:', e); }
+    setGoLiveStepsLoading(false);
+  };
+
+  const addGoLiveStepDef = async () => {
+    if (!newGoLiveStep.trim() || !user?.company_id) return;
+    try {
+      const res = await fetch(`${API_BASE}/go-live-steps`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: newGoLiveStep.trim(), company_id: user.company_id }),
+      });
+      if (res.ok) {
+        const step = await res.json();
+        setGoLiveStepsDef(prev => [...prev, step]);
+        setNewGoLiveStep('');
+      }
+    } catch (e) { console.warn('Add go-live step:', e); }
+  };
+
+  const deleteGoLiveStepDef = async (stepId) => {
+    try {
+      await fetch(`${API_BASE}/go-live-steps/${stepId}`, { method: 'DELETE' });
+      setGoLiveStepsDef(prev => prev.filter(s => s.id !== stepId));
+    } catch (e) { console.warn('Delete go-live step:', e); }
+  };
+
   const createSubdivision = async (name) => {
     setNewSubdivSaving(true);
     try {
@@ -354,6 +419,23 @@ export default function Dashboard() {
       setProjects(prev => prev.map(p => p.subdivision_id === id ? { ...p, subdivision_id: null } : p));
       if (selectedSubdivision?.id === id) setSelectedSubdivision(null);
     } catch (e) { console.warn('Delete subdivision error:', e); }
+  };
+
+  const renameSubdivision = async (id, newName) => {
+    if (!newName.trim()) return;
+    try {
+      const res = await fetch(`${API_BASE}/subdivisions/${id}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: newName.trim() }),
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setSubdivisions(prev => prev.map(s => s.id === id ? { ...s, name: updated.name || newName.trim() } : s));
+        if (selectedSubdivision?.id === id) setSelectedSubdivision(prev => ({ ...prev, name: updated.name || newName.trim() }));
+      }
+    } catch (e) { console.warn('Rename subdivision error:', e); }
+    setEditSubdivId(null);
+    setEditSubdivName('');
   };
 
   useFocusEffect(useCallback(() => {
@@ -664,7 +746,18 @@ export default function Dashboard() {
                 <TouchableOpacity
                   key={project.id}
                   activeOpacity={0.7}
-                  onPress={() => selectProject(project)}
+                  onPress={() => {
+                    const now = Date.now();
+                    const last = lastProjectTapRef.current[project.id] || 0;
+                    lastProjectTapRef.current[project.id] = now;
+                    if (now - last < 400 && active) {
+                      lastProjectTapRef.current[project.id] = 0;
+                      setActiveTab('info');
+                      setActiveSub('jobinfo');
+                    } else {
+                      selectProject(project);
+                    }
+                  }}
                   style={[st.jobItem, active && st.jobItemActive, project.on_hold && { borderLeftWidth: 3, borderLeftColor: '#f59e0b' }]}
                 >
                   <View style={[st.jobIndicator, active && st.jobIndicatorActive]} />
@@ -754,9 +847,30 @@ export default function Dashboard() {
                           },
                         } : {})}
                       >
-                        <Text style={{ fontSize: 15, fontWeight: '700', color: sdActive ? C.gd : C.chromeTxt, letterSpacing: 0.5, flex: 1 }} numberOfLines={1}>
-                          📁 {sd.name.toUpperCase()}
-                        </Text>
+                        {editSubdivId === sd.id ? (
+                          <TextInput
+                            value={editSubdivName}
+                            onChangeText={setEditSubdivName}
+                            autoFocus
+                            onBlur={() => renameSubdivision(sd.id, editSubdivName)}
+                            onSubmitEditing={() => renameSubdivision(sd.id, editSubdivName)}
+                            style={{ fontSize: 15, fontWeight: '700', color: sdActive ? C.gd : C.chromeTxt, letterSpacing: 0.5, flex: 1, padding: 0, margin: 0, borderBottomWidth: 1, borderBottomColor: C.gd }}
+                          />
+                        ) : (
+                          <Text style={{ fontSize: 15, fontWeight: '700', color: sdActive ? C.gd : C.chromeTxt, letterSpacing: 0.5, flex: 1 }} numberOfLines={1}>
+                            📁 {sd.name.toUpperCase()}
+                          </Text>
+                        )}
+                        {isBuilder && editSubdivId !== sd.id && (
+                          <TouchableOpacity
+                            onPress={(e) => { e.stopPropagation(); setEditSubdivId(sd.id); setEditSubdivName(sd.name); }}
+                            style={{ paddingHorizontal: 6, paddingVertical: 2 }}
+                            activeOpacity={0.6}
+                            hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
+                          >
+                            <Text style={{ fontSize: 14, color: sdActive ? C.gd : C.dm }}>✏️</Text>
+                          </TouchableOpacity>
+                        )}
                         <View style={{ backgroundColor: sdActive ? C.gd + '30' : C.w08, borderRadius: 10, paddingHorizontal: 7, paddingVertical: 2 }}>
                           <Text style={{ fontSize: 13, fontWeight: '600', color: sdActive ? C.gd : C.dm }}>{sd.projects.length}</Text>
                         </View>
@@ -3122,6 +3236,57 @@ export default function Dashboard() {
         </Modal>
       )}
 
+      {/* Hold Reason Modal */}
+      {holdReasonModal && (
+        <Modal visible animationType="fade" transparent>
+          <TouchableOpacity style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', alignItems: 'center' }} activeOpacity={1}
+            onPress={() => { if (!holdSubmitting) { setHoldReasonModal(null); setHoldReasonText(''); } }}>
+            <TouchableOpacity activeOpacity={1} onPress={e => e.stopPropagation()}>
+              <View style={{ width: 380, backgroundColor: C.cardBg || C.card, borderRadius: 14, borderWidth: 1, borderColor: C.w12, overflow: 'hidden', ...(Platform.OS === 'web' ? { boxShadow: '0 10px 30px rgba(0,0,0,0.4)' } : { elevation: 20 }) }}>
+                <View style={{ padding: 20, alignItems: 'center', borderBottomWidth: 1, borderBottomColor: C.w06 }}>
+                  <Text style={{ fontSize: 32, marginBottom: 8 }}>⏸</Text>
+                  <Text style={{ fontSize: 20, fontWeight: '700', color: '#f59e0b' }}>Put On Hold</Text>
+                  <Text style={{ fontSize: 15, color: C.dm, marginTop: 4, textAlign: 'center' }}>{holdReasonModal.name}</Text>
+                </View>
+                <View style={{ padding: 18 }}>
+                  <Text style={{ fontSize: 14, fontWeight: '700', color: C.dm, letterSpacing: 0.5, marginBottom: 8 }}>REASON FOR HOLD</Text>
+                  <TextInput
+                    value={holdReasonText}
+                    onChangeText={setHoldReasonText}
+                    placeholder="Enter reason for putting this project on hold..."
+                    placeholderTextColor={C.w20}
+                    multiline
+                    numberOfLines={3}
+                    style={{ fontSize: 16, color: C.text, backgroundColor: C.w04, borderRadius: 8, padding: 12, borderWidth: 1, borderColor: C.w10, minHeight: 80, textAlignVertical: 'top' }}
+                    autoFocus
+                  />
+                  <Text style={{ fontSize: 12, color: C.dm, marginTop: 6 }}>
+                    Tasks will be extended and pushed back for each day the hold is active.
+                  </Text>
+                </View>
+                <View style={{ flexDirection: 'row', gap: 10, padding: 18, paddingTop: 0 }}>
+                  <TouchableOpacity
+                    onPress={() => { setHoldReasonModal(null); setHoldReasonText(''); }}
+                    style={{ flex: 1, paddingVertical: 12, borderRadius: 8, alignItems: 'center', borderWidth: 1, borderColor: C.w12 }}
+                    activeOpacity={0.7} disabled={holdSubmitting}>
+                    <Text style={{ fontSize: 16, fontWeight: '600', color: C.dm }}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => submitProjectHold(holdReasonModal, holdReasonText.trim())}
+                    disabled={!holdReasonText.trim() || holdSubmitting}
+                    style={{ flex: 1, paddingVertical: 12, borderRadius: 8, alignItems: 'center', backgroundColor: '#f59e0b', opacity: !holdReasonText.trim() || holdSubmitting ? 0.5 : 1 }}
+                    activeOpacity={0.8}>
+                    <Text style={{ fontSize: 16, fontWeight: '700', color: '#fff' }}>
+                      {holdSubmitting ? 'Saving...' : 'Put On Hold'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </Modal>
+      )}
+
       {/* Delete Project Confirmation Modal */}
       {showDeleteConfirm && (
         <Modal visible animationType="fade" transparent>
@@ -3533,6 +3698,78 @@ export default function Dashboard() {
                   <View style={{ padding: 24, alignItems: 'center' }}>
                     <Text style={{ fontSize: 16, color: C.dm }}>No trades added yet</Text>
                   </View>
+                )}
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
+      )}
+
+      {/* Go Live Steps Manager Modal (company admin only) */}
+      {showGoLiveManager && (
+        <Modal visible animationType="fade" transparent>
+          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }}>
+            <View style={{ width: isWide ? 460 : '92%', maxHeight: '80%', backgroundColor: C.bg, borderRadius: 16, overflow: 'hidden' }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 18, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: C.bd }}>
+                <Text style={{ fontSize: 20, fontWeight: '700', color: C.textBold }}>Manage Go Live Steps</Text>
+                <TouchableOpacity onPress={() => { setShowGoLiveManager(false); setNewGoLiveStep(''); }} activeOpacity={0.7}>
+                  <Text style={{ fontSize: 28, color: C.dm, fontWeight: '300' }}>×</Text>
+                </TouchableOpacity>
+              </View>
+              <View style={{ paddingHorizontal: 18, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: C.bd }}>
+                <Text style={{ fontSize: 13, color: C.dm }}>
+                  These steps must be completed before any project can go live.
+                </Text>
+              </View>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 18, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: C.bd }}>
+                <TextInput
+                  value={newGoLiveStep}
+                  onChangeText={setNewGoLiveStep}
+                  placeholder="Add new step..."
+                  placeholderTextColor={C.dm}
+                  style={{ flex: 1, fontSize: 16, color: C.text, backgroundColor: C.w04, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, borderWidth: 1, borderColor: C.w08 }}
+                  onSubmitEditing={addGoLiveStepDef}
+                />
+                <TouchableOpacity
+                  onPress={addGoLiveStepDef}
+                  style={{ backgroundColor: C.gd, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 8 }}
+                  activeOpacity={0.7}
+                >
+                  <Text style={{ fontSize: 16, fontWeight: '600', color: '#fff' }}>Add</Text>
+                </TouchableOpacity>
+              </View>
+              <ScrollView style={{ maxHeight: 400 }} contentContainerStyle={{ paddingVertical: 4 }}>
+                {goLiveStepsLoading ? (
+                  <ActivityIndicator color={C.gd} style={{ marginVertical: 30 }} />
+                ) : goLiveStepsDef.length === 0 ? (
+                  <View style={{ padding: 24, alignItems: 'center' }}>
+                    <Text style={{ fontSize: 16, color: C.dm }}>No go live steps configured</Text>
+                    <Text style={{ fontSize: 13, color: C.dm, marginTop: 4 }}>Projects can go live immediately</Text>
+                  </View>
+                ) : (
+                  goLiveStepsDef.map((step, idx) => (
+                    <View key={step.id} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 18, paddingVertical: 12,
+                      borderBottomWidth: idx < goLiveStepsDef.length - 1 ? 1 : 0, borderBottomColor: C.w04 }}>
+                      <Text style={{ fontSize: 17, fontWeight: '500', color: C.text, flex: 1 }}>{idx + 1}. {step.title}</Text>
+                      <TouchableOpacity
+                        onPress={() => {
+                          const doDelete = () => deleteGoLiveStepDef(step.id);
+                          if (Platform.OS === 'web') {
+                            if (window.confirm(`Remove "${step.title}"?`)) doDelete();
+                          } else {
+                            Alert.alert('Delete Step', `Remove "${step.title}"?`, [
+                              { text: 'Cancel', style: 'cancel' },
+                              { text: 'Delete', style: 'destructive', onPress: doDelete },
+                            ]);
+                          }
+                        }}
+                        activeOpacity={0.7}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      >
+                        <Text style={{ fontSize: 20, color: '#ef4444' }}>🗑</Text>
+                      </TouchableOpacity>
+                    </View>
+                  ))
                 )}
               </ScrollView>
             </View>
@@ -4017,6 +4254,16 @@ export default function Dashboard() {
                     <Text style={st.settingsItemIcon}>🔧</Text>
                     <Text style={st.settingsItemTxt}>Manage Trades</Text>
                   </TouchableOpacity>
+                  {user?.role === 'company_admin' && (
+                    <TouchableOpacity
+                      onPress={() => { setShowSettings(false); fetchGoLiveStepsDef(); setShowGoLiveManager(true); }}
+                      style={st.settingsItem}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={st.settingsItemIcon}>🚀</Text>
+                      <Text style={st.settingsItemTxt}>Manage Go Live Steps</Text>
+                    </TouchableOpacity>
+                  )}
                 </View>
               )}
             </View>
@@ -4206,7 +4453,18 @@ export default function Dashboard() {
                           <TouchableOpacity
                             key={project.id}
                             activeOpacity={0.7}
-                            onPress={() => selectProject(project)}
+                            onPress={() => {
+                              const now = Date.now();
+                              const last = lastProjectTapRef.current[project.id] || 0;
+                              lastProjectTapRef.current[project.id] = now;
+                              if (now - last < 400 && active) {
+                                lastProjectTapRef.current[project.id] = 0;
+                                setActiveTab('info');
+                                setActiveSub('jobinfo');
+                              } else {
+                                selectProject(project);
+                              }
+                            }}
                             style={[st.jobItem, active && st.jobItemActive, project.on_hold && { borderLeftWidth: 3, borderLeftColor: '#f59e0b' }]}
                           >
                             <View style={[st.jobIndicator, active && st.jobIndicatorActive]} />
@@ -4295,9 +4553,30 @@ export default function Dashboard() {
                                   }}
                                   style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 16, backgroundColor: sdActive ? (C.gd + '18') : (C.mode === 'light' ? 'rgba(0,0,0,0.04)' : C.w04), borderBottomWidth: 1, borderBottomColor: C.sw06, borderLeftWidth: sdActive ? 3 : 0, borderLeftColor: C.gd }}
                                 >
-                                  <Text style={{ fontSize: 15, fontWeight: '700', color: sdActive ? C.gd : C.chromeTxt, letterSpacing: 0.5, flex: 1 }} numberOfLines={1}>
-                                    📁 {sd.name.toUpperCase()}
-                                  </Text>
+                                  {editSubdivId === sd.id ? (
+                                    <TextInput
+                                      value={editSubdivName}
+                                      onChangeText={setEditSubdivName}
+                                      autoFocus
+                                      onBlur={() => renameSubdivision(sd.id, editSubdivName)}
+                                      onSubmitEditing={() => renameSubdivision(sd.id, editSubdivName)}
+                                      style={{ fontSize: 15, fontWeight: '700', color: sdActive ? C.gd : C.chromeTxt, letterSpacing: 0.5, flex: 1, padding: 0, margin: 0, borderBottomWidth: 1, borderBottomColor: C.gd }}
+                                    />
+                                  ) : (
+                                    <Text style={{ fontSize: 15, fontWeight: '700', color: sdActive ? C.gd : C.chromeTxt, letterSpacing: 0.5, flex: 1 }} numberOfLines={1}>
+                                      📁 {sd.name.toUpperCase()}
+                                    </Text>
+                                  )}
+                                  {isBuilder && editSubdivId !== sd.id && (
+                                    <TouchableOpacity
+                                      onPress={(e) => { e.stopPropagation(); setEditSubdivId(sd.id); setEditSubdivName(sd.name); }}
+                                      style={{ paddingHorizontal: 6, paddingVertical: 2 }}
+                                      activeOpacity={0.6}
+                                      hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
+                                    >
+                                      <Text style={{ fontSize: 14, color: sdActive ? C.gd : C.dm }}>✏️</Text>
+                                    </TouchableOpacity>
+                                  )}
                                   <View style={{ backgroundColor: sdActive ? C.gd + '30' : C.w08, borderRadius: 10, paddingHorizontal: 7, paddingVertical: 2 }}>
                                     <Text style={{ fontSize: 13, fontWeight: '600', color: sdActive ? C.gd : C.dm }}>{sd.projects.length}</Text>
                                   </View>
@@ -4819,6 +5098,7 @@ const NewProjectModal = ({ onClose, onCreated, subdivisions = [], builderTrades 
   const [showReview, setShowReview] = useState(false);
   const [reviewTasks, setReviewTasks] = useState([]);
   const [tradeDropdownIdx, setTradeDropdownIdx] = useState(null);
+  const [templateTradeSearch, setTemplateTradeSearch] = useState('');
   const [reviewTmplInfo, setReviewTmplInfo] = useState(null);
   const [appliedTemplate, setAppliedTemplate] = useState(null);
   const [showSubdivPicker, setShowSubdivPicker] = useState(false);
@@ -5199,20 +5479,31 @@ const NewProjectModal = ({ onClose, onCreated, subdivisions = [], builderTrades 
                 {/* Trade dropdown modal */}
                 {tradeDropdownIdx !== null && (
                   <Modal visible transparent animationType="fade">
-                    <TouchableOpacity style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', alignItems: 'center' }} activeOpacity={1} onPress={() => setTradeDropdownIdx(null)}>
+                    <TouchableOpacity style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', alignItems: 'center' }} activeOpacity={1} onPress={() => { setTradeDropdownIdx(null); setTemplateTradeSearch(''); }}>
                       <TouchableOpacity activeOpacity={1} onPress={e => e.stopPropagation()}>
                         <View style={{ width: 320, backgroundColor: C.modalBg, borderRadius: 12, borderWidth: 1, borderColor: C.w12, overflow: 'hidden', maxHeight: 420,
                           ...(Platform.OS === 'web' ? { boxShadow: '0 8px 30px rgba(0,0,0,0.3)' } : { elevation: 20 }) }}>
                           <View style={{ paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: C.w08 }}>
                             <Text style={{ fontSize: 18, fontWeight: '700', color: C.textBold }}>Select Trade</Text>
                           </View>
-                          <ScrollView style={{ maxHeight: 320 }}>
-                            {builderTrades.map(trade => {
+                          <View style={{ paddingHorizontal: 16, paddingVertical: 8 }}>
+                            <TextInput
+                              value={templateTradeSearch}
+                              onChangeText={setTemplateTradeSearch}
+                              placeholder="Search trades..."
+                              placeholderTextColor={C.w20}
+                              style={{ fontSize: 15, color: C.text, backgroundColor: C.w04, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8, borderWidth: 1, borderColor: C.w08 }}
+                              autoFocus
+                            />
+                          </View>
+                          <ScrollView style={{ maxHeight: 280 }} keyboardShouldPersistTaps="handled">
+                            {builderTrades.filter(t => !templateTradeSearch.trim() || t.toLowerCase().includes(templateTradeSearch.toLowerCase())).map(trade => {
                               const isActive = reviewTasks[tradeDropdownIdx]?.trade === trade;
                               return (
                                 <TouchableOpacity key={trade} onPress={() => {
                                   setReviewTasks(prev => prev.map((t, i) => i === tradeDropdownIdx ? { ...t, trade } : t));
                                   setTradeDropdownIdx(null);
+                                  setTemplateTradeSearch('');
                                 }}
                                   style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 11, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: C.w04,
                                     ...(isActive ? { backgroundColor: 'rgba(59,130,246,0.12)' } : {}) }} activeOpacity={0.7}>
@@ -5226,6 +5517,7 @@ const NewProjectModal = ({ onClose, onCreated, subdivisions = [], builderTrades 
                             <TouchableOpacity onPress={() => {
                               setReviewTasks(prev => prev.map((t, i) => i === tradeDropdownIdx ? { ...t, trade: '' } : t));
                               setTradeDropdownIdx(null);
+                              setTemplateTradeSearch('');
                             }}
                               style={{ paddingVertical: 12, alignItems: 'center', borderTopWidth: 1, borderTopColor: C.w08 }}>
                               <Text style={{ fontSize: 16, color: C.rd, fontWeight: '600' }}>Remove Trade</Text>
@@ -5291,6 +5583,8 @@ const NewSubModal = ({ onClose, onCreated, tradesList }) => {
   const [selectedTrades, setSelectedTrades] = useState([]);
   const [allTrades, setAllTrades] = useState(tradesList || DEFAULT_TRADES);
   const [showStateDropdown, setShowStateDropdown] = useState(false);
+  const [showTradeDropdown, setShowTradeDropdown] = useState(false);
+  const [tradeSearch, setTradeSearch] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -5434,17 +5728,28 @@ const NewSubModal = ({ onClose, onCreated, tradesList }) => {
             {/* Trades */}
             <View style={{ marginBottom: 14 }}>
               <Text style={st.nsLabel}>TRADES</Text>
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
-                {allTrades.map(trade => {
-                  const on = selectedTrades.includes(trade);
-                  return (
+              <TouchableOpacity
+                onPress={() => { setShowTradeDropdown(true); setTradeSearch(''); }}
+                style={[st.nsInput, { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]}
+                activeOpacity={0.7}
+              >
+                <Text style={{ fontSize: 16, color: selectedTrades.length > 0 ? C.text : C.w20, flex: 1 }} numberOfLines={1}>
+                  {selectedTrades.length > 0 ? selectedTrades.join(', ') : 'Select trades...'}
+                </Text>
+                <Text style={{ fontSize: 14, color: C.dm }}>▼</Text>
+              </TouchableOpacity>
+              {selectedTrades.length > 0 && (
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: 6 }}>
+                  {selectedTrades.map(trade => (
                     <TouchableOpacity key={trade} onPress={() => toggleTrade(trade)}
-                      style={[st.nsTradeChip, on && st.nsTradeChipOn]} activeOpacity={0.7}>
-                      <Text style={[st.nsTradeTxt, on && st.nsTradeTxtOn]}>{trade}</Text>
+                      style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(59,130,246,0.12)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 }}
+                      activeOpacity={0.7}>
+                      <Text style={{ fontSize: 14, color: C.bl, fontWeight: '600' }}>{trade}</Text>
+                      <Text style={{ fontSize: 13, color: C.bl }}>✕</Text>
                     </TouchableOpacity>
-                  );
-                })}
-              </View>
+                  ))}
+                </View>
+              )}
             </View>
           </ScrollView>
 
@@ -5461,6 +5766,51 @@ const NewSubModal = ({ onClose, onCreated, tradesList }) => {
             </TouchableOpacity>
           </View>
         </View>
+
+        {/* Trade picker overlay */}
+        {showTradeDropdown && (
+          <View style={{
+            position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+            backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', alignItems: 'center',
+            zIndex: 999,
+          }}>
+            <TouchableOpacity style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
+              activeOpacity={1} onPress={() => setShowTradeDropdown(false)} />
+            <View style={{ width: 320, maxHeight: 440, backgroundColor: C.cardBg || '#1e3040', borderRadius: 12, borderWidth: 1, borderColor: C.w10, overflow: 'hidden', ...(Platform.OS === 'web' ? { boxShadow: '0 10px 30px rgba(0,0,0,0.5)' } : { elevation: 20 }) }}>
+              <View style={{ padding: 14, borderBottomWidth: 1, borderBottomColor: C.sw06 }}>
+                <Text style={{ fontSize: 18, fontWeight: '700', color: C.textBold }}>Select Trades</Text>
+              </View>
+              <View style={{ paddingHorizontal: 14, paddingVertical: 8 }}>
+                <TextInput
+                  value={tradeSearch}
+                  onChangeText={setTradeSearch}
+                  placeholder="Search trades..."
+                  placeholderTextColor={C.w20}
+                  style={{ fontSize: 15, color: C.text, backgroundColor: C.w04, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8, borderWidth: 1, borderColor: C.w08 }}
+                  autoFocus
+                />
+              </View>
+              <ScrollView style={{ maxHeight: 300 }} nestedScrollEnabled keyboardShouldPersistTaps="handled">
+                {allTrades.filter(t => !tradeSearch.trim() || t.toLowerCase().includes(tradeSearch.toLowerCase())).map(trade => {
+                  const on = selectedTrades.includes(trade);
+                  return (
+                    <TouchableOpacity key={trade} onPress={() => toggleTrade(trade)}
+                      style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 11, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: C.w04,
+                        backgroundColor: on ? 'rgba(59,130,246,0.12)' : 'transparent' }}
+                      activeOpacity={0.7}>
+                      <Text style={{ fontSize: 17, color: on ? C.bl : C.text, fontWeight: on ? '600' : '400' }}>{trade}</Text>
+                      {on && <Text style={{ fontSize: 19, color: C.bl }}>✓</Text>}
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+              <TouchableOpacity onPress={() => setShowTradeDropdown(false)}
+                style={{ paddingVertical: 12, alignItems: 'center', borderTopWidth: 1, borderTopColor: C.sw06 }}>
+                <Text style={{ fontSize: 16, fontWeight: '600', color: C.gd }}>Done</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
 
         {/* State picker overlay - outside exBox to avoid overflow:hidden clipping */}
         {showStateDropdown && (

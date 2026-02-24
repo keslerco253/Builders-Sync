@@ -315,22 +315,46 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
 
   // Go Live toggle
   const [goLive, setGoLive] = useState(false);
+  const [showGoLiveModal, setShowGoLiveModal] = useState(false);
+  const [goLiveSteps, setGoLiveSteps] = useState([]);
+  const [goLiveLoading, setGoLiveLoading] = useState(false);
   useEffect(() => {
     if (project) setGoLive(!!project.go_live);
   }, [project?.id, project?.go_live]);
 
+  const fetchGoLiveSteps = async () => {
+    if (!project?.id) return;
+    setGoLiveLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/projects/${project.id}/go-live-steps`);
+      if (res.ok) { const data = await res.json(); setGoLiveSteps(Array.isArray(data) ? data : []); }
+    } catch (e) { console.warn('Fetch go-live steps:', e); }
+    setGoLiveLoading(false);
+  };
+
+  const toggleGoLiveStep = async (stepId, completed) => {
+    const completedBy = user ? `${user.first_name} ${user.last_name}`.trim() : '';
+    try {
+      const res = await fetch(`${API_BASE}/projects/${project.id}/go-live-steps/${stepId}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ completed, completed_by: completedBy }),
+      });
+      if (res.ok) {
+        setGoLiveSteps(prev => prev.map(s => s.id === stepId ? { ...s, completed, completed_by: completed ? completedBy : '', completed_at: completed ? new Date().toISOString() : null } : s));
+      }
+    } catch (e) { console.warn('Toggle go-live step:', e); }
+  };
+
   // On Hold tracking
   const onHold = project?.on_hold || false;
 
-  const toggleGoLive = async (val) => {
-    if (!val) return; // Go Live is one-way, cannot be turned off
-    // Confirm before going live
-    const confirmed = Platform.OS === 'web'
-      ? window.confirm('Go Live?\n\nThis will:\n• Set the baseline from current task positions\n• Prevent tasks from being delayed or extended\n• Make the project visible to contractors and customers\n\nThis action cannot be undone.')
-      : await new Promise(res => Alert.alert('Go Live?', 'This will set baselines, restrict task delays/extensions, and make the project visible to contractors/customers. This cannot be undone.',
-          [{ text: 'Cancel', onPress: () => res(false) }, { text: 'Go Live', style: 'default', onPress: () => res(true) }]));
-    if (!confirmed) return;
+  const openGoLiveSteps = () => {
+    fetchGoLiveSteps();
+    setShowGoLiveModal(true);
+  };
 
+  const confirmGoLive = async () => {
+    setShowGoLiveModal(false);
     setGoLive(true);
     try {
       const res = await fetch(`${API_BASE}/projects/${project.id}`, {
@@ -340,7 +364,6 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
       if (res.ok) {
         const updated = await res.json();
         onProjectUpdate?.(updated);
-        // Re-fetch schedule to get the baselines that were just set
         const schRes = await fetch(`${API_BASE}/projects/${project.id}/schedule`);
         if (schRes.ok) {
           const schData = await schRes.json();
@@ -348,6 +371,11 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
         }
       } else { setGoLive(false); }
     } catch (e) { console.warn('Toggle go_live error:', e); setGoLive(false); }
+  };
+
+  const toggleGoLive = (val) => {
+    if (!val) return;
+    openGoLiveSteps();
   };
 
   const setField = (key, val) => { setEditInfo(prev => ({ ...prev, [key]: val })); setInfoDirty(true); };
@@ -440,8 +468,40 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
   const tab = activeTab !== undefined ? activeTab : localTab;
   const _sub = activeSub !== undefined ? activeSub : localSub;
   const sub = _sub === 'list' ? 'calendar' : _sub;
-  const setTab = (v) => { if (onTabChange) onTabChange(v); else setLocalTab(v); };
-  const setSub = (v) => { if (onSubChange) onSubChange(v); else setLocalSub(v); };
+  const setTab = (v) => {
+    if (infoDirty && tab === 'info' && _sub === 'jobinfo') {
+      const proceed = Platform.OS === 'web'
+        ? window.confirm('You have unsaved changes. Discard them?')
+        : true; // On mobile, Alert is async — handled separately
+      if (Platform.OS !== 'web') {
+        Alert.alert('Unsaved Changes', 'You have unsaved job info changes. Discard them?', [
+          { text: 'Stay', style: 'cancel' },
+          { text: 'Discard', style: 'destructive', onPress: () => { setInfoDirty(false); if (onTabChange) onTabChange(v); else setLocalTab(v); } },
+        ]);
+        return;
+      }
+      if (!proceed) return;
+      setInfoDirty(false);
+    }
+    if (onTabChange) onTabChange(v); else setLocalTab(v);
+  };
+  const setSub = (v) => {
+    if (infoDirty && tab === 'info' && _sub === 'jobinfo' && v !== 'jobinfo') {
+      const proceed = Platform.OS === 'web'
+        ? window.confirm('You have unsaved changes. Discard them?')
+        : true;
+      if (Platform.OS !== 'web') {
+        Alert.alert('Unsaved Changes', 'You have unsaved job info changes. Discard them?', [
+          { text: 'Stay', style: 'cancel' },
+          { text: 'Discard', style: 'destructive', onPress: () => { setInfoDirty(false); if (onSubChange) onSubChange(v); else setLocalSub(v); } },
+        ]);
+        return;
+      }
+      if (!proceed) return;
+      setInfoDirty(false);
+    }
+    if (onSubChange) onSubChange(v); else setLocalSub(v);
+  };
   const [modal, setModal] = useState(null);
 
   // Data stores
@@ -456,6 +516,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
   const [conTaskPopup, setConTaskPopup] = useState(null); // {id, task, trade, workdays, predecessor_id, rel_type, lag_days}
   const [predDropOpen, setPredDropOpen] = useState(false);
   const [tradeDropOpen, setTradeDropOpen] = useState(false);
+  const [taskTradeSearch, setTaskTradeSearch] = useState('');
   const [tradeFilter, setTradeFilter] = useState([]); // active trade filters for list view
   const [showTradeFilter, setShowTradeFilter] = useState(false);
   const lastTapRef = useRef({}); // { taskId: timestamp } for double-tap detection
@@ -1394,13 +1455,15 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
                   goLive={goLive}
                   onGoLiveChange={isB ? toggleGoLive : undefined}
                   onHold={onHold}
-                  onTaskDoubleClick={(task) => {
+                  onTaskDoubleClick={async (task) => {
                     setPredDropOpen(false);
                     setTradeDropOpen(false);
+                    setSubsSearch('');
                     setTaskInfoEdit({
                       id: task.id,
                       task: task.task || '',
                       trade: task.trade || '',
+                      contractor: task.contractor || '',
                       workdays: String((() => {
                         if (!task.start_date || !task.end_date) return 1;
                         const s = new Date(task.start_date + 'T00:00:00');
@@ -1416,9 +1479,6 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
                       start_date: task.start_date || '',
                       end_date: task.end_date || '',
                     });
-                  }}
-                  onTaskRightClick={async (task) => {
-                    setListEditTask(task); setListContractor(task.contractor || ''); setSubsSearch('');
                     try {
                       const res = await fetch(`${API_BASE}/users${user?.company_id ? `?company_id=${user.company_id}` : ''}`);
                       const data = await res.json();
@@ -1445,13 +1505,15 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
                   goLive={goLive}
                   onGoLiveChange={isB ? toggleGoLive : undefined}
                   onHold={onHold}
-                  onTaskDoubleClick={(task) => {
+                  onTaskDoubleClick={async (task) => {
                     setPredDropOpen(false);
                     setTradeDropOpen(false);
+                    setSubsSearch('');
                     setTaskInfoEdit({
                       id: task.id,
                       task: task.task || '',
                       trade: task.trade || '',
+                      contractor: task.contractor || '',
                       workdays: String((() => {
                         if (!task.start_date || !task.end_date) return 1;
                         const s = new Date(task.start_date + 'T00:00:00');
@@ -1467,9 +1529,6 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
                       start_date: task.start_date || '',
                       end_date: task.end_date || '',
                     });
-                  }}
-                  onTaskRightClick={async (task) => {
-                    setListEditTask(task); setListContractor(task.contractor || ''); setSubsSearch('');
                     try {
                       const res = await fetch(`${API_BASE}/users${user?.company_id ? `?company_id=${user.company_id}` : ''}`);
                       const data = await res.json();
@@ -1558,22 +1617,9 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
                       const statusColor = status === 'complete' ? C.gn : status === 'in-progress' ? C.gd : status === 'overdue' ? C.rd : '#4a5568';
                       const statusLabel = status === 'complete' ? 'Complete' : status === 'in-progress' ? 'In Progress' : 'Upcoming';
                       return (
-                        <View key={item.id}
-                          {...(Platform.OS === 'web' ? {
-                            onContextMenu: async (e) => {
-                              if (!isB) return;
-                              e.preventDefault();
-                              setListEditTask(item); setListContractor(item.contractor || ''); setSubsSearch('');
-                              try {
-                                const res = await fetch(`${API_BASE}/users${user?.company_id ? `?company_id=${user.company_id}` : ''}`);
-                                const data = await res.json();
-                                if (Array.isArray(data)) setSubsList(data.filter(u => (u.role === 'contractor' || u.role === 'builder') && u.active !== false));
-                              } catch(e2) { console.warn('fetch subs:', e2); }
-                            },
-                          } : {})}
-                        >
+                        <View key={item.id}>
                         <TouchableOpacity activeOpacity={0.7}
-                          onPress={() => {
+                          onPress={async () => {
                             if (isCon) {
                               setConTaskPopup(item);
                               return;
@@ -1586,10 +1632,12 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
                               lastTapRef.current[item.id] = 0;
                               setPredDropOpen(false);
                               setTradeDropOpen(false);
+                              setSubsSearch('');
                               setTaskInfoEdit({
                                 id: item.id,
                                 task: item.task || '',
                                 trade: item.trade || '',
+                                contractor: item.contractor || '',
                                 workdays: String((() => {
                                   if (!item.start_date || !item.end_date) return 1;
                                   const s2 = new Date(item.start_date + 'T00:00:00');
@@ -1605,16 +1653,12 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
                                 start_date: item.start_date || '',
                                 end_date: item.end_date || '',
                               });
+                              try {
+                                const res = await fetch(`${API_BASE}/users${user?.company_id ? `?company_id=${user.company_id}` : ''}`);
+                                const data = await res.json();
+                                if (Array.isArray(data)) setSubsList(data.filter(u => (u.role === 'contractor' || u.role === 'builder') && u.active !== false));
+                              } catch(e) { console.warn('fetch subs:', e); }
                             }
-                          }}
-                          onLongPress={async () => {
-                            if (!isB) return;
-                            setListEditTask(item); setListContractor(item.contractor || ''); setSubsSearch('');
-                            try {
-                              const res = await fetch(`${API_BASE}/users${user?.company_id ? `?company_id=${user.company_id}` : ''}`);
-                              const data = await res.json();
-                              if (Array.isArray(data)) setSubsList(data.filter(u => (u.role === 'contractor' || u.role === 'builder') && u.active !== false));
-                            } catch(e) { console.warn('fetch subs:', e); }
                           }}
                         >
                           <Card style={{ marginBottom: 8 }}>
@@ -1674,6 +1718,108 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
                   })()}
                 </ScrollView>
                 </>
+              )}
+
+              {/* Go Live Steps Modal */}
+              {showGoLiveModal && (
+                <Modal visible animationType="fade" transparent>
+                  <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+                    <View style={{
+                      backgroundColor: C.modalBg, borderRadius: 16, width: '90%', maxWidth: 500, maxHeight: '80%',
+                      borderWidth: 1, borderColor: C.w10,
+                      ...(Platform.OS === 'web' ? { boxShadow: '0 20px 60px rgba(0,0,0,0.4)' } : { elevation: 20 }),
+                    }}>
+                      <View style={{ padding: 20, borderBottomWidth: 1, borderBottomColor: C.w06, flexDirection: 'row', alignItems: 'center' }}>
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ fontSize: 24, fontWeight: '700', color: C.textBold }}>Go Live Steps</Text>
+                          <Text style={{ fontSize: 14, color: C.dm, marginTop: 2 }}>{project?.name}</Text>
+                        </View>
+                        <TouchableOpacity onPress={() => setShowGoLiveModal(false)} style={{ padding: 6 }}>
+                          <Text style={{ fontSize: 22, color: C.dm }}>✕</Text>
+                        </TouchableOpacity>
+                      </View>
+                      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20 }}>
+                        {goLiveLoading ? (
+                          <ActivityIndicator color={C.gd} style={{ marginVertical: 30 }} />
+                        ) : goLiveSteps.length === 0 ? (
+                          <View style={{ alignItems: 'center', paddingVertical: 30 }}>
+                            <Text style={{ fontSize: 40, marginBottom: 10 }}>🚀</Text>
+                            <Text style={{ fontSize: 18, fontWeight: '600', color: C.text, textAlign: 'center' }}>No Go Live Steps Configured</Text>
+                            <Text style={{ fontSize: 14, color: C.dm, textAlign: 'center', marginTop: 6 }}>
+                              Your company admin can add required steps under Settings.{'\n'}You can go live immediately.
+                            </Text>
+                          </View>
+                        ) : (
+                          goLiveSteps.map((step, idx) => (
+                            <TouchableOpacity
+                              key={step.id}
+                              onPress={() => toggleGoLiveStep(step.id, !step.completed)}
+                              style={{
+                                flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14,
+                                paddingHorizontal: 12, borderRadius: 10, marginBottom: 8,
+                                backgroundColor: step.completed ? 'rgba(16,185,129,0.08)' : C.w04,
+                                borderWidth: 1, borderColor: step.completed ? 'rgba(16,185,129,0.3)' : C.w08,
+                              }}
+                              activeOpacity={0.7}
+                            >
+                              <View style={{
+                                width: 28, height: 28, borderRadius: 14, borderWidth: 2,
+                                borderColor: step.completed ? '#10b981' : C.w15,
+                                backgroundColor: step.completed ? '#10b981' : 'transparent',
+                                alignItems: 'center', justifyContent: 'center',
+                              }}>
+                                {step.completed && <Text style={{ fontSize: 16, color: '#fff', fontWeight: '700' }}>✓</Text>}
+                              </View>
+                              <View style={{ flex: 1 }}>
+                                <Text style={{ fontSize: 17, fontWeight: '600', color: step.completed ? '#10b981' : C.text,
+                                  textDecorationLine: step.completed ? 'line-through' : 'none' }}>
+                                  {idx + 1}. {step.title}
+                                </Text>
+                                {step.completed && step.completed_by ? (
+                                  <Text style={{ fontSize: 12, color: C.dm, marginTop: 2 }}>
+                                    Completed by {step.completed_by}
+                                  </Text>
+                                ) : null}
+                              </View>
+                            </TouchableOpacity>
+                          ))
+                        )}
+                      </ScrollView>
+                      <View style={{ padding: 16, borderTopWidth: 1, borderTopColor: C.w06, gap: 8 }}>
+                        {(() => {
+                          const allDone = goLiveSteps.length === 0 || goLiveSteps.every(s => s.completed);
+                          return (
+                            <>
+                              <TouchableOpacity
+                                onPress={confirmGoLive}
+                                disabled={!allDone}
+                                style={{
+                                  paddingVertical: 14, borderRadius: 10, alignItems: 'center',
+                                  backgroundColor: allDone ? '#10b981' : C.w08,
+                                  opacity: allDone ? 1 : 0.5,
+                                }}
+                                activeOpacity={0.8}
+                              >
+                                <Text style={{ fontSize: 18, fontWeight: '700', color: allDone ? '#fff' : C.dm }}>
+                                  🚀 Go Live
+                                </Text>
+                              </TouchableOpacity>
+                              {!allDone && (
+                                <Text style={{ fontSize: 13, color: C.dm, textAlign: 'center' }}>
+                                  Complete all steps above to go live
+                                </Text>
+                              )}
+                            </>
+                          );
+                        })()}
+                        <TouchableOpacity onPress={() => setShowGoLiveModal(false)}
+                          style={{ paddingVertical: 10, alignItems: 'center' }}>
+                          <Text style={{ fontSize: 16, fontWeight: '600', color: C.dm }}>Cancel</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  </View>
+                </Modal>
               )}
 
               {/* Contractor Task Popup */}
@@ -1950,20 +2096,32 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
 
                           {/* Trade dropdown list (collapsed by default) */}
                           {tradeDropOpen && (
-                            <View style={{ borderRadius: 8, borderWidth: 1, borderColor: C.w06, overflow: 'hidden', maxHeight: 200 }}>
+                            <View style={{ borderRadius: 8, borderWidth: 1, borderColor: C.w06, overflow: 'hidden', maxHeight: 250 }}>
+                              <View style={{ paddingHorizontal: 10, paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: C.w04 }}>
+                                <TextInput
+                                  value={taskTradeSearch}
+                                  onChangeText={setTaskTradeSearch}
+                                  placeholder="Search trades..."
+                                  placeholderTextColor={C.ph}
+                                  style={{ fontSize: 15, color: C.text, backgroundColor: C.w04, borderRadius: 6, paddingHorizontal: 10, paddingVertical: 6, borderWidth: 1, borderColor: C.w08 }}
+                                  autoFocus
+                                />
+                              </View>
                               <ScrollView nestedScrollEnabled keyboardShouldPersistTaps="handled">
-                                <TouchableOpacity
-                                  onPress={() => { setTaskInfoEdit(prev => ({ ...prev, trade: '' })); setTradeDropOpen(false); }}
-                                  style={{ paddingVertical: 9, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: C.w04, backgroundColor: !taskInfoEdit.trade ? 'rgba(59,130,246,0.08)' : 'transparent' }}
-                                >
-                                  <Text style={{ fontSize: 18, color: !taskInfoEdit.trade ? C.bl : C.dm, fontWeight: !taskInfoEdit.trade ? '600' : '400' }}>None</Text>
-                                </TouchableOpacity>
-                                {(builderTradesProp || TEMPLATE_TRADES).map(t => {
+                                {!taskTradeSearch.trim() && (
+                                  <TouchableOpacity
+                                    onPress={() => { setTaskInfoEdit(prev => ({ ...prev, trade: '' })); setTradeDropOpen(false); setTaskTradeSearch(''); }}
+                                    style={{ paddingVertical: 9, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: C.w04, backgroundColor: !taskInfoEdit.trade ? 'rgba(59,130,246,0.08)' : 'transparent' }}
+                                  >
+                                    <Text style={{ fontSize: 18, color: !taskInfoEdit.trade ? C.bl : C.dm, fontWeight: !taskInfoEdit.trade ? '600' : '400' }}>None</Text>
+                                  </TouchableOpacity>
+                                )}
+                                {(builderTradesProp || TEMPLATE_TRADES).filter(t => !taskTradeSearch.trim() || t.toLowerCase().includes(taskTradeSearch.toLowerCase())).map(t => {
                                   const isActive = taskInfoEdit.trade === t;
                                   return (
                                     <TouchableOpacity
                                       key={t}
-                                      onPress={() => { setTaskInfoEdit(prev => ({ ...prev, trade: t })); setTradeDropOpen(false); }}
+                                      onPress={() => { setTaskInfoEdit(prev => ({ ...prev, trade: t })); setTradeDropOpen(false); setTaskTradeSearch(''); }}
                                       style={{ paddingVertical: 9, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: C.w04, backgroundColor: isActive ? 'rgba(59,130,246,0.08)' : 'transparent' }}
                                     >
                                       <Text style={{ fontSize: 18, color: isActive ? C.bl : C.text, fontWeight: isActive ? '600' : '400' }}>{t}</Text>
@@ -2055,6 +2213,100 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
                               </ScrollView>
                             </View>
                           )}
+                          {/* Move Start Date (only when not live) */}
+                          {isB && !goLive && (
+                            <View>
+                              <Text style={{ fontSize: 13, fontWeight: '700', color: C.dm, letterSpacing: 1, marginBottom: 5 }}>MOVE START DATE</Text>
+                              <DatePicker
+                                value={taskInfoEdit.start_date || ''}
+                                onChange={v => setTaskInfoEdit(prev => ({ ...prev, start_date: v }))}
+                                placeholder="Select new start date"
+                              />
+                            </View>
+                          )}
+
+                          {/* Subcontractor Selection */}
+                          {isB && (
+                            <View>
+                              <Text style={{ fontSize: 13, fontWeight: '700', color: C.dm, letterSpacing: 1, marginBottom: 5 }}>SUBCONTRACTOR</Text>
+                              {taskInfoEdit.contractor ? (
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                                  <View style={{ flex: 1, backgroundColor: 'rgba(16,185,129,0.08)', borderRadius: 8, padding: 10, borderWidth: 1, borderColor: 'rgba(16,185,129,0.2)' }}>
+                                    <Text style={{ fontSize: 17, fontWeight: '600', color: '#10b981' }}>{taskInfoEdit.contractor}</Text>
+                                  </View>
+                                  <TouchableOpacity onPress={() => setTaskInfoEdit(prev => ({ ...prev, contractor: '' }))}
+                                    style={{ paddingHorizontal: 8, paddingVertical: 6 }} activeOpacity={0.7}>
+                                    <Text style={{ fontSize: 16, color: C.rd }}>✕</Text>
+                                  </TouchableOpacity>
+                                </View>
+                              ) : null}
+                              <TextInput
+                                value={subsSearch}
+                                onChangeText={setSubsSearch}
+                                placeholder="Search subcontractors..."
+                                placeholderTextColor={C.ph}
+                                style={{ fontSize: 15, color: C.text, backgroundColor: C.w04, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8, borderWidth: 1, borderColor: C.w08, marginBottom: 6 }}
+                              />
+                              <View style={{ borderRadius: 8, borderWidth: 1, borderColor: C.w06, overflow: 'hidden', maxHeight: 160 }}>
+                                <ScrollView nestedScrollEnabled keyboardShouldPersistTaps="handled">
+                                  {(() => {
+                                    const taskTrade = taskInfoEdit.trade;
+                                    const filtered = subsList
+                                      .filter(sub => {
+                                        if (subsSearch.trim()) {
+                                          const q = subsSearch.toLowerCase();
+                                          const name = `${sub.first_name || sub.firstName || ''} ${sub.last_name || sub.lastName || ''}`.toLowerCase();
+                                          const company = (sub.company_name || sub.companyName || '').toLowerCase();
+                                          if (!name.includes(q) && !company.includes(q)) return false;
+                                        }
+                                        return true;
+                                      })
+                                      .sort((a, b) => {
+                                        const aIsBuilder = a.role === 'builder' || a.role === 'company_admin';
+                                        const bIsBuilder = b.role === 'builder' || b.role === 'company_admin';
+                                        if (aIsBuilder && !bIsBuilder) return -1;
+                                        if (!aIsBuilder && bIsBuilder) return 1;
+                                        if (taskTrade) {
+                                          const aMatch = (a.trades || '').split(',').map(t => t.trim()).includes(taskTrade);
+                                          const bMatch = (b.trades || '').split(',').map(t => t.trim()).includes(taskTrade);
+                                          if (aMatch && !bMatch) return -1;
+                                          if (!aMatch && bMatch) return 1;
+                                        }
+                                        return 0;
+                                      });
+                                    if (filtered.length === 0) return (
+                                      <View style={{ padding: 14, alignItems: 'center' }}>
+                                        <Text style={{ fontSize: 15, color: C.dm }}>No subcontractors found</Text>
+                                      </View>
+                                    );
+                                    return filtered.map(sub => {
+                                      const name = `${sub.first_name || sub.firstName || ''} ${sub.last_name || sub.lastName || ''}`.trim();
+                                      const company = sub.company_name || sub.companyName || '';
+                                      const display = company ? `${company} (${name})` : name;
+                                      const isActive = taskInfoEdit.contractor === display || taskInfoEdit.contractor === name;
+                                      const subTrades = (sub.trades || '').split(',').map(t => t.trim()).filter(Boolean);
+                                      const tradeMatch = taskTrade && subTrades.includes(taskTrade);
+                                      return (
+                                        <TouchableOpacity
+                                          key={sub.id}
+                                          onPress={() => setTaskInfoEdit(prev => ({ ...prev, contractor: display }))}
+                                          style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 9, paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: C.w04,
+                                            backgroundColor: isActive ? 'rgba(16,185,129,0.1)' : 'transparent' }}
+                                          activeOpacity={0.7}
+                                        >
+                                          <View style={{ flex: 1 }}>
+                                            <Text style={{ fontSize: 16, color: isActive ? '#10b981' : C.text, fontWeight: isActive ? '600' : '400' }} numberOfLines={1}>{display}</Text>
+                                            {tradeMatch && <Text style={{ fontSize: 12, color: C.bl, fontWeight: '600' }}>{taskTrade}</Text>}
+                                          </View>
+                                          {isActive && <Text style={{ fontSize: 17, color: '#10b981' }}>✓</Text>}
+                                        </TouchableOpacity>
+                                      );
+                                    });
+                                  })()}
+                                </ScrollView>
+                              </View>
+                            </View>
+                          )}
                         </View>
                         </ScrollView>
 
@@ -2069,11 +2321,13 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
                               const updates = {
                                 task: taskInfoEdit.task.trim(),
                                 trade: taskInfoEdit.trade.trim(),
+                                contractor: taskInfoEdit.contractor || '',
                                 predecessor_id: taskInfoEdit.predecessor_id,
                                 rel_type: taskInfoEdit.rel_type || 'FS',
                                 lag_days: parseInt(taskInfoEdit.lag_days) || 0,
                               };
                               if (taskInfoEdit.start_date) {
+                                updates.start_date = taskInfoEdit.start_date;
                                 updates.end_date = sbCalcEndDate(taskInfoEdit.start_date, wd);
                               }
                               await editScheduleTask(taskInfoEdit.id, updates, 'Task updated');
