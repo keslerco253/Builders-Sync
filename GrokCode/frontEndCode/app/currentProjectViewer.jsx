@@ -468,39 +468,31 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
   const tab = activeTab !== undefined ? activeTab : localTab;
   const _sub = activeSub !== undefined ? activeSub : localSub;
   const sub = _sub === 'list' ? 'calendar' : _sub;
-  const setTab = (v) => {
-    if (infoDirty && tab === 'info' && _sub === 'jobinfo') {
-      const proceed = Platform.OS === 'web'
-        ? window.confirm('You have unsaved changes. Discard them?')
-        : true; // On mobile, Alert is async — handled separately
-      if (Platform.OS !== 'web') {
-        Alert.alert('Unsaved Changes', 'You have unsaved job info changes. Discard them?', [
-          { text: 'Stay', style: 'cancel' },
-          { text: 'Discard', style: 'destructive', onPress: () => { setInfoDirty(false); if (onTabChange) onTabChange(v); else setLocalTab(v); } },
-        ]);
-        return;
-      }
-      if (!proceed) return;
-      setInfoDirty(false);
+  const _doTabChange = (v) => { if (onTabChange) onTabChange(v); else setLocalTab(v); };
+  const _doSubChange = (v) => { if (onSubChange) onSubChange(v); else setLocalSub(v); };
+
+  const checkUnsaved = (callback) => {
+    if (!infoDirty || tab !== 'info' || _sub !== 'jobinfo') {
+      callback();
+      return;
     }
-    if (onTabChange) onTabChange(v); else setLocalTab(v);
+    if (Platform.OS === 'web') {
+      if (window.confirm('You have unsaved changes. Discard them?')) {
+        setInfoDirty(false);
+        callback();
+      }
+    } else {
+      Alert.alert('Unsaved Changes', 'You have unsaved job info changes. Discard them?', [
+        { text: 'Stay', style: 'cancel' },
+        { text: 'Discard', style: 'destructive', onPress: () => { setInfoDirty(false); callback(); } },
+      ]);
+    }
   };
+
+  const setTab = (v) => checkUnsaved(() => _doTabChange(v));
   const setSub = (v) => {
-    if (infoDirty && tab === 'info' && _sub === 'jobinfo' && v !== 'jobinfo') {
-      const proceed = Platform.OS === 'web'
-        ? window.confirm('You have unsaved changes. Discard them?')
-        : true;
-      if (Platform.OS !== 'web') {
-        Alert.alert('Unsaved Changes', 'You have unsaved job info changes. Discard them?', [
-          { text: 'Stay', style: 'cancel' },
-          { text: 'Discard', style: 'destructive', onPress: () => { setInfoDirty(false); if (onSubChange) onSubChange(v); else setLocalSub(v); } },
-        ]);
-        return;
-      }
-      if (!proceed) return;
-      setInfoDirty(false);
-    }
-    if (onSubChange) onSubChange(v); else setLocalSub(v);
+    if (v === 'jobinfo' && tab === 'info') { _doSubChange(v); return; }
+    checkUnsaved(() => _doSubChange(v));
   };
   const [modal, setModal] = useState(null);
 
@@ -682,8 +674,10 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
   const curTab = tabs.find(t => t.id === tab);
 
   const switchTab = (t) => {
-    setTab(t.id);
-    setSub(t.subs?.[0] || null);
+    checkUnsaved(() => {
+      _doTabChange(t.id);
+      _doSubChange(t.subs?.[0] || null);
+    });
   };
 
   // Load schedule once when project loads
@@ -1718,108 +1712,6 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
                   })()}
                 </ScrollView>
                 </>
-              )}
-
-              {/* Go Live Steps Modal */}
-              {showGoLiveModal && (
-                <Modal visible animationType="fade" transparent>
-                  <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 20 }}>
-                    <View style={{
-                      backgroundColor: C.modalBg, borderRadius: 16, width: '90%', maxWidth: 500, maxHeight: '80%',
-                      borderWidth: 1, borderColor: C.w10,
-                      ...(Platform.OS === 'web' ? { boxShadow: '0 20px 60px rgba(0,0,0,0.4)' } : { elevation: 20 }),
-                    }}>
-                      <View style={{ padding: 20, borderBottomWidth: 1, borderBottomColor: C.w06, flexDirection: 'row', alignItems: 'center' }}>
-                        <View style={{ flex: 1 }}>
-                          <Text style={{ fontSize: 24, fontWeight: '700', color: C.textBold }}>Go Live Steps</Text>
-                          <Text style={{ fontSize: 14, color: C.dm, marginTop: 2 }}>{project?.name}</Text>
-                        </View>
-                        <TouchableOpacity onPress={() => setShowGoLiveModal(false)} style={{ padding: 6 }}>
-                          <Text style={{ fontSize: 22, color: C.dm }}>✕</Text>
-                        </TouchableOpacity>
-                      </View>
-                      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20 }}>
-                        {goLiveLoading ? (
-                          <ActivityIndicator color={C.gd} style={{ marginVertical: 30 }} />
-                        ) : goLiveSteps.length === 0 ? (
-                          <View style={{ alignItems: 'center', paddingVertical: 30 }}>
-                            <Text style={{ fontSize: 40, marginBottom: 10 }}>🚀</Text>
-                            <Text style={{ fontSize: 18, fontWeight: '600', color: C.text, textAlign: 'center' }}>No Go Live Steps Configured</Text>
-                            <Text style={{ fontSize: 14, color: C.dm, textAlign: 'center', marginTop: 6 }}>
-                              Your company admin can add required steps under Settings.{'\n'}You can go live immediately.
-                            </Text>
-                          </View>
-                        ) : (
-                          goLiveSteps.map((step, idx) => (
-                            <TouchableOpacity
-                              key={step.id}
-                              onPress={() => toggleGoLiveStep(step.id, !step.completed)}
-                              style={{
-                                flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14,
-                                paddingHorizontal: 12, borderRadius: 10, marginBottom: 8,
-                                backgroundColor: step.completed ? 'rgba(16,185,129,0.08)' : C.w04,
-                                borderWidth: 1, borderColor: step.completed ? 'rgba(16,185,129,0.3)' : C.w08,
-                              }}
-                              activeOpacity={0.7}
-                            >
-                              <View style={{
-                                width: 28, height: 28, borderRadius: 14, borderWidth: 2,
-                                borderColor: step.completed ? '#10b981' : C.w15,
-                                backgroundColor: step.completed ? '#10b981' : 'transparent',
-                                alignItems: 'center', justifyContent: 'center',
-                              }}>
-                                {step.completed && <Text style={{ fontSize: 16, color: '#fff', fontWeight: '700' }}>✓</Text>}
-                              </View>
-                              <View style={{ flex: 1 }}>
-                                <Text style={{ fontSize: 17, fontWeight: '600', color: step.completed ? '#10b981' : C.text,
-                                  textDecorationLine: step.completed ? 'line-through' : 'none' }}>
-                                  {idx + 1}. {step.title}
-                                </Text>
-                                {step.completed && step.completed_by ? (
-                                  <Text style={{ fontSize: 12, color: C.dm, marginTop: 2 }}>
-                                    Completed by {step.completed_by}
-                                  </Text>
-                                ) : null}
-                              </View>
-                            </TouchableOpacity>
-                          ))
-                        )}
-                      </ScrollView>
-                      <View style={{ padding: 16, borderTopWidth: 1, borderTopColor: C.w06, gap: 8 }}>
-                        {(() => {
-                          const allDone = goLiveSteps.length === 0 || goLiveSteps.every(s => s.completed);
-                          return (
-                            <>
-                              <TouchableOpacity
-                                onPress={confirmGoLive}
-                                disabled={!allDone}
-                                style={{
-                                  paddingVertical: 14, borderRadius: 10, alignItems: 'center',
-                                  backgroundColor: allDone ? '#10b981' : C.w08,
-                                  opacity: allDone ? 1 : 0.5,
-                                }}
-                                activeOpacity={0.8}
-                              >
-                                <Text style={{ fontSize: 18, fontWeight: '700', color: allDone ? '#fff' : C.dm }}>
-                                  🚀 Go Live
-                                </Text>
-                              </TouchableOpacity>
-                              {!allDone && (
-                                <Text style={{ fontSize: 13, color: C.dm, textAlign: 'center' }}>
-                                  Complete all steps above to go live
-                                </Text>
-                              )}
-                            </>
-                          );
-                        })()}
-                        <TouchableOpacity onPress={() => setShowGoLiveModal(false)}
-                          style={{ paddingVertical: 10, alignItems: 'center' }}>
-                          <Text style={{ fontSize: 16, fontWeight: '600', color: C.dm }}>Cancel</Text>
-                        </TouchableOpacity>
-                      </View>
-                    </View>
-                  </View>
-                </Modal>
               )}
 
               {/* Contractor Task Popup */}
@@ -3116,6 +3008,108 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
       <View style={{ flex: 1, minHeight: 0 }}>
         {renderContent()}
       </View>
+
+      {/* Go Live Steps Modal — top level so it always renders */}
+      {showGoLiveModal && (
+        <Modal visible animationType="fade" transparent>
+          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+            <View style={{
+              backgroundColor: C.modalBg, borderRadius: 16, width: '90%', maxWidth: 500, maxHeight: '80%',
+              borderWidth: 1, borderColor: C.w10,
+              ...(Platform.OS === 'web' ? { boxShadow: '0 20px 60px rgba(0,0,0,0.4)' } : { elevation: 20 }),
+            }}>
+              <View style={{ padding: 20, borderBottomWidth: 1, borderBottomColor: C.w06, flexDirection: 'row', alignItems: 'center' }}>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 24, fontWeight: '700', color: C.textBold }}>Go Live Steps</Text>
+                  <Text style={{ fontSize: 14, color: C.dm, marginTop: 2 }}>{project?.name}</Text>
+                </View>
+                <TouchableOpacity onPress={() => setShowGoLiveModal(false)} style={{ padding: 6 }}>
+                  <Text style={{ fontSize: 22, color: C.dm }}>✕</Text>
+                </TouchableOpacity>
+              </View>
+              <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20 }}>
+                {goLiveLoading ? (
+                  <ActivityIndicator color={C.gd} style={{ marginVertical: 30 }} />
+                ) : goLiveSteps.length === 0 ? (
+                  <View style={{ alignItems: 'center', paddingVertical: 30 }}>
+                    <Text style={{ fontSize: 40, marginBottom: 10 }}>🚀</Text>
+                    <Text style={{ fontSize: 18, fontWeight: '600', color: C.text, textAlign: 'center' }}>No Go Live Steps Configured</Text>
+                    <Text style={{ fontSize: 14, color: C.dm, textAlign: 'center', marginTop: 6 }}>
+                      Your company admin can add required steps under Settings.{'\n'}You can go live immediately.
+                    </Text>
+                  </View>
+                ) : (
+                  goLiveSteps.map((step, idx) => (
+                    <TouchableOpacity
+                      key={step.id}
+                      onPress={() => toggleGoLiveStep(step.id, !step.completed)}
+                      style={{
+                        flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14,
+                        paddingHorizontal: 12, borderRadius: 10, marginBottom: 8,
+                        backgroundColor: step.completed ? 'rgba(16,185,129,0.08)' : C.w04,
+                        borderWidth: 1, borderColor: step.completed ? 'rgba(16,185,129,0.3)' : C.w08,
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <View style={{
+                        width: 28, height: 28, borderRadius: 14, borderWidth: 2,
+                        borderColor: step.completed ? '#10b981' : C.w15,
+                        backgroundColor: step.completed ? '#10b981' : 'transparent',
+                        alignItems: 'center', justifyContent: 'center',
+                      }}>
+                        {step.completed && <Text style={{ fontSize: 16, color: '#fff', fontWeight: '700' }}>✓</Text>}
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 17, fontWeight: '600', color: step.completed ? '#10b981' : C.text,
+                          textDecorationLine: step.completed ? 'line-through' : 'none' }}>
+                          {idx + 1}. {step.title}
+                        </Text>
+                        {step.completed && step.completed_by ? (
+                          <Text style={{ fontSize: 12, color: C.dm, marginTop: 2 }}>
+                            Completed by {step.completed_by}
+                          </Text>
+                        ) : null}
+                      </View>
+                    </TouchableOpacity>
+                  ))
+                )}
+              </ScrollView>
+              <View style={{ padding: 16, borderTopWidth: 1, borderTopColor: C.w06, gap: 8 }}>
+                {(() => {
+                  const allDone = goLiveSteps.length === 0 || goLiveSteps.every(s2 => s2.completed);
+                  return (
+                    <>
+                      <TouchableOpacity
+                        onPress={confirmGoLive}
+                        disabled={!allDone}
+                        style={{
+                          paddingVertical: 14, borderRadius: 10, alignItems: 'center',
+                          backgroundColor: allDone ? '#10b981' : C.w08,
+                          opacity: allDone ? 1 : 0.5,
+                        }}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={{ fontSize: 18, fontWeight: '700', color: allDone ? '#fff' : C.dm }}>
+                          🚀 Go Live
+                        </Text>
+                      </TouchableOpacity>
+                      {!allDone && (
+                        <Text style={{ fontSize: 13, color: C.dm, textAlign: 'center' }}>
+                          Complete all steps above to go live
+                        </Text>
+                      )}
+                    </>
+                  );
+                })()}
+                <TouchableOpacity onPress={() => setShowGoLiveModal(false)}
+                  style={{ paddingVertical: 10, alignItems: 'center' }}>
+                  <Text style={{ fontSize: 16, fontWeight: '600', color: C.dm }}>Cancel</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+      )}
     </View>
   );
 };
