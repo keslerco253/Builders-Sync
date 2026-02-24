@@ -6702,8 +6702,8 @@ const getStyles = (C) => StyleSheet.create({
     borderWidth: 2.5,
     ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
   },
-  subCalTaskTxt: { fontSize: 13, fontWeight: '600', color: C.text },
-  subCalTaskTxtSub: { fontSize: 11, fontWeight: '500', color: C.dm },
+  subCalTaskTxt: { fontSize: 15, fontWeight: '600', color: C.text },
+  subCalTaskTxtSub: { fontSize: 13, fontWeight: '500', color: C.dm },
 
   // Template manager
   tmplRow: {
