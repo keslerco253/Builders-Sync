@@ -1046,6 +1046,11 @@ def add_project():
         p.customer_id = customer_id
         db.session.add(p)
         db.session.commit()
+
+        # Auto-assign subdivision contractors to any existing schedule tasks
+        if p.subdivision_id:
+            apply_subdivision_contractors(p.id)
+
         return jsonify(p.to_dict()), 201
     except Exception as e:
         db.session.rollback()
