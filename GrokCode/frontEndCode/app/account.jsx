@@ -236,8 +236,8 @@ export default function AccountScreen() {
           )}
         </View>
 
-        {/* Company Logo — builder only */}
-        {isBuilder && (
+        {/* Company Logo — company admin only */}
+        {user?.role === 'company_admin' && (
           <View style={st.card}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 14 }}>
               <Text style={{ fontSize: 20 }}>🖼</Text>

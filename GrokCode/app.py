@@ -1077,8 +1077,10 @@ def get_user_logo(uid):
 
 @app.route('/users/<int:uid>/logo', methods=['PUT'])
 def set_user_logo(uid):
-    """Set or update a user's company logo (base64)."""
+    """Set or update a user's company logo (company_admin only)."""
     u = LoginInfo.query.get_or_404(uid)
+    if u.role != 'company_admin':
+        return jsonify({'error': 'Only company admins can change the company logo'}), 403
     data = request.get_json()
     u.company_logo = data.get('logo', '')
     db.session.commit()
