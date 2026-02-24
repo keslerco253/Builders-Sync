@@ -3676,17 +3676,22 @@ export default function Dashboard() {
                     <Text style={{ fontSize: 17, fontWeight: '500', color: C.text }}>{trade}</Text>
                     <TouchableOpacity
                       onPress={() => {
-                        Alert.alert('Delete Trade', `Remove "${trade}" from your trade list?`, [
-                          { text: 'Cancel', style: 'cancel' },
-                          { text: 'Delete', style: 'destructive', onPress: () => {
-                            const updated = builderTrades.filter(t => t !== trade);
-                            setBuilderTrades(updated);
-                            fetch(`${API_BASE}/users/${user.id}`, {
-                              method: 'PUT', headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({ trades: updated.join(', ') }),
-                            }).catch(() => {});
-                          }},
-                        ]);
+                        const doDelete = () => {
+                          const updated = builderTrades.filter(t => t !== trade);
+                          setBuilderTrades(updated);
+                          fetch(`${API_BASE}/users/${user.id}`, {
+                            method: 'PUT', headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ trades: updated.join(', ') }),
+                          }).catch(() => {});
+                        };
+                        if (Platform.OS === 'web') {
+                          if (window.confirm(`Remove "${trade}" from your trade list?`)) doDelete();
+                        } else {
+                          Alert.alert('Delete Trade', `Remove "${trade}" from your trade list?`, [
+                            { text: 'Cancel', style: 'cancel' },
+                            { text: 'Delete', style: 'destructive', onPress: doDelete },
+                          ]);
+                        }
                       }}
                       activeOpacity={0.7}
                       hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
