@@ -103,6 +103,36 @@ class LoginInfo(db.Model):
         }
 
 
+class GoLiveStep(db.Model):
+    """Configurable steps that must be completed before a project can go live.
+    Managed by company_admin. Each project tracks completion via GoLiveProjectStep."""
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey('company.id'), nullable=False)
+    title = db.Column(db.String(200), nullable=False)
+    sort_order = db.Column(db.Integer, default=0)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def to_dict(self):
+        return {'id': self.id, 'company_id': self.company_id, 'title': self.title, 'sort_order': self.sort_order}
+
+
+class GoLiveProjectStep(db.Model):
+    """Tracks which go-live steps have been completed for a specific project."""
+    id = db.Column(db.Integer, primary_key=True)
+    project_id = db.Column(db.Integer, db.ForeignKey('projects.id'), nullable=False)
+    step_id = db.Column(db.Integer, db.ForeignKey('go_live_step.id'), nullable=False)
+    completed = db.Column(db.Boolean, default=False)
+    completed_at = db.Column(db.DateTime, nullable=True)
+    completed_by = db.Column(db.String(100), default='')
+
+    def to_dict(self):
+        return {
+            'id': self.id, 'project_id': self.project_id, 'step_id': self.step_id,
+            'completed': bool(self.completed), 'completed_at': self.completed_at.isoformat() if self.completed_at else None,
+            'completed_by': self.completed_by or '',
+        }
+
+
 class Subdivision(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(200), nullable=False)
@@ -161,6 +191,7 @@ class Projects(db.Model):
     go_live = db.Column(db.Boolean, default=False)
     on_hold = db.Column(db.Boolean, default=False)
     hold_start_date = db.Column(db.String(20), default='')
+    hold_reason = db.Column(db.String(500), default='')
     subdivision_id = db.Column(db.Integer, db.ForeignKey('subdivision.id'), nullable=True)
     company_id = db.Column(db.Integer, db.ForeignKey('company.id'), nullable=True)
     date = db.Column(db.DateTime, default=datetime.utcnow)
@@ -199,6 +230,7 @@ class Projects(db.Model):
             'go_live': bool(self.go_live) if self.go_live else False,
             'on_hold': bool(self.on_hold) if self.on_hold else False,
             'hold_start_date': self.hold_start_date or '',
+            'hold_reason': self.hold_reason or '',
             'subdivision_id': self.subdivision_id,
             'company_id': self.company_id,
             'date': self.date.isoformat() if self.date else None,
@@ -1621,9 +1653,13 @@ def toggle_project_hold(project_id):
     if action == 'hold':
         if p.on_hold:
             return jsonify({'error': 'Project is already on hold'}), 400
+        hold_reason = data.get('hold_reason', '')
+        if not hold_reason or not hold_reason.strip():
+            return jsonify({'error': 'A reason is required to put a project on hold'}), 400
         today_str = _fmt(datetime.utcnow())
         p.on_hold = True
         p.hold_start_date = today_str
+        p.hold_reason = hold_reason.strip()
         db.session.commit()
         return jsonify(p.to_dict())
 
@@ -1702,6 +1738,7 @@ def toggle_project_hold(project_id):
 
         p.on_hold = False
         p.hold_start_date = ''
+        p.hold_reason = ''
         db.session.commit()
         sync_project_dates(project_id)
 
@@ -1710,6 +1747,95 @@ def toggle_project_hold(project_id):
         return jsonify({'project': p.to_dict(), 'schedule': [t.to_dict() for t in all_tasks]})
 
     return jsonify({'error': 'Action must be "hold" or "release"'}), 400
+
+
+# ============================================================
+# GO LIVE STEPS (company-level step templates)
+# ============================================================
+
+@app.route('/go-live-steps', methods=['GET'])
+def get_go_live_steps():
+    """List go-live steps for a company."""
+    cid = request.args.get('company_id', type=int)
+    if not cid:
+        return jsonify([])
+    steps = GoLiveStep.query.filter_by(company_id=cid).order_by(GoLiveStep.sort_order, GoLiveStep.id).all()
+    return jsonify([s.to_dict() for s in steps])
+
+
+@app.route('/go-live-steps', methods=['POST'])
+def create_go_live_step():
+    data = request.get_json() or {}
+    if not data.get('title') or not data.get('company_id'):
+        return jsonify({'error': 'title and company_id required'}), 400
+    max_order = db.session.query(db.func.max(GoLiveStep.sort_order)).filter_by(company_id=data['company_id']).scalar() or 0
+    step = GoLiveStep(company_id=data['company_id'], title=data['title'], sort_order=max_order + 1)
+    db.session.add(step)
+    db.session.commit()
+    return jsonify(step.to_dict()), 201
+
+
+@app.route('/go-live-steps/<int:step_id>', methods=['PUT'])
+def update_go_live_step(step_id):
+    step = GoLiveStep.query.get_or_404(step_id)
+    data = request.get_json() or {}
+    if 'title' in data:
+        step.title = data['title']
+    if 'sort_order' in data:
+        step.sort_order = data['sort_order']
+    db.session.commit()
+    return jsonify(step.to_dict())
+
+
+@app.route('/go-live-steps/<int:step_id>', methods=['DELETE'])
+def delete_go_live_step(step_id):
+    step = GoLiveStep.query.get_or_404(step_id)
+    # Also delete project completions for this step
+    GoLiveProjectStep.query.filter_by(step_id=step_id).delete()
+    db.session.delete(step)
+    db.session.commit()
+    return jsonify({'message': 'Deleted'})
+
+
+# ============================================================
+# GO LIVE PROJECT STEPS (per-project completion tracking)
+# ============================================================
+
+@app.route('/projects/<int:project_id>/go-live-steps', methods=['GET'])
+def get_project_go_live_steps(project_id):
+    """Get all go-live steps for a project, with completion status."""
+    p = Projects.query.get_or_404(project_id)
+    cid = p.company_id
+    if not cid:
+        return jsonify([])
+    steps = GoLiveStep.query.filter_by(company_id=cid).order_by(GoLiveStep.sort_order, GoLiveStep.id).all()
+    completions = {ps.step_id: ps for ps in GoLiveProjectStep.query.filter_by(project_id=project_id).all()}
+    result = []
+    for s in steps:
+        ps = completions.get(s.id)
+        result.append({
+            **s.to_dict(),
+            'completed': bool(ps and ps.completed),
+            'completed_at': ps.completed_at.isoformat() if ps and ps.completed_at else None,
+            'completed_by': ps.completed_by if ps else '',
+        })
+    return jsonify(result)
+
+
+@app.route('/projects/<int:project_id>/go-live-steps/<int:step_id>', methods=['PUT'])
+def toggle_project_go_live_step(project_id, step_id):
+    """Toggle completion of a go-live step for a project."""
+    data = request.get_json() or {}
+    completed = data.get('completed', False)
+    ps = GoLiveProjectStep.query.filter_by(project_id=project_id, step_id=step_id).first()
+    if not ps:
+        ps = GoLiveProjectStep(project_id=project_id, step_id=step_id)
+        db.session.add(ps)
+    ps.completed = completed
+    ps.completed_at = datetime.utcnow() if completed else None
+    ps.completed_by = data.get('completed_by', '') if completed else ''
+    db.session.commit()
+    return jsonify(ps.to_dict())
 
 
 @app.route('/projects/<int:project_id>', methods=['DELETE'])
