@@ -21,23 +21,7 @@ const Bar = ({ pct, color, h = 3, C: Cx }) => (
   </View>
 );
 
-const HeaderTab = ({ active, onPress, C, children }) => {
-  const [hov, setHov] = React.useState(false);
-  const webProps = Platform.OS === 'web' ? {
-    onMouseEnter: () => setHov(true),
-    onMouseLeave: () => setHov(false),
-  } : {};
-  return (
-    <TouchableOpacity
-      onPress={onPress}
-      style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 6, backgroundColor: active ? 'rgba(255,255,255,0.12)' : hov ? 'rgba(255,255,255,0.07)' : 'transparent' }}
-      activeOpacity={0.7}
-      {...webProps}
-    >
-      {children}
-    </TouchableOpacity>
-  );
-};
+
 
 // ============================================================
 // DASHBOARD — main screen after login
@@ -3978,60 +3962,6 @@ export default function Dashboard() {
           </View>
           <Text style={st.brandName}>{isWide || (!showingDetail && !showingContractorProject) ? 'BuilderSync' : ''}</Text>
         </View>
-
-        {/* Main project tabs — inline in header when a project is selected */}
-        {(selectedProject || contractorProject) && dashView === 'projects' && (
-          <View style={{ flexDirection: 'row', flexShrink: 1, flexGrow: 1, alignSelf: 'flex-end', marginBottom: -12 }}>
-            {(clientView
-              ? [
-                  { id: 'schedule', label: 'Schedule', defSub: 'calendar' },
-                  { id: 'info', label: 'Info', defSub: 'price' },
-                  { id: 'changeorders', label: 'Change Orders', defSub: null },
-                  { id: 'selections', label: 'Selections', defSub: null },
-                  { id: 'docs', label: 'Photos', defSub: 'photos' },
-                ]
-              : isBuilder
-              ? [
-                  { id: 'schedule', label: 'Schedule', defSub: 'calendar' },
-                  { id: 'info', label: 'Info', defSub: 'jobinfo' },
-                  { id: 'changeorders', label: 'Change Orders', defSub: null },
-                  { id: 'selections', label: 'Selections', defSub: null },
-                  { id: 'docs', label: 'Docs', defSub: 'documents' },
-                ]
-              : user?.role === 'customer'
-              ? [
-                  { id: 'schedule', label: 'Schedule', defSub: 'calendar' },
-                  { id: 'info', label: 'Info', defSub: 'price' },
-                  { id: 'changeorders', label: 'Change Orders', defSub: null },
-                  { id: 'selections', label: 'Selections', defSub: null },
-                  { id: 'docs', label: 'Photos', defSub: 'photos' },
-                ]
-              : user?.role === 'contractor'
-              ? [
-                  { id: 'schedule', label: 'Schedule', defSub: 'calendar' },
-                  { id: 'changeorders', label: 'Change Orders', defSub: null },
-                  { id: 'info', label: 'Info', defSub: 'jobinfo' },
-                ]
-              : [
-                  { id: 'schedule', label: 'Schedule', defSub: 'calendar' },
-                  { id: 'info', label: 'Info', defSub: 'jobinfo' },
-                  { id: 'docs', label: 'Docs', defSub: 'documents' },
-                ]
-            ).map(t => {
-              const active = activeTab === t.id;
-              return (
-                <TouchableOpacity
-                  key={t.id}
-                  onPress={() => { setActiveTab(t.id); setActiveSub(t.defSub); }}
-                  style={{ flex: 1, paddingTop: 4, paddingBottom: 10, alignItems: 'center', borderBottomWidth: active ? 2 : 0, borderBottomColor: C.gd }}
-                  activeOpacity={0.7}
-                >
-                  <Text style={{ fontSize: 21, fontWeight: active ? '600' : '500', color: active ? C.chromeTxt : C.chromeDm }}>{t.label}</Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        )}
 
         {/* Spacer pushes search + icons right */}
         <View style={{ flex: 1 }} />
