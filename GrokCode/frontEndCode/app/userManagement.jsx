@@ -7,9 +7,11 @@ import { useFocusEffect } from '@react-navigation/native';
 import { AuthContext, ThemeContext, API_BASE } from './context';
 
 const ini = n => n?.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() || '??';
-const rG = (r, C) => r === 'builder' ? C.gd : r === 'contractor' ? C.bl : C.gn;
-const rBg = (r, C) => r === 'builder' ? C.gd + '22' : r === 'contractor' ? C.bl + '22' : C.gn + '22';
-const rCl = (r, C) => r === 'builder' ? C.gd : r === 'contractor' ? C.blB : C.gnB;
+const _isBld = r => r === 'builder' || r === 'company_admin';
+const rG = (r, C) => _isBld(r) ? C.gd : r === 'contractor' ? C.bl : C.gn;
+const rBg = (r, C) => _isBld(r) ? C.gd + '22' : r === 'contractor' ? C.bl + '22' : C.gn + '22';
+const rCl = (r, C) => _isBld(r) ? C.gd : r === 'contractor' ? C.blB : C.gnB;
+const roleLabel = r => r === 'company_admin' ? 'admin' : r;
 
 const Lbl = ({ children }) => { const C = React.useContext(ThemeContext); const st = React.useMemo(() => getStyles(C), [C]); return <Text style={st.lbl}>{children}</Text>; };
 const Inp = ({ label, value, onChange, placeholder, type, style: ss }) => {
@@ -49,13 +51,19 @@ export default function UserManagement() {
   const C = React.useContext(ThemeContext);
   const st = React.useMemo(() => getStyles(C), [C]);
   const { user } = React.useContext(AuthContext);
+  const isCompanyAdmin = user?.role === 'company_admin';
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [modal, setModal] = useState(null); // 'adduser' | { type:'resetpw', data:user }
+  const [modal, setModal] = useState(null); // 'adduser' | 'invite' | { type:'resetpw', data:user }
 
   const fetchUsers = async () => {
     try {
-      const res = await fetch(`${API_BASE}/users${user?.company_id ? `?company_id=${user.company_id}` : ''}`);
+      let res;
+      if (isCompanyAdmin) {
+        res = await fetch(`${API_BASE}/company/users?user_id=${user.id}`);
+      } else {
+        res = await fetch(`${API_BASE}/users${user?.company_id ? `?company_id=${user.company_id}` : ''}`);
+      }
       const data = await res.json();
       if (Array.isArray(data)) setUsers(data);
     } catch (e) { console.warn(e); } finally { setLoading(false); }
@@ -72,12 +80,40 @@ export default function UserManagement() {
     } catch (e) { Alert.alert('Error', e.message); }
   };
 
+  const removeUser = async (u) => {
+    const doRemove = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/company/users/${u.id}?user_id=${user.id}`, {
+          method: 'DELETE', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ user_id: user.id }),
+        });
+        if (res.ok) {
+          setUsers(prev => prev.filter(x => x.id !== u.id));
+          Alert.alert('Done', 'User removed');
+        } else {
+          const data = await res.json();
+          Alert.alert('Error', data.error || 'Failed to remove user');
+        }
+      } catch (e) { Alert.alert('Error', e.message); }
+    };
+    if (Platform.OS === 'web') {
+      if (window.confirm(`Remove ${u.name || u.username}?`)) doRemove();
+    } else {
+      Alert.alert('Remove User', `Remove ${u.name || u.username}?`, [
+        { text: 'Cancel' }, { text: 'Remove', style: 'destructive', onPress: doRemove },
+      ]);
+    }
+  };
+
   if (loading) return <View style={{ flex: 1, backgroundColor: C.bg, justifyContent: 'center', alignItems: 'center' }}><ActivityIndicator color={C.gd} size="large" /></View>;
 
   return (
     <View style={{ flex: 1, backgroundColor: C.bg }}>
-      {/* Add User Modal */}
+      {/* Add User Modal (builders) */}
       {modal === 'adduser' && <AddUserModal onClose={() => setModal(null)} onCreated={(u) => { setUsers(prev => [...prev, u]); setModal(null); Alert.alert('Success', `${u.name} added`); }} />}
+
+      {/* Invite User Modal (company admins) */}
+      {modal === 'invite' && <InviteUserModal onClose={() => setModal(null)} onInvited={(u) => { setUsers(prev => [...prev, u]); setModal(null); Alert.alert('Success', `Invitation sent to ${u.username}`); }} />}
 
       {/* Reset Password Modal */}
       {modal?.type === 'resetpw' && <ResetPasswordModal user={modal.data} onClose={() => setModal(null)} onReset={() => { setModal(null); Alert.alert('Success', 'Password reset'); }} />}
@@ -85,35 +121,58 @@ export default function UserManagement() {
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
           <Text style={{ fontSize: 22, fontWeight: '700', color: C.textBold }}>Users</Text>
-          <TouchableOpacity onPress={() => setModal('adduser')} style={st.addBtn}>
-            <Text style={{ color: C.textBold, fontSize: 14, fontWeight: '700' }}>+ Add User</Text>
+          <TouchableOpacity onPress={() => setModal(isCompanyAdmin ? 'invite' : 'adduser')} style={st.addBtn}>
+            <Text style={{ color: '#fff', fontSize: 14, fontWeight: '700' }}>{isCompanyAdmin ? '+ Invite User' : '+ Add User'}</Text>
           </TouchableOpacity>
         </View>
 
-        {users.map(u => (
-          <View key={u.id} style={[st.userCard, !u.active && { opacity: 0.5 }]}>
-            <View style={[st.userAvatar, { backgroundColor: rG(u.role, C) }]}>
-              <Text style={{ fontSize: 14, fontWeight: '700', color: C.textBold }}>{ini(u.name)}</Text>
+        {users.map(u => {
+          const invited = u.registered === false;
+          return (
+            <View key={u.id} style={[st.userCard, !u.active && { opacity: 0.5 }]}>
+              <View style={[st.userAvatar, { backgroundColor: invited ? C.yl : rG(u.role, C) }]}>
+                {invited
+                  ? <Text style={{ fontSize: 16, color: '#fff' }}>@</Text>
+                  : <Text style={{ fontSize: 14, fontWeight: '700', color: '#fff' }}>{ini(u.name)}</Text>
+                }
+              </View>
+              <View style={{ flex: 1 }}>
+                {invited ? (
+                  <>
+                    <Text style={{ fontSize: 14, fontWeight: '600', color: C.yl }}>{u.username}</Text>
+                    <Text style={{ fontSize: 11, color: C.dm, fontStyle: 'italic' }}>Invited — pending registration</Text>
+                  </>
+                ) : (
+                  <>
+                    <Text style={{ fontSize: 14, fontWeight: '600', color: C.text }}>
+                      {u.name}{!u.active && <Text style={{ color: C.rd }}> (inactive)</Text>}
+                    </Text>
+                    <Text style={{ fontSize: 12, color: C.mt, marginTop: 2 }} numberOfLines={1}>
+                      {u.username}{u.company_name ? ` · ${u.company_name}` : ''}{u.phone ? ` · ${u.phone}` : ''}
+                    </Text>
+                  </>
+                )}
+              </View>
+              <View style={[st.roleBadge, { backgroundColor: rBg(u.role, C) }]}>
+                <Text style={{ fontSize: 10, fontWeight: '600', color: rCl(u.role, C), textTransform: 'uppercase' }}>{roleLabel(u.role)}</Text>
+              </View>
+              {!invited && (
+                <TouchableOpacity onPress={() => setModal({ type: 'resetpw', data: u })} style={st.iconBtn}>
+                  <Text style={{ fontSize: 14 }}>🔑</Text>
+                </TouchableOpacity>
+              )}
+              {isCompanyAdmin && u.id !== user.id ? (
+                <TouchableOpacity onPress={() => removeUser(u)} style={st.iconBtn}>
+                  <Text style={{ fontSize: 14, color: C.rd }}>x</Text>
+                </TouchableOpacity>
+              ) : !isCompanyAdmin && (
+                <TouchableOpacity onPress={() => toggleActive(u)} style={st.iconBtn}>
+                  <Text style={{ fontSize: 14, color: u.active ? C.rd : C.gn }}>{u.active ? '⊘' : '✓'}</Text>
+                </TouchableOpacity>
+              )}
             </View>
-            <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 14, fontWeight: '600', color: C.text }}>
-                {u.name}{!u.active && <Text style={{ color: C.rd }}> (inactive)</Text>}
-              </Text>
-              <Text style={{ fontSize: 12, color: C.mt, marginTop: 2 }} numberOfLines={1}>
-                {u.username}{u.company_name ? ` · ${u.company_name}` : ''}{u.phone ? ` · ${u.phone}` : ''}
-              </Text>
-            </View>
-            <View style={[st.roleBadge, { backgroundColor: rBg(u.role, C) }]}>
-              <Text style={{ fontSize: 10, fontWeight: '600', color: rCl(u.role, C), textTransform: 'uppercase' }}>{u.role}</Text>
-            </View>
-            <TouchableOpacity onPress={() => setModal({ type: 'resetpw', data: u })} style={st.iconBtn}>
-              <Text style={{ fontSize: 14 }}>🔑</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => toggleActive(u)} style={st.iconBtn}>
-              <Text style={{ fontSize: 14, color: u.active ? C.rd : C.gn }}>{u.active ? '⊘' : '✓'}</Text>
-            </TouchableOpacity>
-          </View>
-        ))}
+          );
+        })}
       </ScrollView>
     </View>
   );
@@ -176,6 +235,66 @@ const AddUserModal = ({ onClose, onCreated }) => {
       {f.role === 'contractor' && <Inp label="TRADES" value={f.trades} onChange={v => sF({ ...f, trades: v })} placeholder="Plumbing, Electrical..." />}
       <TouchableOpacity onPress={create} disabled={loading} style={[st.addBtn, { width: '100%', paddingVertical: 14, marginTop: 4 }, loading && { backgroundColor: C.dm }]}>
         <Text style={{ color: C.textBold, fontSize: 15, fontWeight: '700', textAlign: 'center' }}>{loading ? 'Creating...' : 'Create User'}</Text>
+      </TouchableOpacity>
+    </ModalSheet>
+  );
+};
+
+// Invite User Modal (for company admins)
+const InviteUserModal = ({ onClose, onInvited }) => {
+  const C = React.useContext(ThemeContext);
+  const st = React.useMemo(() => getStyles(C), [C]);
+  const { user } = React.useContext(AuthContext);
+  const [email, setEmail] = useState('');
+  const [role, setRole] = useState('builder');
+  const [err, setErr] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const ROLES = [
+    { value: 'builder', label: 'Builder / Employee' },
+    { value: 'contractor', label: 'Subcontractor' },
+    { value: 'customer', label: 'Customer / Homeowner' },
+  ];
+
+  const invite = async () => {
+    const e = email.trim().toLowerCase();
+    if (!e || !e.includes('@')) return setErr('Valid email required');
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/company/invite`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: user.id, email: e, role }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        onInvited(data);
+      } else {
+        setErr(data.error || 'Failed to invite');
+        setLoading(false);
+      }
+    } catch (e2) { setErr(e2.message); setLoading(false); }
+  };
+
+  return (
+    <ModalSheet visible title="Invite User" onClose={onClose}>
+      {err ? <View style={st.errBox}><Text style={{ color: C.rd, fontSize: 13 }}>{err}</Text></View> : null}
+      <Text style={{ fontSize: 13, color: C.mt, marginBottom: 16 }}>
+        Enter an email address. They will complete registration on their own.
+      </Text>
+      <Inp label="EMAIL" value={email} onChange={setEmail} type="email" placeholder="user@example.com" />
+      <Lbl>ROLE</Lbl>
+      <View style={{ marginBottom: 14 }}>
+        {ROLES.map(r => (
+          <TouchableOpacity key={r.value} onPress={() => setRole(r.value)}
+            style={[st.roleOpt, role === r.value && { borderColor: rCl(r.value, C), backgroundColor: rBg(r.value, C) }]}>
+            <Text style={[{ fontSize: 13, color: C.mt }, role === r.value && { color: rCl(r.value, C), fontWeight: '600' }]}>{r.label}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+      <TouchableOpacity onPress={invite} disabled={!email.trim().includes('@') || loading}
+        style={[st.addBtn, { width: '100%', paddingVertical: 14, marginTop: 4 }, (!email.trim().includes('@') || loading) && { backgroundColor: C.dm }]}>
+        <Text style={{ color: '#fff', fontSize: 15, fontWeight: '700', textAlign: 'center' }}>{loading ? 'Inviting...' : 'Send Invitation'}</Text>
       </TouchableOpacity>
     </ModalSheet>
   );

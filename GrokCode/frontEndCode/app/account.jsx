@@ -22,7 +22,7 @@ export default function AccountScreen() {
   const [editPhone, setEditPhone] = useState(user?.phone || '');
   const [saving, setSaving] = useState(false);
 
-  const isBuilder = user?.role === 'builder';
+  const isBuilder = user?.role === 'builder' || user?.role === 'company_admin';
 
   const startEditing = () => {
     setEditEmail(user?.username || '');
