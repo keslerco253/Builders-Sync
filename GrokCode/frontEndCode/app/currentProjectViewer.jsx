@@ -2830,19 +2830,17 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
         </View>
       )}
 
-      {/* Main tabs — only shown when not embedded (embedded: tabs are in dashboard header) */}
-      {!embedded && (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}
-          style={{ flexGrow: 0, flexShrink: 0, borderBottomWidth: 1, borderBottomColor: C.mode === 'light' ? 'rgba(255,255,255,0.08)' : C.bd, backgroundColor: C.mode === 'dark' ? 'rgba(15,25,35,0.5)' : C.headerBg }}
-          contentContainerStyle={{ flexGrow: 1 }}>
-          {tabs.map(t => (
-            <HoverTab key={t.id} onPress={() => switchTab(t)} active={tab === t.id}
-              style={s.tab} activeStyle={s.tabOn}>
-              <Text style={[s.tabTxt, { color: C.mode === 'light' ? C.chromeDm : C.mt }, tab === t.id && s.tabTxtOn, tab === t.id && C.mode === 'light' && { color: C.chromeTxt }]}>{t.label}</Text>
-            </HoverTab>
-          ))}
-        </ScrollView>
-      )}
+      {/* Main tabs */}
+      <ScrollView horizontal showsHorizontalScrollIndicator={false}
+        style={{ flexGrow: 0, flexShrink: 0, borderBottomWidth: 1, borderBottomColor: C.bd }}
+        contentContainerStyle={{ flexGrow: 1 }}>
+        {tabs.map(t => (
+          <HoverTab key={t.id} onPress={() => switchTab(t)} active={tab === t.id}
+            style={s.tab} activeStyle={s.tabOn}>
+            <Text style={[s.tabTxt, tab === t.id && s.tabTxtOn]}>{t.label}</Text>
+          </HoverTab>
+        ))}
+      </ScrollView>
 
       {/* Sub tabs */}
       {curTab?.subs && (
