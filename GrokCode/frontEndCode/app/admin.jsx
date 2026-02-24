@@ -235,10 +235,11 @@ export default function AdminDashboard() {
   );
 
   const roleBadge = (role) => {
-    const colors = { builder: C.gd, contractor: C.bl, customer: C.gn };
+    const colors = { company_admin: C.gd, builder: C.gd, contractor: C.bl, customer: C.gn };
+    const labels = { company_admin: 'ADMIN' };
     return (
       <View style={{ paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6, backgroundColor: (colors[role] || C.dm) + '22' }}>
-        <Text style={{ fontSize: 11, fontWeight: '600', color: colors[role] || C.dm, textTransform: 'uppercase' }}>{role}</Text>
+        <Text style={{ fontSize: 11, fontWeight: '600', color: colors[role] || C.dm, textTransform: 'uppercase' }}>{labels[role] || role}</Text>
       </View>
     );
   };
@@ -402,11 +403,11 @@ export default function AdminDashboard() {
               return (
                 <View key={u.id}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8 }}>
-                    <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: invited ? C.yl + '18' : u.role === 'builder' ? C.gd + '22' : u.role === 'contractor' ? C.bl + '22' : C.gn + '22', alignItems: 'center', justifyContent: 'center' }}>
+                    <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: invited ? C.yl + '18' : (u.role === 'builder' || u.role === 'company_admin') ? C.gd + '22' : u.role === 'contractor' ? C.bl + '22' : C.gn + '22', alignItems: 'center', justifyContent: 'center' }}>
                       {invited ? (
                         <Text style={{ fontSize: 16, color: C.yl }}>@</Text>
                       ) : (
-                        <Text style={{ fontSize: 13, fontWeight: '700', color: u.role === 'builder' ? C.gd : u.role === 'contractor' ? C.bl : C.gn }}>
+                        <Text style={{ fontSize: 13, fontWeight: '700', color: (u.role === 'builder' || u.role === 'company_admin') ? C.gd : u.role === 'contractor' ? C.bl : C.gn }}>
                           {(u.name || '??').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()}
                         </Text>
                       )}
@@ -520,6 +521,7 @@ export default function AdminDashboard() {
   );
 
   const ROLE_OPTIONS = [
+    { value: 'company_admin', label: 'Admin', color: C.gd },
     { value: 'builder', label: 'Builder / Employee', color: C.gd },
     { value: 'contractor', label: 'Subcontractor', color: C.bl },
     { value: 'customer', label: 'Customer / Homeowner', color: C.gn },

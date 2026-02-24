@@ -767,7 +767,7 @@ export default function ScheduleBuilder({ tasks, onTasksChange, templateMode, co
     fetch(`${API_BASE}/users${user?.company_id ? `?company_id=${user.company_id}` : ''}`)
       .then(r => r.json())
       .then(data => {
-        if (Array.isArray(data)) setSubs(data.filter(u => (u.role === 'contractor' || u.role === 'builder') && u.active !== false));
+        if (Array.isArray(data)) setSubs(data.filter(u => (u.role === 'contractor' || u.role === 'builder' || u.role === 'company_admin') && u.active !== false));
       })
       .catch(() => {});
   }, [templateMode, user?.company_id]);

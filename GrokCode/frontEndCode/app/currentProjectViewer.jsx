@@ -204,7 +204,7 @@ const SignConfirmModal = ({ visible, onClose, onSign, role, coTitle, coAmount })
   if (!visible) return null;
   const legalText = role === 'customer'
     ? 'By signing, you are approving this change order. This may adjust your contract price.'
-    : role === 'builder'
+    : (role === 'builder' || role === 'company_admin')
     ? 'By signing, you are approving this change order as the builder.'
     : 'By signing, you are electronically signing this change order as the subcontractor.';
   const canSign = typedName.trim().length > 0;
@@ -296,7 +296,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
   const { width: windowWidth } = useWindowDimensions();
   const project = projectProp || route?.params?.project;
 
-  const isB = clientView ? false : user?.role === 'builder';
+  const isB = clientView ? false : (user?.role === 'builder' || user?.role === 'company_admin');
   const isC = clientView ? true  : user?.role === 'customer';
   const isCon = clientView ? false : user?.role === 'contractor';
 
@@ -1756,7 +1756,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
                               // If task has a trade, hide subs without matching trade (builders always shown)
                               if (taskTrade) {
                                 filtered = filtered.filter(sub2 => {
-                                  if (sub2.role === 'builder') return true;
+                                  if (sub2.role === 'builder' || sub2.role === 'company_admin') return true;
                                   const subTrades = (sub2.trades || '').toLowerCase().split(',').map(t => t.trim());
                                   return subTrades.includes(taskTrade.toLowerCase());
                                 });
@@ -1771,9 +1771,10 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
                                 );
                               }
                               // Sort: builders first, then subs
+                              const isBld = r => r === 'builder' || r === 'company_admin';
                               filtered.sort((a, b) => {
-                                if (a.role === 'builder' && b.role !== 'builder') return -1;
-                                if (a.role !== 'builder' && b.role === 'builder') return 1;
+                                if (isBld(a.role) && !isBld(b.role)) return -1;
+                                if (!isBld(a.role) && isBld(b.role)) return 1;
                                 return 0;
                               });
                               if (filtered.length === 0) {

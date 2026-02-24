@@ -144,7 +144,7 @@ export default function RootLayout() {
                 component={Dashboard}
                 options={{ headerShown: false }}
               />
-              {user.role === 'builder' && (
+              {(user.role === 'builder' || user.role === 'company_admin') && (
                 <MainStack.Screen
                   name="UserManagement"
                   component={UserManagement}

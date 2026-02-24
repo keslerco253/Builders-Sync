@@ -264,7 +264,7 @@ export default function Dashboard() {
   const [companyLogo, setCompanyLogo] = useState(null);
   const [scheduleVersion, setScheduleVersion] = useState(0);
 
-  const isBuilder = user?.role === 'builder';
+  const isBuilder = user?.role === 'builder' || user?.role === 'company_admin';
   const isContractor = user?.role === 'contractor';
 
   // For contractors: auto-load own profile as sub data

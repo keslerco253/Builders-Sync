@@ -44,7 +44,7 @@ class LoginInfo(db.Model):
     lastName = db.Column(db.String(30), nullable=False)
     companyName = db.Column(db.String(120), nullable=False, default='')
     password = db.Column(db.String(255), nullable=False)
-    role = db.Column(db.String(20), nullable=False, default='builder')  # admin | builder | contractor | customer
+    role = db.Column(db.String(20), nullable=False, default='builder')  # admin | company_admin | builder | contractor | customer
     phone = db.Column(db.String(30), default='')
     trades = db.Column(db.String(255), default='')
     street_address = db.Column(db.String(200), default='')
@@ -653,6 +653,11 @@ def _require_admin():
     return user
 
 
+def _is_builder(role):
+    """Return True if the role has builder-level access (builder or company_admin)."""
+    return role in ('builder', 'company_admin')
+
+
 # ============================================================
 # SUPREME ADMIN ROUTES
 # ============================================================
@@ -666,7 +671,7 @@ def admin_stats():
     active_companies = Company.query.filter_by(status='active').count()
     paused_companies = Company.query.filter_by(status='paused').count()
     total_users = LoginInfo.query.filter(LoginInfo.role != 'admin').count()
-    total_builders = LoginInfo.query.filter_by(role='builder').count()
+    total_builders = LoginInfo.query.filter(LoginInfo.role.in_(['builder', 'company_admin'])).count()
     total_contractors = LoginInfo.query.filter_by(role='contractor').count()
     total_customers = LoginInfo.query.filter_by(role='customer').count()
     total_projects = Projects.query.count()
@@ -828,7 +833,7 @@ def admin_invite_user(cid):
     role = data.get('role', 'builder')
     if not email or '@' not in email:
         return jsonify({'error': 'Valid email is required'}), 400
-    if role not in ('builder', 'contractor', 'customer'):
+    if role not in ('company_admin', 'builder', 'contractor', 'customer'):
         return jsonify({'error': 'Invalid role'}), 400
     company = Company.query.get_or_404(cid)
     existing = LoginInfo.query.filter_by(username=email).first()
@@ -893,6 +898,89 @@ def admin_reset_database():
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
+
+
+# ============================================================
+# COMPANY ADMIN ROUTES
+# ============================================================
+
+@app.route('/company/invite', methods=['POST'])
+def company_admin_invite():
+    """Company admins can invite users (builders, contractors, customers) to their own company."""
+    data = request.get_json()
+    uid = data.get('user_id')
+    if not uid:
+        return jsonify({'error': 'Missing user_id'}), 400
+    requester = LoginInfo.query.get(uid)
+    if not requester or requester.role != 'company_admin':
+        return jsonify({'error': 'Only company admins can invite users'}), 403
+    if not requester.company_id:
+        return jsonify({'error': 'You are not assigned to a company'}), 400
+
+    email = (data.get('email') or '').lower().strip()
+    role = data.get('role', 'builder')
+    if not email or '@' not in email:
+        return jsonify({'error': 'Valid email is required'}), 400
+    if role not in ('builder', 'contractor', 'customer'):
+        return jsonify({'error': 'Invalid role. Company admins can invite builders, contractors, and customers.'}), 400
+
+    company = Company.query.get(requester.company_id)
+    if not company:
+        return jsonify({'error': 'Company not found'}), 404
+
+    existing = LoginInfo.query.filter_by(username=email).first()
+    if existing:
+        return jsonify({'error': 'This email is already in the system'}), 409
+
+    invited = LoginInfo(
+        username=email,
+        password='INVITED_PLACEHOLDER',
+        firstName='',
+        lastName='',
+        role=role,
+        company_id=company.id,
+        companyName=company.name,
+        authorized=True,
+        registered=False,
+    )
+    db.session.add(invited)
+    db.session.commit()
+    return jsonify(invited.to_dict()), 201
+
+
+@app.route('/company/users', methods=['GET'])
+def company_admin_list_users():
+    """Company admins can list users in their own company."""
+    uid = request.args.get('user_id', type=int)
+    if not uid:
+        return jsonify({'error': 'Missing user_id'}), 400
+    requester = LoginInfo.query.get(uid)
+    if not requester or requester.role != 'company_admin':
+        return jsonify({'error': 'Only company admins can view company users'}), 403
+    if not requester.company_id:
+        return jsonify({'error': 'You are not assigned to a company'}), 400
+
+    users = LoginInfo.query.filter_by(company_id=requester.company_id).all()
+    return jsonify([u.to_dict() for u in users])
+
+
+@app.route('/company/users/<int:uid>', methods=['DELETE'])
+def company_admin_remove_user(uid):
+    """Company admins can remove users from their company."""
+    requester_id = request.args.get('user_id', type=int) or (request.get_json() or {}).get('user_id')
+    if not requester_id:
+        return jsonify({'error': 'Missing user_id'}), 400
+    requester = LoginInfo.query.get(requester_id)
+    if not requester or requester.role != 'company_admin':
+        return jsonify({'error': 'Only company admins can remove users'}), 403
+    target = LoginInfo.query.get_or_404(uid)
+    if target.company_id != requester.company_id:
+        return jsonify({'error': 'User is not in your company'}), 400
+    if target.id == requester.id:
+        return jsonify({'error': 'You cannot remove yourself'}), 400
+    db.session.delete(target)
+    db.session.commit()
+    return jsonify({'message': 'User removed'})
 
 
 # ============================================================
@@ -1001,7 +1089,7 @@ def set_user_logo(uid):
 def get_builder_logo():
     """Get any builder's logo for company branding.
     Searches all builders for one with a logo uploaded."""
-    builders = LoginInfo.query.filter_by(role='builder').all()
+    builders = LoginInfo.query.filter(LoginInfo.role.in_(['builder', 'company_admin'])).all()
     for b in builders:
         if b.company_logo:
             return jsonify({'logo': b.company_logo})
@@ -1124,9 +1212,9 @@ def update_user(user_id):
     if 'trades' in data:
         user.trades = data['trades']
         # Sync trades across all builders in the same company
-        if user.role == 'builder' and user.companyName:
+        if _is_builder(user.role) and user.companyName:
             company_builders = LoginInfo.query.filter(
-                LoginInfo.role == 'builder',
+                LoginInfo.role.in_(['builder', 'company_admin']),
                 db.func.lower(LoginInfo.companyName) == user.companyName.lower(),
                 LoginInfo.id != user.id,
             ).all()
@@ -1151,14 +1239,14 @@ def update_user(user_id):
 def get_company_trades(user_id):
     """Get the shared trades list for the builder's company."""
     user = LoginInfo.query.get_or_404(user_id)
-    if user.role != 'builder':
+    if not _is_builder(user.role):
         return jsonify({'trades': user.trades or ''}), 200
     # Find any builder in the same company that has trades set
     if user.trades and user.trades.strip():
         return jsonify({'trades': user.trades}), 200
     if user.companyName:
         peer = LoginInfo.query.filter(
-            LoginInfo.role == 'builder',
+            LoginInfo.role.in_(['builder', 'company_admin']),
             db.func.lower(LoginInfo.companyName) == user.companyName.lower(),
             LoginInfo.trades != '',
             LoginInfo.trades.isnot(None),
@@ -1326,8 +1414,8 @@ def get_projects():
     req_user = LoginInfo.query.get(user_id) if user_id else None
     company_id = req_user.company_id if req_user else None
 
-    if not user_id or role == 'builder':
-        # Builders see their company's projects
+    if not user_id or _is_builder(role):
+        # Builders / company admins see their company's projects
         q = Projects.query
         if company_id:
             q = q.filter_by(company_id=company_id)
@@ -1342,7 +1430,7 @@ def get_projects():
     result = []
     for p in projects:
         # Non-builders only see go_live projects
-        if role and role != 'builder' and not p.go_live:
+        if role and not _is_builder(role) and not p.go_live:
             continue
         d = p.to_dict()
         if p.customer_id:
@@ -1762,7 +1850,7 @@ def get_user_tasks(uid):
             proj_cache[t.job_id] = Projects.query.get(t.job_id)
         proj = proj_cache[t.job_id]
         # Non-builders only see tasks from go_live projects (unless a builder is viewing)
-        if viewer_role != 'builder' and u.role != 'builder' and proj and not proj.go_live:
+        if not _is_builder(viewer_role) and not _is_builder(u.role) and proj and not proj.go_live:
             continue
         td = t.to_dict()
         if proj:
@@ -1871,7 +1959,7 @@ def sign_change_order(co_id):
     try:
         initials = data.get('initials', '')
         signer_name = data.get('signer_name', '')
-        if role == 'builder':
+        if _is_builder(role):
             co.builder_sig = True
             co.builder_sig_date = timestamp
             co.builder_sig_initials = initials
