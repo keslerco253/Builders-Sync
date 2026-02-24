@@ -5345,7 +5345,6 @@ const NewSubModal = ({ onClose, onCreated, tradesList }) => {
   const [stateVal, setStateVal] = useState('');
   const [zip, setZip] = useState('');
   const [selectedTrades, setSelectedTrades] = useState([]);
-  const [customTrade, setCustomTrade] = useState('');
   const [allTrades, setAllTrades] = useState(tradesList || DEFAULT_TRADES);
   const [showStateDropdown, setShowStateDropdown] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -5355,18 +5354,6 @@ const NewSubModal = ({ onClose, onCreated, tradesList }) => {
     setSelectedTrades(prev =>
       prev.includes(trade) ? prev.filter(t => t !== trade) : [...prev, trade]
     );
-  };
-
-  const addCustomTrade = () => {
-    const t = customTrade.trim();
-    if (t && !allTrades.includes(t)) {
-      setAllTrades(prev => [...prev, t]);
-      setSelectedTrades(prev => [...prev, t]);
-      setCustomTrade('');
-    } else if (t && allTrades.includes(t)) {
-      if (!selectedTrades.includes(t)) setSelectedTrades(prev => [...prev, t]);
-      setCustomTrade('');
-    }
   };
 
   const canSave = companyName.trim() && firstName.trim() && lastName.trim() && email.trim();
@@ -5512,19 +5499,6 @@ const NewSubModal = ({ onClose, onCreated, tradesList }) => {
                     </TouchableOpacity>
                   );
                 })}
-              </View>
-
-              {/* Add custom trade */}
-              <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
-                <TextInput value={customTrade} onChangeText={setCustomTrade}
-                  placeholder="Add custom trade..." placeholderTextColor={C.w20}
-                  style={[st.nsInput, { flex: 1 }]}
-                  onSubmitEditing={addCustomTrade} />
-                <TouchableOpacity onPress={addCustomTrade}
-                  disabled={!customTrade.trim()}
-                  style={[st.nsAddTradeBtn, !customTrade.trim() && { opacity: 0.4 }]}>
-                  <Text style={{ fontSize: 20, fontWeight: '700', color: C.textBold }}>+ Add</Text>
-                </TouchableOpacity>
               </View>
             </View>
           </ScrollView>
@@ -6560,11 +6534,6 @@ const getStyles = (C) => StyleSheet.create({
   },
   nsTradeTxt: { fontSize: 18, fontWeight: '500', color: C.mt },
   nsTradeTxtOn: { color: C.bl, fontWeight: '700' },
-  nsAddTradeBtn: {
-    backgroundColor: 'rgba(59,130,246,0.2)', paddingHorizontal: 14, borderRadius: 8,
-    alignItems: 'center', justifyContent: 'center',
-    borderWidth: 1, borderColor: 'rgba(59,130,246,0.25)',
-  },
   nsFooter: {
     flexDirection: 'row', gap: 10, padding: 18,
     borderTopWidth: 1, borderTopColor: C.w06,
