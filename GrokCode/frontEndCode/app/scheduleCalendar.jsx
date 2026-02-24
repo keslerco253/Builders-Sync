@@ -225,7 +225,7 @@ const getMonthGrid = (year, month) => {
 // ============================================================
 // MAIN COMPONENT
 // ============================================================
-export default function ScheduleCalendar({ schedule, onUpdateTask, onEditTask, onDeleteTask, isBuilder, onDayPress, onAddItem, mode = 'gantt', headerContent, onTaskDoubleClick, onTaskRightClick, goLive, onGoLiveChange, onHold, calYear: extYear, calMonth: extMonth, onMonthChange }) {
+export default function ScheduleCalendar({ schedule, onUpdateTask, onEditTask, onDeleteTask, isBuilder, onDayPress, onAddItem, mode = 'gantt', headerContent, onTaskDoubleClick, goLive, onGoLiveChange, onHold, calYear: extYear, calMonth: extMonth, onMonthChange }) {
   const C = React.useContext(ThemeContext);
   const st = React.useMemo(() => getStyles(C), [C]);
   const [intYear, setIntYear] = useState(() => extYear ?? new Date().getFullYear());
@@ -235,9 +235,6 @@ export default function ScheduleCalendar({ schedule, onUpdateTask, onEditTask, o
   const year = extYear ?? intYear;
   const month = extMonth ?? intMonth;
   
-  const setYear = (v) => { const val = typeof v === 'function' ? v(year) : v; setIntYear(val); onMonthChange?.(val, month); };
-  const setMonth = (v) => { const val = typeof v === 'function' ? v(month) : v; setIntMonth(val); onMonthChange?.(year, val); };
-
   // Sync from external props
   React.useEffect(() => { if (extYear != null) setIntYear(extYear); }, [extYear]);
   React.useEffect(() => { if (extMonth != null) setIntMonth(extMonth); }, [extMonth]);
@@ -267,8 +264,6 @@ export default function ScheduleCalendar({ schedule, onUpdateTask, onEditTask, o
   onDeleteRef.current = onDeleteTask;
   const goLiveRef = useRef(goLive);
   goLiveRef.current = goLive;
-  const onTaskRightClickRef = useRef(onTaskRightClick);
-  onTaskRightClickRef.current = onTaskRightClick;
   const onTaskDoubleClickRef = useRef(onTaskDoubleClick);
   onTaskDoubleClickRef.current = onTaskDoubleClick;
   const dblClickRef = useRef({ taskId: null, time: 0 });
@@ -732,8 +727,7 @@ export default function ScheduleCalendar({ schedule, onUpdateTask, onEditTask, o
                           onPointerDown: (e) => handleDragStart(task, e),
                           onContextMenu: (e) => {
                             e.preventDefault(); e.stopPropagation();
-                            if (onTaskRightClickRef.current) onTaskRightClickRef.current(task);
-                            else handleContextMenu(task, e);
+                            handleContextMenu(task, e);
                           },
                         } : {})}
                       >
@@ -830,8 +824,7 @@ export default function ScheduleCalendar({ schedule, onUpdateTask, onEditTask, o
                               onPointerDown: (e) => { suppressDayPress.current = true; setTimeout(() => { suppressDayPress.current = false; }, 500); handleDragStart(task, e); },
                               onContextMenu: (e) => {
                                 e.preventDefault(); e.stopPropagation();
-                                if (onTaskRightClickRef.current) onTaskRightClickRef.current(task);
-                                else handleContextMenu(task, e);
+                                handleContextMenu(task, e);
                               },
                             } : {})}
                           >

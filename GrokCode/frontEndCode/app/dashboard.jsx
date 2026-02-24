@@ -487,6 +487,83 @@ export default function Dashboard() {
     setClientView(false);
   };
 
+  const renderProjectItem = useCallback((project) => {
+    const active = selectedProject?.id === project.id;
+    return (
+      <TouchableOpacity
+        key={project.id}
+        activeOpacity={0.7}
+        onPress={() => {
+          const now = Date.now();
+          const last = lastProjectTapRef.current[project.id] || 0;
+          lastProjectTapRef.current[project.id] = now;
+          if (now - last < 400 && active) {
+            lastProjectTapRef.current[project.id] = 0;
+            setActiveTab('info');
+            setActiveSub('jobinfo');
+          } else {
+            selectProject(project);
+          }
+        }}
+        style={[st.jobItem, active && st.jobItemActive, project.on_hold && { borderLeftWidth: 3, borderLeftColor: '#f59e0b' }]}
+      >
+        <View style={[st.jobIndicator, active && st.jobIndicatorActive]} />
+        <View style={{ flex: 1, paddingVertical: 12, paddingLeft: 12, paddingRight: 4 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <Text style={[st.jobName, active && st.jobNameActive, { flex: 1 }]} numberOfLines={1}>
+              {project.name}
+            </Text>
+            {project.on_hold && (
+              <View style={{ backgroundColor: '#f59e0b', borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2 }}>
+                <Text style={{ fontSize: 11, fontWeight: '800', color: '#fff', letterSpacing: 0.5 }}>HOLD</Text>
+              </View>
+            )}
+          </View>
+          <Text style={st.jobMeta} numberOfLines={1}>
+            {[project.status, project.phase].filter(Boolean).join(' · ')}
+          </Text>
+          {project.progress !== undefined && project.progress !== null && (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 }}>
+              <Bar C={C} pct={project.progress} color={active ? C.gd : C.w15} h={3} />
+              <Text style={{ fontSize: 15, color: C.dm }}>{project.progress}%</Text>
+            </View>
+          )}
+        </View>
+        {active && (isBuilder || isContractor) && (
+          <View style={{ justifyContent: 'center', alignItems: 'center', paddingRight: 4 }}>
+            {isBuilder && (
+              <TouchableOpacity
+                onPress={(e) => { e.stopPropagation(); setProjectActionMenu(project); }}
+                style={{ paddingVertical: 6, paddingHorizontal: 10 }}
+                activeOpacity={0.6}
+                hitSlop={{ top: 4, bottom: 4, left: 8, right: 8 }}
+              >
+                <Text style={{ fontSize: 20, color: C.gd }}>ⓘ</Text>
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity
+              onPress={(e) => {
+                e.stopPropagation();
+                if (selectedProject?.id === project.id) {
+                  setClientView(prev => !prev);
+                } else {
+                  setSelectedProject(project);
+                  setSelectedSubdivision(null);
+                  setClientView(true);
+                }
+              }}
+              style={{ paddingVertical: 6, paddingHorizontal: 10 }}
+              activeOpacity={0.6}
+              hitSlop={{ top: 4, bottom: 4, left: 8, right: 8 }}
+            >
+              <Text style={{ fontSize: 18, color: clientView ? C.gn : C.gd }}>🏠</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+      </TouchableOpacity>
+    );
+  }, [selectedProject?.id, st, C, isBuilder, isContractor, clientView]);
+
   const selectSubdivision = (sd) => {
     setSelectedSubdivision(sd);
     setSelectedProject(null);
@@ -740,82 +817,6 @@ export default function Dashboard() {
               </Text>
             </View>
           ) : (() => {
-            const renderProjectItem = (project) => {
-              const active = selectedProject?.id === project.id;
-              return (
-                <TouchableOpacity
-                  key={project.id}
-                  activeOpacity={0.7}
-                  onPress={() => {
-                    const now = Date.now();
-                    const last = lastProjectTapRef.current[project.id] || 0;
-                    lastProjectTapRef.current[project.id] = now;
-                    if (now - last < 400 && active) {
-                      lastProjectTapRef.current[project.id] = 0;
-                      setActiveTab('info');
-                      setActiveSub('jobinfo');
-                    } else {
-                      selectProject(project);
-                    }
-                  }}
-                  style={[st.jobItem, active && st.jobItemActive, project.on_hold && { borderLeftWidth: 3, borderLeftColor: '#f59e0b' }]}
-                >
-                  <View style={[st.jobIndicator, active && st.jobIndicatorActive]} />
-                  <View style={{ flex: 1, paddingVertical: 12, paddingLeft: 12, paddingRight: 4 }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                      <Text style={[st.jobName, active && st.jobNameActive, { flex: 1 }]} numberOfLines={1}>
-                        {project.name}
-                      </Text>
-                      {project.on_hold && (
-                        <View style={{ backgroundColor: '#f59e0b', borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2 }}>
-                          <Text style={{ fontSize: 11, fontWeight: '800', color: '#fff', letterSpacing: 0.5 }}>HOLD</Text>
-                        </View>
-                      )}
-                    </View>
-                    <Text style={st.jobMeta} numberOfLines={1}>
-                      {[project.status, project.phase].filter(Boolean).join(' · ')}
-                    </Text>
-                    {project.progress !== undefined && project.progress !== null && (
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 }}>
-                        <Bar C={C} pct={project.progress} color={active ? C.gd : C.w15} h={3} />
-                        <Text style={{ fontSize: 15, color: C.dm }}>{project.progress}%</Text>
-                      </View>
-                    )}
-                  </View>
-                  {active && (isBuilder || isContractor) && (
-                    <View style={{ justifyContent: 'center', alignItems: 'center', paddingRight: 4 }}>
-                      {isBuilder && (
-                        <TouchableOpacity
-                          onPress={(e) => { e.stopPropagation(); setProjectActionMenu(project); }}
-                          style={{ paddingVertical: 6, paddingHorizontal: 10 }}
-                          activeOpacity={0.6}
-                          hitSlop={{ top: 4, bottom: 4, left: 8, right: 8 }}
-                        >
-                          <Text style={{ fontSize: 20, color: C.gd }}>ⓘ</Text>
-                        </TouchableOpacity>
-                      )}
-                      <TouchableOpacity
-                        onPress={(e) => {
-                          e.stopPropagation();
-                          if (selectedProject?.id === project.id) {
-                            setClientView(prev => !prev);
-                          } else {
-                            setSelectedProject(project);
-                            setSelectedSubdivision(null);
-                            setClientView(true);
-                          }
-                        }}
-                        style={{ paddingVertical: 6, paddingHorizontal: 10 }}
-                        activeOpacity={0.6}
-                        hitSlop={{ top: 4, bottom: 4, left: 8, right: 8 }}
-                      >
-                        <Text style={{ fontSize: 18, color: clientView ? C.gn : C.gd }}>🏠</Text>
-                      </TouchableOpacity>
-                    </View>
-                  )}
-                </TouchableOpacity>
-              );
-            };
             if (sidebarFilter) {
               return filteredProjects.map(renderProjectItem);
             }
@@ -4447,83 +4448,6 @@ export default function Dashboard() {
                         </Text>
                       </View>
                     ) : (() => {
-                      const renderProjectItem = (project) => {
-                        const active = selectedProject?.id === project.id;
-                        return (
-                          <TouchableOpacity
-                            key={project.id}
-                            activeOpacity={0.7}
-                            onPress={() => {
-                              const now = Date.now();
-                              const last = lastProjectTapRef.current[project.id] || 0;
-                              lastProjectTapRef.current[project.id] = now;
-                              if (now - last < 400 && active) {
-                                lastProjectTapRef.current[project.id] = 0;
-                                setActiveTab('info');
-                                setActiveSub('jobinfo');
-                              } else {
-                                selectProject(project);
-                              }
-                            }}
-                            style={[st.jobItem, active && st.jobItemActive, project.on_hold && { borderLeftWidth: 3, borderLeftColor: '#f59e0b' }]}
-                          >
-                            <View style={[st.jobIndicator, active && st.jobIndicatorActive]} />
-                            <View style={{ flex: 1, paddingVertical: 12, paddingLeft: 12, paddingRight: 4 }}>
-                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                                <Text style={[st.jobName, active && st.jobNameActive, { flex: 1 }]} numberOfLines={1}>
-                                  {project.name}
-                                </Text>
-                                {project.on_hold && (
-                                  <View style={{ backgroundColor: '#f59e0b', borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2 }}>
-                                    <Text style={{ fontSize: 11, fontWeight: '800', color: '#fff', letterSpacing: 0.5 }}>HOLD</Text>
-                                  </View>
-                                )}
-                              </View>
-                              <Text style={st.jobMeta} numberOfLines={1}>
-                                {[project.status, project.phase].filter(Boolean).join(' · ')}
-                              </Text>
-                              {project.progress !== undefined && project.progress !== null && (
-                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 }}>
-                                  <Bar C={C} pct={project.progress} color={active ? C.gd : C.w15} h={3} />
-                                  <Text style={{ fontSize: 15, color: C.dm }}>{project.progress}%</Text>
-                                </View>
-                              )}
-                            </View>
-                            {active && (isBuilder || isContractor) && (
-                              <View style={{ justifyContent: 'center', alignItems: 'center', paddingRight: 4 }}>
-                                {isBuilder && (
-                                  <TouchableOpacity
-                                    onPress={(e) => { e.stopPropagation(); setProjectActionMenu(project); }}
-                                    style={{ paddingVertical: 6, paddingHorizontal: 10 }}
-                                    activeOpacity={0.6}
-                                    hitSlop={{ top: 4, bottom: 4, left: 8, right: 8 }}
-                                  >
-                                    <Text style={{ fontSize: 20, color: C.gd }}>ⓘ</Text>
-                                  </TouchableOpacity>
-                                )}
-                                <TouchableOpacity
-                                  onPress={(e) => {
-                                    e.stopPropagation();
-                                    if (selectedProject?.id === project.id) {
-                                      setClientView(prev => !prev);
-                                    } else {
-                                      setSelectedProject(project);
-                                      setSelectedSubdivision(null);
-                                      setClientView(true);
-                                    }
-                                  }}
-                                  style={{ paddingVertical: 6, paddingHorizontal: 10 }}
-                                  activeOpacity={0.6}
-                                  hitSlop={{ top: 4, bottom: 4, left: 8, right: 8 }}
-                                >
-                                  <Text style={{ fontSize: 18, color: clientView ? C.gn : C.gd }}>🏠</Text>
-                                </TouchableOpacity>
-                              </View>
-                            )}
-                          </TouchableOpacity>
-                        );
-                      };
-
                       if (sidebarFilter) {
                         return filteredProjects.map(renderProjectItem);
                       }
