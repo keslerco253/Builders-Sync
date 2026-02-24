@@ -16,8 +16,47 @@ export default function AccountScreen() {
   const [showPwModal, setShowPwModal] = useState(false);
   const [logo, setLogo] = useState(null);
   const [logoLoading, setLogoLoading] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [editEmail, setEditEmail] = useState(user?.username || '');
+  const [editCompany, setEditCompany] = useState(user?.company_name || '');
+  const [editPhone, setEditPhone] = useState(user?.phone || '');
+  const [saving, setSaving] = useState(false);
 
   const isBuilder = user?.role === 'builder';
+
+  const startEditing = () => {
+    setEditEmail(user?.username || '');
+    setEditCompany(user?.company_name || '');
+    setEditPhone(user?.phone || '');
+    setEditing(true);
+  };
+
+  const cancelEditing = () => { setEditing(false); };
+
+  const saveProfile = async () => {
+    setSaving(true);
+    try {
+      const res = await fetch(`${API_BASE}/users/${user.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: editEmail.trim(),
+          companyName: editCompany.trim(),
+          phone: editPhone.trim(),
+        }),
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        updateUser({ username: updated.username, company_name: updated.company_name, phone: updated.phone });
+        setEditing(false);
+        Alert.alert('Success', 'Profile updated!');
+      } else {
+        const err = await res.json().catch(() => ({}));
+        Alert.alert('Error', err.error || 'Failed to update profile');
+      }
+    } catch (e) { Alert.alert('Error', e.message); }
+    finally { setSaving(false); }
+  };
 
   // Fetch logo on mount
   useEffect(() => {
@@ -103,11 +142,8 @@ export default function AccountScreen() {
     }
   };
 
-  const infoRows = [
-    ['Email', user?.username],
+  const readOnlyRows = [
     ['Role', user?.role?.charAt(0).toUpperCase() + user?.role?.slice(1)],
-    ['Company', user?.company_name],
-    ['Phone', user?.phone ? fPhone(user.phone) : null],
     ['Trades', user?.trades],
   ].filter(([, v]) => v);
 
@@ -129,16 +165,75 @@ export default function AccountScreen() {
 
         {/* Info */}
         <View style={st.card}>
-          <Text style={st.cardTitle}>Account Information</Text>
-          {infoRows.map(([label, val], i) => (
-            <View key={label}>
-              <View style={st.infoRow}>
-                <Text style={st.infoLbl}>{label.toUpperCase()}</Text>
-                <Text style={st.infoVal}>{val}</Text>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+            <Text style={[st.cardTitle, { marginBottom: 0 }]}>Account Information</Text>
+            {!editing && (
+              <TouchableOpacity onPress={startEditing} activeOpacity={0.7}
+                style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, backgroundColor: C.gd + '18' }}>
+                <Text style={{ fontSize: 13, fontWeight: '600', color: C.gd }}>Edit</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {editing ? (
+            <View>
+              <View style={{ marginBottom: 14 }}>
+                <Text style={st.lbl}>EMAIL</Text>
+                <TextInput value={editEmail} onChangeText={setEditEmail} placeholder="Email address"
+                  placeholderTextColor={C.ph} keyboardType="email-address" autoCapitalize="none" style={st.inp} />
               </View>
-              {i < infoRows.length - 1 && <View style={st.divider} />}
+              <View style={{ marginBottom: 14 }}>
+                <Text style={st.lbl}>COMPANY</Text>
+                <TextInput value={editCompany} onChangeText={setEditCompany} placeholder="Company name"
+                  placeholderTextColor={C.ph} style={st.inp} />
+              </View>
+              <View style={{ marginBottom: 14 }}>
+                <Text style={st.lbl}>PHONE</Text>
+                <TextInput value={editPhone} onChangeText={setEditPhone} placeholder="Phone number"
+                  placeholderTextColor={C.ph} keyboardType="phone-pad" style={st.inp} />
+              </View>
+              {readOnlyRows.map(([label, val], i) => (
+                <View key={label}>
+                  <View style={st.infoRow}>
+                    <Text style={st.infoLbl}>{label.toUpperCase()}</Text>
+                    <Text style={st.infoVal}>{val}</Text>
+                  </View>
+                  {i < readOnlyRows.length - 1 && <View style={st.divider} />}
+                </View>
+              ))}
+              <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
+                <TouchableOpacity onPress={cancelEditing} disabled={saving}
+                  style={{ flex: 1, paddingVertical: 12, borderRadius: 10, borderWidth: 1, borderColor: C.w15, alignItems: 'center' }}
+                  activeOpacity={0.7}>
+                  <Text style={{ fontSize: 14, fontWeight: '600', color: C.mt }}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={saveProfile} disabled={saving}
+                  style={[st.submitBtn, { flex: 1, marginTop: 0 }, saving && { backgroundColor: C.dm }]}
+                  activeOpacity={0.7}>
+                  <Text style={{ fontSize: 14, fontWeight: '700', color: C.textBold, textAlign: 'center' }}>
+                    {saving ? 'Saving...' : 'Save Changes'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
             </View>
-          ))}
+          ) : (
+            <>
+              {[
+                ['Email', user?.username],
+                ['Company', user?.company_name],
+                ['Phone', user?.phone ? fPhone(user.phone) : null],
+                ...readOnlyRows,
+              ].filter(([, v]) => v).map(([label, val], i, arr) => (
+                <View key={label}>
+                  <View style={st.infoRow}>
+                    <Text style={st.infoLbl}>{label.toUpperCase()}</Text>
+                    <Text style={st.infoVal}>{val}</Text>
+                  </View>
+                  {i < arr.length - 1 && <View style={st.divider} />}
+                </View>
+              ))}
+            </>
+          )}
         </View>
 
         {/* Company Logo — builder only */}
