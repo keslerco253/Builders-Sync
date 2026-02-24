@@ -24,6 +24,9 @@ export default function AdminDashboard() {
   const [showNewCompany, setShowNewCompany] = useState(false);
   const [newCompanyName, setNewCompanyName] = useState('');
   const [saving, setSaving] = useState(false);
+  const [showInvite, setShowInvite] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteRole, setInviteRole] = useState('builder');
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
@@ -77,6 +80,80 @@ export default function AdminDashboard() {
       }
     } catch (e) { Alert.alert('Error', e.message); }
     finally { setSaving(false); }
+  };
+
+  const inviteUser = async () => {
+    const email = inviteEmail.trim().toLowerCase();
+    if (!email || !email.includes('@')) return;
+    if (!selectedCompany) return;
+    setSaving(true);
+    try {
+      const res = await fetch(`${API_BASE}/admin/companies/${selectedCompany.id}/invite`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ admin_id: user.id, email, role: inviteRole }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setInviteEmail('');
+        setInviteRole('builder');
+        setShowInvite(false);
+        selectCompany(selectedCompany); // refresh user list
+        Alert.alert('Success', `Invitation sent to ${email}`);
+      } else {
+        Alert.alert('Error', data.error || 'Failed to invite user');
+      }
+    } catch (e) { Alert.alert('Error', e.message); }
+    finally { setSaving(false); }
+  };
+
+  const removeUser = async (uid, name) => {
+    const doRemove = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/admin/companies/${selectedCompany.id}/invited/${uid}?admin_id=${user.id}`, {
+          method: 'DELETE', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ admin_id: user.id }),
+        });
+        if (res.ok) {
+          selectCompany(selectedCompany);
+        }
+      } catch (e) { Alert.alert('Error', e.message); }
+    };
+    if (Platform.OS === 'web') {
+      if (window.confirm(`Remove ${name || 'this user'}?`)) doRemove();
+    } else {
+      Alert.alert('Remove User', `Remove ${name || 'this user'}?`, [
+        { text: 'Cancel' }, { text: 'Remove', style: 'destructive', onPress: doRemove },
+      ]);
+    }
+  };
+
+  const resetDatabase = async () => {
+    const doReset = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/admin/reset-database`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ admin_id: user.id }),
+        });
+        if (res.ok) {
+          Alert.alert('Success', 'Database cleared. All companies and users removed.');
+          setSelectedCompany(null);
+          setCompanyUsers([]);
+          fetchAll();
+        } else {
+          const data = await res.json();
+          Alert.alert('Error', data.error || 'Failed to reset database');
+        }
+      } catch (e) { Alert.alert('Error', e.message); }
+    };
+    if (Platform.OS === 'web') {
+      if (window.confirm('DANGER: This will delete ALL companies, users, projects, and data. Only the admin account will remain. Are you sure?')) doReset();
+    } else {
+      Alert.alert('Reset Database', 'DANGER: This will delete ALL companies, users, projects, and data. Only the admin account will remain.', [
+        { text: 'Cancel' }, { text: 'Reset Everything', style: 'destructive', onPress: doReset },
+      ]);
+    }
   };
 
   const toggleCompanyStatus = async (company, action) => {
@@ -198,6 +275,22 @@ export default function AdminDashboard() {
             </View>
           </View>
         ))}
+
+        {/* Danger Zone */}
+        <View style={{ marginTop: 24 }}>
+          <Text style={{ fontSize: 14, fontWeight: '700', color: C.rd, marginBottom: 10, letterSpacing: 0.5 }}>DANGER ZONE</Text>
+          <View style={[st.card, { borderColor: C.rd + '44' }]}>
+            <Text style={{ fontSize: 14, fontWeight: '600', color: C.textBold, marginBottom: 4 }}>Reset Database</Text>
+            <Text style={{ fontSize: 12, color: C.dm, marginBottom: 12 }}>
+              Permanently delete all companies, users, projects, and data. Only the admin account will be kept.
+            </Text>
+            <TouchableOpacity onPress={resetDatabase}
+              style={{ paddingHorizontal: 16, paddingVertical: 10, borderRadius: 8, backgroundColor: C.rd, alignSelf: 'flex-start' }}
+              activeOpacity={0.7}>
+              <Text style={{ fontSize: 13, fontWeight: '700', color: '#fff' }}>Reset Everything</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
       </ScrollView>
     );
   };
@@ -291,29 +384,59 @@ export default function AdminDashboard() {
 
         {/* Users */}
         <View style={st.card}>
-          <Text style={{ fontSize: 16, fontWeight: '700', color: C.textBold, marginBottom: 12 }}>Users</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+            <Text style={{ fontSize: 16, fontWeight: '700', color: C.textBold }}>Users</Text>
+            <TouchableOpacity onPress={() => setShowInvite(true)}
+              style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, backgroundColor: C.gd }}
+              activeOpacity={0.7}>
+              <Text style={{ fontSize: 12, fontWeight: '700', color: '#fff' }}>+ Add User</Text>
+            </TouchableOpacity>
+          </View>
           {companyUsersLoading ? (
             <ActivityIndicator color={C.gd} />
           ) : companyUsers.length === 0 ? (
-            <Text style={{ fontSize: 14, color: C.dm }}>No users in this company</Text>
+            <Text style={{ fontSize: 14, color: C.dm }}>No users yet. Invite someone to get started.</Text>
           ) : (
-            companyUsers.map((u, i) => (
-              <View key={u.id}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8 }}>
-                  <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: u.role === 'builder' ? C.gd + '22' : u.role === 'contractor' ? C.bl + '22' : C.gn + '22', alignItems: 'center', justifyContent: 'center' }}>
-                    <Text style={{ fontSize: 13, fontWeight: '700', color: u.role === 'builder' ? C.gd : u.role === 'contractor' ? C.bl : C.gn }}>
-                      {(u.name || '??').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()}
-                    </Text>
+            companyUsers.map((u, i) => {
+              const invited = u.registered === false;
+              return (
+                <View key={u.id}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8 }}>
+                    <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: invited ? C.yl + '18' : u.role === 'builder' ? C.gd + '22' : u.role === 'contractor' ? C.bl + '22' : C.gn + '22', alignItems: 'center', justifyContent: 'center' }}>
+                      {invited ? (
+                        <Text style={{ fontSize: 16, color: C.yl }}>@</Text>
+                      ) : (
+                        <Text style={{ fontSize: 13, fontWeight: '700', color: u.role === 'builder' ? C.gd : u.role === 'contractor' ? C.bl : C.gn }}>
+                          {(u.name || '??').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()}
+                        </Text>
+                      )}
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      {invited ? (
+                        <>
+                          <Text style={{ fontSize: 14, fontWeight: '600', color: C.yl }}>{u.username}</Text>
+                          <Text style={{ fontSize: 11, color: C.dm, fontStyle: 'italic' }}>Invited — pending registration</Text>
+                        </>
+                      ) : (
+                        <>
+                          <Text style={{ fontSize: 14, fontWeight: '600', color: C.textBold }}>{u.name}</Text>
+                          <Text style={{ fontSize: 12, color: C.dm }}>{u.username}</Text>
+                        </>
+                      )}
+                    </View>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                      {roleBadge(u.role)}
+                      <TouchableOpacity onPress={() => removeUser(u.id, invited ? u.username : u.name)}
+                        style={{ paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, backgroundColor: C.rd + '18' }}
+                        activeOpacity={0.7}>
+                        <Text style={{ fontSize: 12, fontWeight: '700', color: C.rd }}>x</Text>
+                      </TouchableOpacity>
+                    </View>
                   </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 14, fontWeight: '600', color: C.textBold }}>{u.name}</Text>
-                    <Text style={{ fontSize: 12, color: C.dm }}>{u.username}</Text>
-                  </View>
-                  {roleBadge(u.role)}
+                  {i < companyUsers.length - 1 && <View style={{ height: 1, backgroundColor: C.w06 }} />}
                 </View>
-                {i < companyUsers.length - 1 && <View style={{ height: 1, backgroundColor: C.w06 }} />}
-              </View>
-            ))
+              );
+            })
           )}
         </View>
       </ScrollView>
@@ -396,6 +519,59 @@ export default function AdminDashboard() {
     </Modal>
   );
 
+  const ROLE_OPTIONS = [
+    { value: 'builder', label: 'Builder / Employee', color: C.gd },
+    { value: 'contractor', label: 'Subcontractor', color: C.bl },
+    { value: 'customer', label: 'Customer / Homeowner', color: C.gn },
+  ];
+
+  // ── Invite User Modal ──
+  const renderInviteModal = () => (
+    <Modal visible={showInvite} transparent animationType="fade">
+      <View style={st.modalBg}>
+        <View style={st.modalContent}>
+          <View style={st.modalHead}>
+            <Text style={st.modalTitle}>Add User to {selectedCompany?.name}</Text>
+            <TouchableOpacity onPress={() => { setShowInvite(false); setInviteEmail(''); setInviteRole('builder'); }}>
+              <Text style={{ color: C.mt, fontSize: 28 }}>x</Text>
+            </TouchableOpacity>
+          </View>
+          <Text style={st.lbl}>EMAIL</Text>
+          <TextInput
+            value={inviteEmail} onChangeText={setInviteEmail}
+            placeholder="user@example.com" placeholderTextColor={C.ph}
+            style={st.inp} autoFocus keyboardType="email-address" autoCapitalize="none"
+          />
+          <Text style={[st.lbl, { marginTop: 16 }]}>ROLE</Text>
+          <View style={{ gap: 8, marginBottom: 8 }}>
+            {ROLE_OPTIONS.map(r => (
+              <TouchableOpacity key={r.value} onPress={() => setInviteRole(r.value)}
+                style={{
+                  padding: 12, borderRadius: 8, borderWidth: 1,
+                  borderColor: inviteRole === r.value ? r.color : C.w10,
+                  backgroundColor: inviteRole === r.value ? r.color + '18' : 'transparent',
+                }}
+                activeOpacity={0.7}>
+                <Text style={{
+                  fontSize: 13, textAlign: 'center',
+                  fontWeight: inviteRole === r.value ? '700' : '400',
+                  color: inviteRole === r.value ? r.color : C.dm,
+                }}>{r.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          <TouchableOpacity onPress={inviteUser} disabled={!inviteEmail.trim().includes('@') || saving}
+            style={[st.submitBtn, (!inviteEmail.trim().includes('@') || saving) && { backgroundColor: C.dm }]}
+            activeOpacity={0.7}>
+            <Text style={{ fontSize: 15, fontWeight: '700', color: '#fff', textAlign: 'center' }}>
+              {saving ? 'Adding...' : 'Add User'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+  );
+
   if (loading) {
     return (
       <View style={{ flex: 1, backgroundColor: C.bg, justifyContent: 'center', alignItems: 'center' }}>
@@ -414,6 +590,7 @@ export default function AdminDashboard() {
   return (
     <View style={{ flex: 1, backgroundColor: C.bg }}>
       {renderNewCompanyModal()}
+      {renderInviteModal()}
 
       {/* Header */}
       <View style={{
