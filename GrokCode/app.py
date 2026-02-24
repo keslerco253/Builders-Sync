@@ -2895,67 +2895,84 @@ def auto_migrate():
                     db.session.execute(text(stmt))
                     changes.append(f"ADD COLUMN {table_name}.{col_name} ({sql_type})")
                 except Exception as e:
+                    db.session.rollback()
                     print(f"  ⚠ Failed: {stmt} — {e}")
+
+    if changes:
+        try:
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
 
     # Ensure password column is wide enough for hashed passwords
     try:
         db.session.execute(text("ALTER TABLE login_info MODIFY COLUMN password VARCHAR(512) NOT NULL"))
+        db.session.commit()
         changes.append("WIDEN login_info.password to VARCHAR(512)")
     except Exception:
-        pass  # Already wide enough or table doesn't exist
+        db.session.rollback()
 
     # Make documents.job_id nullable for subdivision documents
     try:
         db.session.execute(text("ALTER TABLE documents MODIFY COLUMN job_id INTEGER NULL"))
+        db.session.commit()
         changes.append("MODIFY documents.job_id to NULLABLE")
     except Exception:
-        pass  # Already nullable or column doesn't exist
+        db.session.rollback()
 
     # Backfill NULL applies_to values to 'both'
     try:
         result = db.session.execute(text("UPDATE document_template SET applies_to = 'both' WHERE applies_to IS NULL"))
         if result.rowcount > 0:
             changes.append(f"BACKFILL document_template.applies_to: {result.rowcount} rows set to 'both'")
+        db.session.commit()
     except Exception:
-        pass
+        db.session.rollback()
 
     if changes:
-        db.session.commit()
+        try:
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
 
     # Now create any brand new tables
     db.create_all()
 
     # Seed Supreme Admin — always ensure correct state
-    # Migrate old admin email if it exists
-    old_admin = LoginInfo.query.filter_by(username='hyrumjo253@gmail.com').first()
-    if old_admin:
-        db.session.delete(old_admin)
-        db.session.commit()
-        changes.append("REMOVE old Supreme Admin (hyrumjo253@gmail.com)")
+    try:
+        # Migrate old admin email if it exists
+        old_admin = LoginInfo.query.filter_by(username='hyrumjo253@gmail.com').first()
+        if old_admin:
+            db.session.delete(old_admin)
+            db.session.commit()
+            changes.append("REMOVE old Supreme Admin (hyrumjo253@gmail.com)")
 
-    admin = LoginInfo.query.filter_by(username='admin_johnson@buildersync.net').first()
-    if not admin:
-        admin = LoginInfo(
-            username='admin_johnson@buildersync.net',
-            password='Totowewewe43@',
-            firstName='Supreme',
-            lastName='Admin',
-            role='admin',
-            company_id=None,
-            authorized=True,
-        )
-        db.session.add(admin)
-        db.session.commit()
-        changes.append("SEED Supreme Admin user (admin_johnson@buildersync.net)")
-    else:
-        # Always force correct password, role, and authorization
-        admin.role = 'admin'
-        admin.password = generate_password_hash('Totowewewe43@')
-        admin.authorized = True
-        admin.company_id = None
-        admin.active = True
-        db.session.commit()
-        changes.append("RESET Supreme Admin password and role")
+        admin = LoginInfo.query.filter_by(username='admin_johnson@buildersync.net').first()
+        if not admin:
+            admin = LoginInfo(
+                username='admin_johnson@buildersync.net',
+                password='Totowewewe43@',
+                firstName='Supreme',
+                lastName='Admin',
+                role='admin',
+                company_id=None,
+                authorized=True,
+            )
+            db.session.add(admin)
+            db.session.commit()
+            changes.append("SEED Supreme Admin user (admin_johnson@buildersync.net)")
+        else:
+            # Always force correct password, role, and authorization
+            admin.role = 'admin'
+            admin.password = generate_password_hash('Totowewewe43@')
+            admin.authorized = True
+            admin.company_id = None
+            admin.active = True
+            db.session.commit()
+            changes.append("RESET Supreme Admin password and role")
+    except Exception as e:
+        db.session.rollback()
+        print(f"  ⚠ Supreme Admin seed failed: {e}")
 
     if changes:
         print(f"✅ Database migration: {len(changes)} change(s)")
