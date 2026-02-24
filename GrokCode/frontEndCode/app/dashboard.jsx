@@ -54,8 +54,9 @@ export default function Dashboard() {
   const [subdivisions, setSubdivisions] = useState([]);
   const [selectedSubdivision, setSelectedSubdivision] = useState(null);
   const [subdivTab, setSubdivTab] = useState('subs'); // 'subs' | 'docs'
-  const [sdSubs, setSdSubs] = useState([]);
+  const [sdSubs, setSdSubs] = useState([]);           // all contractors
   const [sdSubsLoading, setSdSubsLoading] = useState(false);
+  const [sdTradeAssignments, setSdTradeAssignments] = useState({});  // { trade: contractor_id }
   const [sdOpenTrade, setSdOpenTrade] = useState(null);  // which trade dropdown is open
   const [sdDocs, setSdDocs] = useState([]);
   const [sdDocsLoading, setSdDocsLoading] = useState(false);
@@ -422,15 +423,25 @@ export default function Dashboard() {
     setSelectedProject(null);
     setSubdivTab('subs');
     setSdOpenTrade(null);
-    // Fetch all contractors for trade dropdowns
+    setSdTradeAssignments({});
+    // Fetch all contractors + existing trade assignments
     setSdSubsLoading(true);
     setSdSubs([]);
     (async () => {
       try {
-        const userRes = await fetch(`${API_BASE}/users`);
+        const [userRes, assignRes] = await Promise.all([
+          fetch(`${API_BASE}/users`),
+          fetch(`${API_BASE}/subdivisions/${sd.id}/contractors`),
+        ]);
         const allUsers = await userRes.json();
         if (Array.isArray(allUsers)) {
           setSdSubs(allUsers.filter(u => u.role === 'contractor'));
+        }
+        const assignments = await assignRes.json();
+        if (Array.isArray(assignments)) {
+          const map = {};
+          assignments.forEach(a => { map[a.trade] = a.contractor_id; });
+          setSdTradeAssignments(map);
         }
       } catch (e) { console.warn('Fetch subdiv subs error:', e); }
       setSdSubsLoading(false);
@@ -825,73 +836,130 @@ export default function Dashboard() {
         </View>
 
         {/* Tab content */}
-        {subdivTab === 'subs' && (
-          <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20 }}>
-            {sdSubsLoading ? (
-              <View style={{ alignItems: 'center', paddingVertical: 40 }}>
-                <ActivityIndicator color={C.gd} size="large" />
-              </View>
-            ) : (
-              TEMPLATE_TRADES.map(trade => {
-                const matchingSubs = sdSubs.filter(u => {
-                  const userTrades = u.trades ? u.trades.split(',').map(t => t.trim().toLowerCase()) : [];
-                  return userTrades.includes(trade.toLowerCase());
-                });
-                const isOpen = sdOpenTrade === trade;
-                return (
-                  <View key={trade} style={{ marginBottom: 8 }}>
-                    <TouchableOpacity
-                      activeOpacity={0.7}
-                      onPress={() => setSdOpenTrade(isOpen ? null : trade)}
-                      style={{
-                        flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-                        padding: 14, backgroundColor: C.card, borderRadius: 12,
-                        borderWidth: 1, borderColor: isOpen ? C.gd : C.w08,
-                      }}
-                    >
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                        <View style={{ width: 36, height: 36, borderRadius: 8, backgroundColor: C.gd + '15', alignItems: 'center', justifyContent: 'center' }}>
-                          <Text style={{ fontSize: 16, fontWeight: '700', color: C.gd }}>{trade[0]}</Text>
-                        </View>
-                        <Text style={{ fontSize: 17, fontWeight: '600', color: C.textBold }}>{trade}</Text>
-                      </View>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                        <Text style={{ fontSize: 14, color: C.dm }}>{matchingSubs.length} sub{matchingSubs.length !== 1 ? 's' : ''}</Text>
-                        <Text style={{ fontSize: 16, color: C.dm }}>{isOpen ? '▲' : '▼'}</Text>
-                      </View>
-                    </TouchableOpacity>
-                    {isOpen && (
-                      <View style={{ marginTop: 4, marginLeft: 12, borderLeftWidth: 2, borderLeftColor: C.gd + '30', paddingLeft: 12 }}>
-                        {matchingSubs.length === 0 ? (
-                          <Text style={{ fontSize: 15, color: C.dm, paddingVertical: 12 }}>No subcontractors for this trade</Text>
-                        ) : (
-                          matchingSubs.map(sub => (
-                            <View key={sub.id} style={{ flexDirection: 'row', alignItems: 'center', padding: 10, marginBottom: 4, backgroundColor: C.bg, borderRadius: 8 }}>
-                              <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: C.gd + '20', alignItems: 'center', justifyContent: 'center', marginRight: 10 }}>
-                                <Text style={{ fontSize: 14, fontWeight: '700', color: C.gd }}>
-                                  {(sub.first_name || '?')[0]}{(sub.last_name || '?')[0]}
-                                </Text>
-                              </View>
-                              <View style={{ flex: 1 }}>
-                                <Text style={{ fontSize: 16, fontWeight: '600', color: C.textBold }}>
-                                  {sub.company_name || `${sub.first_name} ${sub.last_name}`}
-                                </Text>
-                                {sub.company_name ? (
-                                  <Text style={{ fontSize: 14, color: C.dm }}>{sub.first_name} {sub.last_name}</Text>
-                                ) : null}
-                              </View>
-                              {sub.phone ? <Text style={{ fontSize: 14, color: C.dm }}>{sub.phone}</Text> : null}
-                            </View>
-                          ))
-                        )}
-                      </View>
+        {subdivTab === 'subs' && (() => {
+          const assignedTrades = TEMPLATE_TRADES.filter(t => sdTradeAssignments[t]);
+          const unassignedTrades = TEMPLATE_TRADES.filter(t => !sdTradeAssignments[t]);
+
+          const handleAssign = async (trade, contractorId) => {
+            try {
+              const res = await fetch(`${API_BASE}/subdivisions/${selectedSubdivision.id}/contractors`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ trade, contractor_id: contractorId }),
+              });
+              if (res.ok) {
+                setSdTradeAssignments(prev => ({ ...prev, [trade]: contractorId }));
+                setSdOpenTrade(null);
+              }
+            } catch (e) { console.warn('Assign contractor error:', e); }
+          };
+
+          const handleRemove = async (trade) => {
+            try {
+              const res = await fetch(`${API_BASE}/subdivisions/${selectedSubdivision.id}/contractors/${encodeURIComponent(trade)}`, { method: 'DELETE' });
+              if (res.ok) {
+                setSdTradeAssignments(prev => { const next = { ...prev }; delete next[trade]; return next; });
+              }
+            } catch (e) { console.warn('Remove contractor error:', e); }
+          };
+
+          const renderTradeRow = (trade, assigned) => {
+            const assignedSub = assigned ? sdSubs.find(u => u.id === sdTradeAssignments[trade]) : null;
+            const matchingSubs = sdSubs.filter(u => {
+              const userTrades = u.trades ? u.trades.split(',').map(t => t.trim().toLowerCase()) : [];
+              return userTrades.includes(trade.toLowerCase());
+            });
+            const isOpen = sdOpenTrade === trade;
+
+            return (
+              <View key={trade} style={{ marginBottom: 8 }}>
+                <TouchableOpacity
+                  activeOpacity={0.7}
+                  onPress={() => !assigned && setSdOpenTrade(isOpen ? null : trade)}
+                  style={{
+                    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+                    padding: 12, backgroundColor: C.card, borderRadius: 10,
+                    borderWidth: 1, borderColor: assigned ? C.gd + '40' : (isOpen ? C.gd : C.w08),
+                  }}
+                >
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 16, fontWeight: '600', color: C.textBold }}>{trade}</Text>
+                    {assignedSub && (
+                      <Text style={{ fontSize: 14, color: C.gd, marginTop: 2 }}>
+                        {assignedSub.company_name || `${assignedSub.first_name} ${assignedSub.last_name}`}
+                      </Text>
                     )}
                   </View>
-                );
-              })
-            )}
-          </ScrollView>
-        )}
+                  {assigned ? (
+                    <TouchableOpacity onPress={() => handleRemove(trade)} style={{ padding: 6 }}>
+                      <Text style={{ fontSize: 18, color: C.dm }}>✕</Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <Text style={{ fontSize: 14, color: C.dm }}>{isOpen ? '▲' : '▼'}</Text>
+                  )}
+                </TouchableOpacity>
+                {!assigned && isOpen && (
+                  <View style={{ marginTop: 4, marginLeft: 8, borderLeftWidth: 2, borderLeftColor: C.gd + '30', paddingLeft: 10 }}>
+                    {matchingSubs.length === 0 ? (
+                      <Text style={{ fontSize: 14, color: C.dm, paddingVertical: 10 }}>No subcontractors for this trade</Text>
+                    ) : (
+                      matchingSubs.map(sub => (
+                        <TouchableOpacity key={sub.id} activeOpacity={0.7} onPress={() => handleAssign(trade, sub.id)}
+                          style={{ flexDirection: 'row', alignItems: 'center', padding: 10, marginBottom: 4, backgroundColor: C.bg, borderRadius: 8 }}>
+                          <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: C.gd + '20', alignItems: 'center', justifyContent: 'center', marginRight: 10 }}>
+                            <Text style={{ fontSize: 13, fontWeight: '700', color: C.gd }}>
+                              {(sub.first_name || '?')[0]}{(sub.last_name || '?')[0]}
+                            </Text>
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <Text style={{ fontSize: 15, fontWeight: '600', color: C.textBold }}>
+                              {sub.company_name || `${sub.first_name} ${sub.last_name}`}
+                            </Text>
+                            {sub.company_name ? (
+                              <Text style={{ fontSize: 13, color: C.dm }}>{sub.first_name} {sub.last_name}</Text>
+                            ) : null}
+                          </View>
+                          {sub.phone ? <Text style={{ fontSize: 13, color: C.dm }}>{sub.phone}</Text> : null}
+                        </TouchableOpacity>
+                      ))
+                    )}
+                  </View>
+                )}
+              </View>
+            );
+          };
+
+          return (
+            <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20 }}>
+              {sdSubsLoading ? (
+                <View style={{ alignItems: 'center', paddingVertical: 40 }}>
+                  <ActivityIndicator color={C.gd} size="large" />
+                </View>
+              ) : (
+                <View style={{ flexDirection: 'row', gap: 16 }}>
+                  {/* Left column — assigned trades */}
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 18, fontWeight: '700', color: C.textBold, marginBottom: 12 }}>Assigned</Text>
+                    {assignedTrades.length === 0 ? (
+                      <Text style={{ fontSize: 15, color: C.dm, fontStyle: 'italic' }}>No trades assigned yet</Text>
+                    ) : (
+                      assignedTrades.map(t => renderTradeRow(t, true))
+                    )}
+                  </View>
+                  {/* Right column — unassigned trades */}
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 18, fontWeight: '700', color: C.textBold, marginBottom: 12 }}>Needs Selection</Text>
+                    {unassignedTrades.length === 0 ? (
+                      <Text style={{ fontSize: 15, color: C.gd, fontStyle: 'italic' }}>All trades assigned!</Text>
+                    ) : (
+                      unassignedTrades.map(t => renderTradeRow(t, false))
+                    )}
+                  </View>
+                </View>
+              )}
+            </ScrollView>
+          );
+        })()}
 
         {subdivTab === 'docs' && (() => {
           const openFile = (url) => {

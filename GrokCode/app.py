@@ -84,6 +84,22 @@ class Subdivision(db.Model):
         return {'id': self.id, 'name': self.name}
 
 
+class SubdivisionContractor(db.Model):
+    """Maps a trade to a specific contractor within a subdivision."""
+    id = db.Column(db.Integer, primary_key=True)
+    subdivision_id = db.Column(db.Integer, db.ForeignKey('subdivision.id'), nullable=False)
+    trade = db.Column(db.String(100), nullable=False)
+    contractor_id = db.Column(db.Integer, db.ForeignKey('login_info.id'), nullable=False)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'subdivision_id': self.subdivision_id,
+            'trade': self.trade,
+            'contractor_id': self.contractor_id,
+        }
+
+
 class Projects(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100))
@@ -834,9 +850,98 @@ def delete_subdivision(sid):
     s = Subdivision.query.get_or_404(sid)
     # Unlink projects from this subdivision
     Projects.query.filter_by(subdivision_id=sid).update({'subdivision_id': None})
+    SubdivisionContractor.query.filter_by(subdivision_id=sid).delete()
     db.session.delete(s)
     db.session.commit()
     return jsonify({'deleted': True})
+
+
+# --- Subdivision Contractor Assignments (trade -> contractor per subdivision) ---
+
+@app.route('/subdivisions/<int:sid>/contractors', methods=['GET'])
+def get_subdivision_contractors(sid):
+    """Get all trade->contractor assignments for a subdivision."""
+    rows = SubdivisionContractor.query.filter_by(subdivision_id=sid).all()
+    result = []
+    for r in rows:
+        d = r.to_dict()
+        u = LoginInfo.query.get(r.contractor_id)
+        if u:
+            d['contractor'] = u.to_dict()
+        result.append(d)
+    return jsonify(result)
+
+
+@app.route('/subdivisions/<int:sid>/contractors', methods=['PUT'])
+def set_subdivision_contractor(sid):
+    """Set or update the contractor for a trade in a subdivision."""
+    data = request.get_json()
+    trade = data.get('trade', '').strip()
+    contractor_id = data.get('contractor_id')
+    if not trade or not contractor_id:
+        return jsonify({'error': 'trade and contractor_id required'}), 400
+
+    existing = SubdivisionContractor.query.filter_by(
+        subdivision_id=sid, trade=trade).first()
+    if existing:
+        existing.contractor_id = contractor_id
+    else:
+        existing = SubdivisionContractor(
+            subdivision_id=sid, trade=trade, contractor_id=contractor_id)
+        db.session.add(existing)
+    db.session.commit()
+    d = existing.to_dict()
+    u = LoginInfo.query.get(contractor_id)
+    if u:
+        d['contractor'] = u.to_dict()
+    return jsonify(d)
+
+
+@app.route('/subdivisions/<int:sid>/contractors/<trade>', methods=['DELETE'])
+def remove_subdivision_contractor(sid, trade):
+    """Remove the contractor assignment for a trade in a subdivision."""
+    row = SubdivisionContractor.query.filter_by(
+        subdivision_id=sid, trade=trade).first()
+    if row:
+        db.session.delete(row)
+        db.session.commit()
+    return jsonify({'deleted': True})
+
+
+def apply_subdivision_contractors(project_id):
+    """Auto-assign subdivision contractors to a project's schedule tasks.
+    For each task with a trade that matches a subdivision contractor assignment,
+    set the contractor name and ensure the contractor is added to the project."""
+    proj = Projects.query.get(project_id)
+    if not proj or not proj.subdivision_id:
+        return
+    assignments = SubdivisionContractor.query.filter_by(
+        subdivision_id=proj.subdivision_id).all()
+    if not assignments:
+        return
+    # Build trade -> contractor lookup
+    trade_map = {}
+    for a in assignments:
+        u = LoginInfo.query.get(a.contractor_id)
+        if u:
+            name = u.companyName or f'{u.firstName} {u.lastName}'.strip()
+            trade_map[a.trade.lower()] = (a.contractor_id, name)
+    if not trade_map:
+        return
+    # Update schedule tasks
+    tasks = Schedule.query.filter_by(job_id=project_id).all()
+    assigned_ids = set()
+    for t in tasks:
+        if t.trade and t.trade.lower() in trade_map:
+            cid, cname = trade_map[t.trade.lower()]
+            t.contractor = cname
+            assigned_ids.add(cid)
+    # Ensure contractors are in JobUsers for this project
+    existing_user_ids = {ju.user_id for ju in JobUsers.query.filter_by(job_id=project_id).all()}
+    for cid in assigned_ids:
+        if cid not in existing_user_ids:
+            db.session.add(JobUsers(job_id=project_id, user_id=cid, role='contractor'))
+    db.session.commit()
 
 
 @app.route('/projects', methods=['GET'])
@@ -960,6 +1065,12 @@ def update_project(project_id):
     # Detect go_live activation (false -> true)
     going_live = data.get('go_live') and not p.go_live
 
+    # Detect subdivision change (for auto-assigning contractors)
+    old_subdivision_id = p.subdivision_id
+    new_subdivision_id = data.get('subdivision_id')
+    subdivision_changed = ('subdivision_id' in data and new_subdivision_id != old_subdivision_id
+                           and new_subdivision_id is not None)
+
     for key in ('name', 'number', 'address', 'street_address', 'city', 'state', 'zip_code',
                  'status', 'phase', 'customer_id', 'customer_first_name', 'customer_last_name',
                  'start_date', 'est_completion', 'progress', 'original_price',
@@ -997,6 +1108,11 @@ def update_project(project_id):
             t.baseline_end = t.end_date or ''
 
     db.session.commit()
+
+    # Auto-assign subdivision contractors when project is added to a subdivision
+    if subdivision_changed:
+        apply_subdivision_contractors(project_id)
+
     return jsonify(p.to_dict())
 
 
@@ -1688,6 +1804,7 @@ def add_schedule_item(pid):
                 print(f"  [SCHED] Wired: items[{i}].predecessor_id = {items[pi].id} (from index {pi})")
 
         db.session.commit()
+        apply_subdivision_contractors(pid)
         sync_project_dates(pid)
         result = [i.to_dict() for i in items]
         print(f"  [SCHED] Created {len(result)} items. Predecessors: {[(r['id'], r['predecessor_id']) for r in result]}")
@@ -1713,6 +1830,7 @@ def add_schedule_item(pid):
     )
     db.session.add(item)
     db.session.commit()
+    apply_subdivision_contractors(pid)
     sync_project_dates(pid)
     return jsonify(item.to_dict()), 201
 
