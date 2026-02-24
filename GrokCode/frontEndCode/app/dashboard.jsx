@@ -310,7 +310,7 @@ export default function Dashboard() {
 
   const fetchSubdivisions = async () => {
     try {
-      const res = await fetch(`${API_BASE}/subdivisions`);
+      const res = await fetch(`${API_BASE}/subdivisions${user.company_id ? `?company_id=${user.company_id}` : ''}`);
       const data = await res.json();
       if (Array.isArray(data)) setSubdivisions(data);
     } catch (e) { console.warn('Fetch subdivisions error:', e.message); }
@@ -331,7 +331,7 @@ export default function Dashboard() {
     try {
       const res = await fetch(`${API_BASE}/subdivisions`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: name.trim() }),
+        body: JSON.stringify({ name: name.trim(), user_id: user.id }),
       });
       if (res.ok) {
         const newSub = await res.json();
@@ -417,7 +417,7 @@ export default function Dashboard() {
     (async () => {
       try {
         const [userRes, assignRes] = await Promise.all([
-          fetch(`${API_BASE}/users`),
+          fetch(`${API_BASE}/users${user.company_id ? `?company_id=${user.company_id}` : ''}`),
           fetch(`${API_BASE}/subdivisions/${sd.id}/contractors`),
         ]);
         const allUsers = await userRes.json();
@@ -440,7 +440,7 @@ export default function Dashboard() {
     try {
       const [docsRes, tmplRes] = await Promise.all([
         fetch(`${API_BASE}/subdivisions/${sid}/documents?type=document`),
-        fetch(`${API_BASE}/document-templates?scope=subdivisions`),
+        fetch(`${API_BASE}/document-templates?scope=subdivisions${user.company_id ? `&company_id=${user.company_id}` : ''}`),
       ]);
       if (docsRes.ok) setSdDocs(await docsRes.json());
       if (tmplRes.ok) setSdDocTemplates(await tmplRes.json());
@@ -457,7 +457,7 @@ export default function Dashboard() {
   const fetchSubs = async () => {
     setSubsLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/users`);
+      const res = await fetch(`${API_BASE}/users${user.company_id ? `?company_id=${user.company_id}` : ''}`);
       const data = await res.json();
       if (Array.isArray(data)) {
         const contractors = data.filter(u => u.role === 'contractor' && u.active !== false)
@@ -4562,6 +4562,7 @@ const TEMPLATE_ICONS = ['📋', '🏠', '🍳', '🚿', '🔨', '🏢', '🏗', 
 
 const TemplateManagerModal = ({ onClose }) => {
   const C = React.useContext(ThemeContext);
+  const { user } = React.useContext(AuthContext);
   const st = React.useMemo(() => getStyles(C), [C]);
   const [templates, setTemplates] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -4576,7 +4577,7 @@ const TemplateManagerModal = ({ onClose }) => {
   const fetchTemplates = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/schedule-templates`);
+      const res = await fetch(`${API_BASE}/schedule-templates${user.company_id ? `?company_id=${user.company_id}` : ''}`);
       const data = await res.json();
       if (Array.isArray(data)) setTemplates(data);
     } catch (e) { console.warn(e.message); }
@@ -4649,6 +4650,7 @@ const TemplateManagerModal = ({ onClose }) => {
           icon: editIcon,
           description: editDesc.trim(),
           tasks: templateTasks,
+          created_by: user.id,
         }),
       });
       if (!res.ok) throw new Error(`Failed to ${isNew ? 'create' : 'update'} template`);
@@ -4803,6 +4805,7 @@ const TemplateManagerModal = ({ onClose }) => {
 
 const NewProjectModal = ({ onClose, onCreated, subdivisions = [] }) => {
   const C = React.useContext(ThemeContext);
+  const { user } = React.useContext(AuthContext);
   const st = React.useMemo(() => getStyles(C), [C]);
   const [f, sF] = useState({
     name: '', street_address: '', city: '', addr_state: '', zip_code: '', email: '',
@@ -4835,6 +4838,7 @@ const NewProjectModal = ({ onClose, onCreated, subdivisions = [] }) => {
         original_price: parseFloat(f.original_price) || 0,
         progress: 0,
         subdivision_id: f.subdivision_id || null,
+        created_by: user.id,
       };
       const res = await fetch(`${API_BASE}/projects`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -5272,6 +5276,7 @@ const DEFAULT_TRADES = [
 
 const NewSubModal = ({ onClose, onCreated, tradesList }) => {
   const C = React.useContext(ThemeContext);
+  const { user } = React.useContext(AuthContext);
   const st = React.useMemo(() => getStyles(C), [C]);
   const [companyName, setCompanyName] = useState('');
   const [firstName, setFirstName] = useState('');
@@ -5317,6 +5322,7 @@ const NewSubModal = ({ onClose, onCreated, tradesList }) => {
           city: city.trim(),
           state: stateVal,
           zip_code: zip.trim(),
+          company_id: user.company_id,
         }),
       });
       const data = await res.json();
@@ -5494,6 +5500,7 @@ const NewSubModal = ({ onClose, onCreated, tradesList }) => {
 // ============================================================
 const DocumentManagerModal = ({ onClose }) => {
   const C = React.useContext(ThemeContext);
+  const { user } = React.useContext(AuthContext);
   const st = React.useMemo(() => getStyles(C), [C]);
   const [templates, setTemplates] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -5504,7 +5511,7 @@ const DocumentManagerModal = ({ onClose }) => {
   const fetchTemplates = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/document-templates`);
+      const res = await fetch(`${API_BASE}/document-templates${user.company_id ? `?company_id=${user.company_id}` : ''}`);
       if (res.ok) setTemplates(await res.json());
     } catch (e) { console.warn(e); }
     setLoading(false);
@@ -5518,7 +5525,7 @@ const DocumentManagerModal = ({ onClose }) => {
       const res = await fetch(`${API_BASE}/document-templates`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: name.trim(), doc_type: docType, applies_to: appliesTo }),
+        body: JSON.stringify({ name: name.trim(), doc_type: docType, applies_to: appliesTo, user_id: user.id }),
       });
       if (res.ok) {
         const t = await res.json();
@@ -5771,6 +5778,7 @@ const SELECTION_CATEGORIES = ['Countertops', 'Flooring', 'Cabinets', 'Tile', 'Li
 
 const SelectionManagerModal = ({ onClose }) => {
   const C = React.useContext(ThemeContext);
+  const { user } = React.useContext(AuthContext);
   const st = React.useMemo(() => getStyles(C), [C]);
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -5786,7 +5794,7 @@ const SelectionManagerModal = ({ onClose }) => {
   const fetchItems = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/selection-items`);
+      const res = await fetch(`${API_BASE}/selection-items${user.company_id ? `?company_id=${user.company_id}` : ''}`);
       if (res.ok) setItems(await res.json());
     } catch (e) { console.warn(e); }
     setLoading(false);
@@ -5864,7 +5872,7 @@ const SelectionManagerModal = ({ onClose }) => {
           comes_standard: !!o.comes_standard,
         });
       }
-      const body = { category: finalCat, item: itemName, options: cleanOptions };
+      const body = { category: finalCat, item: itemName, options: cleanOptions, user_id: user.id };
       const url = editingId ? `${API_BASE}/selection-items/${editingId}` : `${API_BASE}/selection-items`;
       const method = editingId ? 'PUT' : 'POST';
       const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
@@ -6090,6 +6098,7 @@ const SelectionManagerModal = ({ onClose }) => {
 // ============================================================
 const WorkdayExemptionsModal = ({ onClose }) => {
   const C = React.useContext(ThemeContext);
+  const { user } = React.useContext(AuthContext);
   const st = React.useMemo(() => getStyles(C), [C]);
   const [exemptions, setExemptions] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -6100,7 +6109,7 @@ const WorkdayExemptionsModal = ({ onClose }) => {
 
   const fetchExemptions = async () => {
     try {
-      const res = await fetch(`${API_BASE}/workday-exemptions`);
+      const res = await fetch(`${API_BASE}/workday-exemptions${user.company_id ? `?company_id=${user.company_id}` : ''}`);
       const data = await res.json();
       setExemptions(data);
     } catch (e) { console.warn('Failed to load exemptions:', e); }
@@ -6116,7 +6125,7 @@ const WorkdayExemptionsModal = ({ onClose }) => {
       const res = await fetch(`${API_BASE}/workday-exemptions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ date: newDate.trim(), description: newDesc.trim(), recurring: newRecurring }),
+        body: JSON.stringify({ date: newDate.trim(), description: newDesc.trim(), recurring: newRecurring, user_id: user.id }),
       });
       const data = await res.json();
       if (res.ok) {

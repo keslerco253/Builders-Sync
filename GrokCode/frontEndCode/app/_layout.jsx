@@ -9,6 +9,7 @@ import { AuthContext, ThemeContext, DARK_COLORS, LIGHT_COLORS, API_BASE } from '
 import { LoginScreen } from './login';
 import { Register } from './register';
 import Dashboard from './dashboard';
+import AdminDashboard from './admin';
 import UserManagement from './userManagement';
 import AccountScreen from './account';
 
@@ -126,6 +127,9 @@ export default function RootLayout() {
       <ThemeContext.Provider value={themeContext}>
         <ThemeProvider value={navTheme}>
           {user ? (
+            user.role === 'admin' ? (
+              <AdminDashboard />
+            ) : (
             <MainStack.Navigator
               screenOptions={{
                 headerStyle: { backgroundColor: C.headerBg, elevation: 0, boxShadow: 'none' },
@@ -153,6 +157,7 @@ export default function RootLayout() {
                 options={{ title: 'Account' }}
               />
             </MainStack.Navigator>
+            )
           ) : (
             <AuthStack.Navigator
               screenOptions={{

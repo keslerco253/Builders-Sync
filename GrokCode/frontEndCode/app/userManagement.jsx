@@ -55,7 +55,7 @@ export default function UserManagement() {
 
   const fetchUsers = async () => {
     try {
-      const res = await fetch(`${API_BASE}/users`);
+      const res = await fetch(`${API_BASE}/users${user?.company_id ? `?company_id=${user.company_id}` : ''}`);
       const data = await res.json();
       if (Array.isArray(data)) setUsers(data);
     } catch (e) { console.warn(e); } finally { setLoading(false); }
@@ -121,6 +121,7 @@ export default function UserManagement() {
 
 // Add User Modal
 const AddUserModal = ({ onClose, onCreated }) => {
+  const { user } = React.useContext(AuthContext);
   const [f, sF] = useState({ email: '', password: '', name: '', firstName: '', lastName: '', role: 'contractor', company: '', phone: '', trades: '' });
   const [err, sErr] = useState('');
   const [loading, setLoading] = useState(false);
@@ -137,6 +138,7 @@ const AddUserModal = ({ onClose, onCreated }) => {
           username: f.email.toLowerCase().trim(), password: f.password,
           firstName: f.firstName, lastName: f.lastName,
           companyName: f.company, role: f.role, phone: f.phone, trades: f.trades,
+          company_id: user?.company_id,
         }),
       });
       if (!res.ok) { const d = await res.json(); sErr(d.error || 'Failed'); setLoading(false); return; }

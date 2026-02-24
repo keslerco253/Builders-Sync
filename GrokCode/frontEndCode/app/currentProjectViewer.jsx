@@ -1420,7 +1420,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
                   onTaskRightClick={async (task) => {
                     setListEditTask(task); setListContractor(task.contractor || ''); setSubsSearch('');
                     try {
-                      const res = await fetch(`${API_BASE}/users`);
+                      const res = await fetch(`${API_BASE}/users${user?.company_id ? `?company_id=${user.company_id}` : ''}`);
                       const data = await res.json();
                       if (Array.isArray(data)) setSubsList(data.filter(u => (u.role === 'contractor' || u.role === 'builder') && u.active !== false));
                     } catch(e) { console.warn('fetch subs:', e); }
@@ -1471,7 +1471,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
                   onTaskRightClick={async (task) => {
                     setListEditTask(task); setListContractor(task.contractor || ''); setSubsSearch('');
                     try {
-                      const res = await fetch(`${API_BASE}/users`);
+                      const res = await fetch(`${API_BASE}/users${user?.company_id ? `?company_id=${user.company_id}` : ''}`);
                       const data = await res.json();
                       if (Array.isArray(data)) setSubsList(data.filter(u => (u.role === 'contractor' || u.role === 'builder') && u.active !== false));
                     } catch(e) { console.warn('fetch subs:', e); }
@@ -1565,7 +1565,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
                               e.preventDefault();
                               setListEditTask(item); setListContractor(item.contractor || ''); setSubsSearch('');
                               try {
-                                const res = await fetch(`${API_BASE}/users`);
+                                const res = await fetch(`${API_BASE}/users${user?.company_id ? `?company_id=${user.company_id}` : ''}`);
                                 const data = await res.json();
                                 if (Array.isArray(data)) setSubsList(data.filter(u => (u.role === 'contractor' || u.role === 'builder') && u.active !== false));
                               } catch(e2) { console.warn('fetch subs:', e2); }
@@ -1611,7 +1611,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
                             if (!isB) return;
                             setListEditTask(item); setListContractor(item.contractor || ''); setSubsSearch('');
                             try {
-                              const res = await fetch(`${API_BASE}/users`);
+                              const res = await fetch(`${API_BASE}/users${user?.company_id ? `?company_id=${user.company_id}` : ''}`);
                               const data = await res.json();
                               if (Array.isArray(data)) setSubsList(data.filter(u => (u.role === 'contractor' || u.role === 'builder') && u.active !== false));
                             } catch(e) { console.warn('fetch subs:', e); }
@@ -3214,7 +3214,7 @@ const NewChangeOrderModal = ({ project, api, onClose, onCreated, user, schedule 
   // Fetch subcontractors list on mount
   useEffect(() => {
     setSubsLoading(true);
-    fetch(`${API_BASE}/users`)
+    fetch(`${API_BASE}/users${user?.company_id ? `?company_id=${user.company_id}` : ''}`)
       .then(r => r.json())
       .then(data => {
         if (Array.isArray(data)) setSubsList(data.filter(u => (u.role === 'contractor' || u.role === 'builder') && u.active !== false));

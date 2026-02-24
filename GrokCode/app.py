@@ -19,6 +19,24 @@ db = SQLAlchemy(app)
 # MODELS
 # ============================================================
 
+class Company(db.Model):
+    """Builder companies — the top-level tenant for data isolation."""
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(200), nullable=False, unique=True)
+    status = db.Column(db.String(20), nullable=False, default='active')  # active | paused | deleted
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'name': self.name,
+            'status': self.status,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+
 class LoginInfo(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(120), unique=True, nullable=False)
@@ -26,7 +44,7 @@ class LoginInfo(db.Model):
     lastName = db.Column(db.String(30), nullable=False)
     companyName = db.Column(db.String(120), nullable=False, default='')
     password = db.Column(db.String(255), nullable=False)
-    role = db.Column(db.String(20), nullable=False, default='builder')  # builder | contractor | customer
+    role = db.Column(db.String(20), nullable=False, default='builder')  # admin | builder | contractor | customer
     phone = db.Column(db.String(30), default='')
     trades = db.Column(db.String(255), default='')
     street_address = db.Column(db.String(200), default='')
@@ -37,9 +55,12 @@ class LoginInfo(db.Model):
     theme_preference = db.Column(db.String(10), default='system')  # 'system' | 'dark' | 'light'
     company_logo = db.Column(db.Text, default='')  # base64 image data
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    company_id = db.Column(db.Integer, db.ForeignKey('company.id'), nullable=True)  # NULL for admin
+    authorized = db.Column(db.Boolean, default=True)
 
     def __init__(self, username, password, firstName, lastName, companyName='',
-                 role='builder', phone='', trades='', street_address='', city='', state='', zip_code=''):
+                 role='builder', phone='', trades='', street_address='', city='', state='', zip_code='',
+                 company_id=None, authorized=True):
         self.username = username
         self.password = generate_password_hash(password)
         self.firstName = firstName
@@ -52,6 +73,8 @@ class LoginInfo(db.Model):
         self.city = city
         self.state = state
         self.zip_code = zip_code
+        self.company_id = company_id
+        self.authorized = authorized
 
     def to_dict(self):
         return {
@@ -69,8 +92,10 @@ class LoginInfo(db.Model):
             'state': self.state or '',
             'zip_code': self.zip_code or '',
             'active': self.active,
+            'authorized': self.authorized if self.authorized is not None else True,
             'theme_preference': self.theme_preference or 'system',
             'has_logo': bool(self.company_logo),
+            'company_id': self.company_id,
             'created_at': self.created_at.isoformat() if self.created_at else None,
         }
 
@@ -78,10 +103,11 @@ class LoginInfo(db.Model):
 class Subdivision(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(200), nullable=False)
+    company_id = db.Column(db.Integer, db.ForeignKey('company.id'), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     def to_dict(self):
-        return {'id': self.id, 'name': self.name}
+        return {'id': self.id, 'name': self.name, 'company_id': self.company_id}
 
 
 class SubdivisionContractor(db.Model):
@@ -133,6 +159,7 @@ class Projects(db.Model):
     on_hold = db.Column(db.Boolean, default=False)
     hold_start_date = db.Column(db.String(20), default='')
     subdivision_id = db.Column(db.Integer, db.ForeignKey('subdivision.id'), nullable=True)
+    company_id = db.Column(db.Integer, db.ForeignKey('company.id'), nullable=True)
     date = db.Column(db.DateTime, default=datetime.utcnow)
 
     def to_dict(self):
@@ -170,6 +197,7 @@ class Projects(db.Model):
             'on_hold': bool(self.on_hold) if self.on_hold else False,
             'hold_start_date': self.hold_start_date or '',
             'subdivision_id': self.subdivision_id,
+            'company_id': self.company_id,
             'date': self.date.isoformat() if self.date else None,
         }
 
@@ -253,11 +281,12 @@ class ChangeOrderDocument(db.Model):
 
 
 class SelectionItem(db.Model):
-    """Global selection catalog - not tied to any project"""
+    """Selection catalog scoped to a company"""
     id = db.Column(db.Integer, primary_key=True)
     category = db.Column(db.String(100), default='')
     item = db.Column(db.String(200), default='')
     options = db.Column(db.Text, default='[]')  # JSON: [{name, image_path, price, comes_standard}]
+    company_id = db.Column(db.Integer, db.ForeignKey('company.id'), nullable=True)
 
     def to_dict(self):
         return {
@@ -344,6 +373,7 @@ class WorkdayExemption(db.Model):
     description = db.Column(db.String(200), default='')
     recurring = db.Column(db.Boolean, default=False)  # True = repeats annually (month-day only)
     created_by = db.Column(db.String(100), default='')
+    company_id = db.Column(db.Integer, db.ForeignKey('company.id'), nullable=True)
 
     def to_dict(self):
         return {
@@ -377,6 +407,7 @@ class ScheduleTemplate(db.Model):
     tasks_json = db.Column(db.Text, default='[]')  # JSON array of task objects
     created_by = db.Column(db.Integer, db.ForeignKey('login_info.id'), nullable=True)
     created_at = db.Column(db.String(30), default='')
+    company_id = db.Column(db.Integer, db.ForeignKey('company.id'), nullable=True)
 
     def to_dict(self):
         return {
@@ -394,6 +425,7 @@ class HomeTemplate(db.Model):
     stories = db.Column(db.Integer, default=1)
     bedrooms = db.Column(db.Integer, default=0)
     bathrooms = db.Column(db.Integer, default=0)
+    company_id = db.Column(db.Integer, db.ForeignKey('company.id'), nullable=True)
 
     def to_dict(self):
         return {
@@ -465,6 +497,7 @@ class DocumentTemplate(db.Model):
     name = db.Column(db.String(200), nullable=False)
     doc_type = db.Column(db.String(20), default='file')  # file | folder
     applies_to = db.Column(db.String(20), default='both')  # projects | subdivisions | both
+    company_id = db.Column(db.Integer, db.ForeignKey('company.id'), nullable=True)
 
     def to_dict(self):
         return {
@@ -603,6 +636,186 @@ def _apply_hold_preview(task_dicts, hold_start_date):
 
 
 # ============================================================
+# ADMIN HELPER
+# ============================================================
+
+def _require_admin():
+    """Return the admin user or abort with 403."""
+    uid = request.args.get('admin_id', type=int) or (request.get_json() or {}).get('admin_id')
+    if not uid:
+        return None
+    user = LoginInfo.query.get(uid)
+    if not user or user.role != 'admin':
+        return None
+    return user
+
+
+# ============================================================
+# SUPREME ADMIN ROUTES
+# ============================================================
+
+@app.route('/admin/stats', methods=['GET'])
+def admin_stats():
+    admin = _require_admin()
+    if not admin:
+        return jsonify({'error': 'Unauthorized'}), 403
+    total_companies = Company.query.filter(Company.status != 'deleted').count()
+    active_companies = Company.query.filter_by(status='active').count()
+    paused_companies = Company.query.filter_by(status='paused').count()
+    total_users = LoginInfo.query.filter(LoginInfo.role != 'admin').count()
+    total_builders = LoginInfo.query.filter_by(role='builder').count()
+    total_contractors = LoginInfo.query.filter_by(role='contractor').count()
+    total_customers = LoginInfo.query.filter_by(role='customer').count()
+    total_projects = Projects.query.count()
+    pending_users = LoginInfo.query.filter_by(authorized=False).count()
+    return jsonify({
+        'total_companies': total_companies,
+        'active_companies': active_companies,
+        'paused_companies': paused_companies,
+        'total_users': total_users,
+        'total_builders': total_builders,
+        'total_contractors': total_contractors,
+        'total_customers': total_customers,
+        'total_projects': total_projects,
+        'pending_users': pending_users,
+    })
+
+
+@app.route('/admin/companies', methods=['GET'])
+def admin_list_companies():
+    admin = _require_admin()
+    if not admin:
+        return jsonify({'error': 'Unauthorized'}), 403
+    companies = Company.query.filter(Company.status != 'deleted').order_by(Company.name).all()
+    result = []
+    for c in companies:
+        user_count = LoginInfo.query.filter_by(company_id=c.id).filter(LoginInfo.role != 'admin').count()
+        project_count = Projects.query.filter_by(company_id=c.id).count()
+        d = c.to_dict()
+        d['user_count'] = user_count
+        d['project_count'] = project_count
+        result.append(d)
+    return jsonify(result)
+
+
+@app.route('/admin/companies', methods=['POST'])
+def admin_create_company():
+    admin = _require_admin()
+    if not admin:
+        return jsonify({'error': 'Unauthorized'}), 403
+    data = request.get_json()
+    name = (data.get('name') or '').strip()
+    if not name:
+        return jsonify({'error': 'Company name is required'}), 400
+    if Company.query.filter(db.func.lower(Company.name) == name.lower()).first():
+        return jsonify({'error': 'A company with this name already exists'}), 409
+    c = Company(name=name)
+    db.session.add(c)
+    db.session.commit()
+    return jsonify(c.to_dict()), 201
+
+
+@app.route('/admin/companies/<int:cid>', methods=['PUT'])
+def admin_update_company(cid):
+    admin = _require_admin()
+    if not admin:
+        return jsonify({'error': 'Unauthorized'}), 403
+    c = Company.query.get_or_404(cid)
+    data = request.get_json()
+    if 'name' in data:
+        new_name = data['name'].strip()
+        if new_name:
+            existing = Company.query.filter(db.func.lower(Company.name) == new_name.lower(), Company.id != cid).first()
+            if existing:
+                return jsonify({'error': 'A company with this name already exists'}), 409
+            c.name = new_name
+    db.session.commit()
+    return jsonify(c.to_dict())
+
+
+@app.route('/admin/companies/<int:cid>/pause', methods=['PUT'])
+def admin_pause_company(cid):
+    admin = _require_admin()
+    if not admin:
+        return jsonify({'error': 'Unauthorized'}), 403
+    c = Company.query.get_or_404(cid)
+    c.status = 'paused'
+    db.session.commit()
+    return jsonify(c.to_dict())
+
+
+@app.route('/admin/companies/<int:cid>/activate', methods=['PUT'])
+def admin_activate_company(cid):
+    admin = _require_admin()
+    if not admin:
+        return jsonify({'error': 'Unauthorized'}), 403
+    c = Company.query.get_or_404(cid)
+    c.status = 'active'
+    db.session.commit()
+    return jsonify(c.to_dict())
+
+
+@app.route('/admin/companies/<int:cid>', methods=['DELETE'])
+def admin_delete_company(cid):
+    admin = _require_admin()
+    if not admin:
+        return jsonify({'error': 'Unauthorized'}), 403
+    c = Company.query.get_or_404(cid)
+    c.status = 'deleted'
+    # Deactivate all users in this company
+    LoginInfo.query.filter_by(company_id=cid).update({'active': False})
+    db.session.commit()
+    return jsonify({'message': f'Company "{c.name}" deleted and all users deactivated'})
+
+
+@app.route('/admin/companies/<int:cid>/users', methods=['GET'])
+def admin_company_users(cid):
+    admin = _require_admin()
+    if not admin:
+        return jsonify({'error': 'Unauthorized'}), 403
+    users = LoginInfo.query.filter_by(company_id=cid).order_by(LoginInfo.lastName).all()
+    return jsonify([u.to_dict() for u in users])
+
+
+@app.route('/admin/users/pending', methods=['GET'])
+def admin_pending_users():
+    admin = _require_admin()
+    if not admin:
+        return jsonify({'error': 'Unauthorized'}), 403
+    users = LoginInfo.query.filter_by(authorized=False).order_by(LoginInfo.created_at.desc()).all()
+    result = []
+    for u in users:
+        d = u.to_dict()
+        if u.company_id:
+            company = Company.query.get(u.company_id)
+            d['company_name_resolved'] = company.name if company else ''
+        result.append(d)
+    return jsonify(result)
+
+
+@app.route('/admin/users/<int:uid>/authorize', methods=['PUT'])
+def admin_authorize_user(uid):
+    admin = _require_admin()
+    if not admin:
+        return jsonify({'error': 'Unauthorized'}), 403
+    user = LoginInfo.query.get_or_404(uid)
+    user.authorized = True
+    db.session.commit()
+    return jsonify(user.to_dict())
+
+
+@app.route('/admin/users/<int:uid>/reject', methods=['PUT'])
+def admin_reject_user(uid):
+    admin = _require_admin()
+    if not admin:
+        return jsonify({'error': 'Unauthorized'}), 403
+    user = LoginInfo.query.get_or_404(uid)
+    db.session.delete(user)
+    db.session.commit()
+    return jsonify({'message': 'User rejected and deleted'})
+
+
+# ============================================================
 # AUTH ROUTES
 # ============================================================
 
@@ -647,6 +860,18 @@ def login_user():
             return jsonify({'error': 'Invalid email or password'}), 401
         if not check_password_hash(user.password, data['password']):
             return jsonify({'error': 'Invalid email or password'}), 401
+
+        # Check authorization (admin is always authorized)
+        if user.role != 'admin' and user.authorized is not None and not user.authorized:
+            return jsonify({'error': 'Account pending approval. Please contact your administrator.'}), 403
+
+        # Check company status (admin has no company)
+        if user.role != 'admin' and user.company_id:
+            company = Company.query.get(user.company_id)
+            if company and company.status == 'paused':
+                return jsonify({'error': 'Your company account has been suspended. Please contact the administrator.'}), 403
+            if company and company.status == 'deleted':
+                return jsonify({'error': 'Your company account has been removed. Please contact the administrator.'}), 403
 
         return jsonify({'message': 'Login successful', 'user': user.to_dict()}), 200
     except Exception as e:
@@ -705,7 +930,11 @@ def get_builder_logo():
 
 @app.route('/users', methods=['GET'])
 def get_all_users():
-    users = LoginInfo.query.all()
+    company_id = request.args.get('company_id', type=int)
+    if company_id:
+        users = LoginInfo.query.filter_by(company_id=company_id).all()
+    else:
+        users = LoginInfo.query.all()
     return jsonify([u.to_dict() for u in users])
 
 
@@ -746,6 +975,7 @@ def create_user():
             city=data.get('city', ''),
             state=data.get('state', ''),
             zip_code=data.get('zip_code', ''),
+            company_id=data.get('company_id'),
         )
         db.session.add(new_user)
         db.session.commit()
@@ -867,7 +1097,11 @@ def get_company_trades(user_id):
 
 @app.route('/subdivisions', methods=['GET'])
 def get_subdivisions():
-    subs = Subdivision.query.order_by(Subdivision.name).all()
+    company_id = request.args.get('company_id', type=int)
+    q = Subdivision.query.order_by(Subdivision.name)
+    if company_id:
+        q = q.filter_by(company_id=company_id)
+    subs = q.all()
     return jsonify([s.to_dict() for s in subs])
 
 @app.route('/subdivisions', methods=['POST'])
@@ -877,6 +1111,12 @@ def create_subdivision():
     if not name:
         return jsonify({'error': 'Subdivision name required'}), 400
     s = Subdivision(name=name)
+    # Set company_id from the creating user
+    user_id = (data or {}).get('user_id')
+    if user_id:
+        creator = LoginInfo.query.get(user_id)
+        if creator and creator.company_id:
+            s.company_id = creator.company_id
     db.session.add(s)
     db.session.commit()
     return jsonify(s.to_dict()), 201
@@ -998,9 +1238,16 @@ def get_projects():
     user_id = request.args.get('user_id', type=int)
     role = request.args.get('role', '')
 
+    # Resolve the requesting user's company_id for scoping
+    req_user = LoginInfo.query.get(user_id) if user_id else None
+    company_id = req_user.company_id if req_user else None
+
     if not user_id or role == 'builder':
-        # Builders see all projects
-        projects = Projects.query.all()
+        # Builders see their company's projects
+        q = Projects.query
+        if company_id:
+            q = q.filter_by(company_id=company_id)
+        projects = q.all()
     elif role == 'customer':
         projects = Projects.query.filter_by(customer_id=user_id).all()
     else:
@@ -1102,6 +1349,17 @@ def add_project():
         p.number = f'{prefix}{str(max_num + 1).zfill(2)}'
 
         p.customer_id = customer_id
+        # Set company_id from the creating user
+        creator_id = data.get('created_by') or data.get('user_id')
+        if creator_id:
+            creator = LoginInfo.query.get(creator_id)
+            if creator and creator.company_id:
+                p.company_id = creator.company_id
+                # Also assign the customer to the same company if newly created
+                if customer_id:
+                    cust = LoginInfo.query.get(customer_id)
+                    if cust and not cust.company_id:
+                        cust.company_id = creator.company_id
         db.session.add(p)
         db.session.commit()
 
@@ -1722,7 +1980,11 @@ def upload_file():
 
 @app.route('/selection-items', methods=['GET'])
 def get_selection_items():
-    items = SelectionItem.query.order_by(SelectionItem.category, SelectionItem.item).all()
+    company_id = request.args.get('company_id', type=int)
+    q = SelectionItem.query.order_by(SelectionItem.category, SelectionItem.item)
+    if company_id:
+        q = q.filter_by(company_id=company_id)
+    items = q.all()
     return jsonify([i.to_dict() for i in items])
 
 
@@ -1734,6 +1996,11 @@ def create_selection_item():
         item=data.get('item', ''),
         options=json.dumps(data.get('options', [])),
     )
+    user_id = data.get('user_id')
+    if user_id:
+        creator = LoginInfo.query.get(user_id)
+        if creator and creator.company_id:
+            item.company_id = creator.company_id
     db.session.add(item)
     db.session.commit()
     return jsonify(item.to_dict()), 201
@@ -2033,7 +2300,11 @@ def delete_schedule_chain(item_id):
 
 @app.route('/schedule-templates', methods=['GET'])
 def get_schedule_templates():
-    templates = ScheduleTemplate.query.order_by(ScheduleTemplate.id.desc()).all()
+    company_id = request.args.get('company_id', type=int)
+    q = ScheduleTemplate.query.order_by(ScheduleTemplate.id.desc())
+    if company_id:
+        q = q.filter_by(company_id=company_id)
+    templates = q.all()
     return jsonify([t.to_dict() for t in templates])
 
 
@@ -2048,6 +2319,11 @@ def create_schedule_template():
         created_by=data.get('created_by'),
         created_at=datetime.utcnow().isoformat(),
     )
+    creator_id = data.get('created_by')
+    if creator_id:
+        creator = LoginInfo.query.get(creator_id)
+        if creator and creator.company_id:
+            tmpl.company_id = creator.company_id
     db.session.add(tmpl)
     db.session.commit()
     return jsonify(tmpl.to_dict()), 201
@@ -2079,7 +2355,11 @@ def delete_schedule_template(tid):
 
 @app.route('/home-templates', methods=['GET'])
 def get_home_templates():
-    return jsonify([t.to_dict() for t in HomeTemplate.query.order_by(HomeTemplate.name).all()])
+    company_id = request.args.get('company_id', type=int)
+    q = HomeTemplate.query.order_by(HomeTemplate.name)
+    if company_id:
+        q = q.filter_by(company_id=company_id)
+    return jsonify([t.to_dict() for t in q.all()])
 
 
 @app.route('/home-templates', methods=['POST'])
@@ -2090,6 +2370,11 @@ def create_home_template():
         stories=int(data.get('stories', 1)), bedrooms=int(data.get('bedrooms', 0)),
         bathrooms=int(data.get('bathrooms', 0)),
     )
+    user_id = data.get('user_id')
+    if user_id:
+        creator = LoginInfo.query.get(user_id)
+        if creator and creator.company_id:
+            t.company_id = creator.company_id
     db.session.add(t)
     db.session.commit()
     return jsonify(t.to_dict()), 201
@@ -2271,7 +2556,11 @@ def add_exception(pid):
 
 @app.route('/workday-exemptions', methods=['GET'])
 def get_all_workday_exemptions():
-    exemptions = WorkdayExemption.query.order_by(WorkdayExemption.date).all()
+    company_id = request.args.get('company_id', type=int)
+    q = WorkdayExemption.query.order_by(WorkdayExemption.date)
+    if company_id:
+        q = q.filter_by(company_id=company_id)
+    exemptions = q.all()
     return jsonify([e.to_dict() for e in exemptions])
 
 
@@ -2291,6 +2580,12 @@ def add_global_workday_exemption():
         recurring=data.get('recurring', False),
         created_by=data.get('created_by', ''),
     )
+    # Set company_id from creator
+    user_id = data.get('user_id')
+    if user_id:
+        creator = LoginInfo.query.get(user_id)
+        if creator and creator.company_id:
+            exemption.company_id = creator.company_id
     db.session.add(exemption)
     db.session.commit()
     return jsonify(exemption.to_dict()), 201
@@ -2482,7 +2777,10 @@ def add_subdivision_document(sid):
 def get_document_templates():
     from sqlalchemy import or_
     scope = request.args.get('scope', None)  # 'projects' | 'subdivisions' | None (all)
+    company_id = request.args.get('company_id', type=int)
     q = DocumentTemplate.query
+    if company_id:
+        q = q.filter_by(company_id=company_id)
     if scope:
         q = q.filter(or_(
             DocumentTemplate.applies_to == scope,
@@ -2501,6 +2799,11 @@ def create_document_template():
         doc_type=data.get('doc_type', 'file'),
         applies_to=data.get('applies_to', 'both'),
     )
+    user_id = data.get('user_id')
+    if user_id:
+        creator = LoginInfo.query.get(user_id)
+        if creator and creator.company_id:
+            t.company_id = creator.company_id
     db.session.add(t)
     db.session.commit()
     return jsonify(t.to_dict()), 201
@@ -2614,6 +2917,22 @@ def auto_migrate():
 
     # Now create any brand new tables
     db.create_all()
+
+    # Seed Supreme Admin if not exists
+    admin = LoginInfo.query.filter_by(username='hyrumjo253@gmail.com').first()
+    if not admin:
+        admin = LoginInfo(
+            username='hyrumjo253@gmail.com',
+            password='Totowewewe43@',
+            firstName='Supreme',
+            lastName='Admin',
+            role='admin',
+            company_id=None,
+            authorized=True,
+        )
+        db.session.add(admin)
+        db.session.commit()
+        changes.append("SEED Supreme Admin user")
 
     if changes:
         print(f"✅ Database migration: {len(changes)} change(s)")
