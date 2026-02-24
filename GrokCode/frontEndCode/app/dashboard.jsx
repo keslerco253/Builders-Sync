@@ -374,8 +374,8 @@ export default function Dashboard() {
       fetchProjects();
       if (isBuilder) {
         fetchSubdivisions();
-        // Load builder's saved trade list
-        fetch(`${API_BASE}/users/${user.id}`)
+        // Load company-wide trade list (shared across all builders in the company)
+        fetch(`${API_BASE}/users/${user.id}/company-trades`)
           .then(r => r.json())
           .then(data => {
             if (data.trades && data.trades.trim()) {

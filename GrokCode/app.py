@@ -809,6 +809,15 @@ def update_user(user_id):
         user.phone = data['phone']
     if 'trades' in data:
         user.trades = data['trades']
+        # Sync trades across all builders in the same company
+        if user.role == 'builder' and user.companyName:
+            company_builders = LoginInfo.query.filter(
+                LoginInfo.role == 'builder',
+                db.func.lower(LoginInfo.companyName) == user.companyName.lower(),
+                LoginInfo.id != user.id,
+            ).all()
+            for b in company_builders:
+                b.trades = data['trades']
     if 'email' in data:
         user.username = data['email']
     if 'street_address' in data:
@@ -822,6 +831,30 @@ def update_user(user_id):
 
     db.session.commit()
     return jsonify(user.to_dict())
+
+
+@app.route('/users/<int:user_id>/company-trades', methods=['GET'])
+def get_company_trades(user_id):
+    """Get the shared trades list for the builder's company."""
+    user = LoginInfo.query.get_or_404(user_id)
+    if user.role != 'builder':
+        return jsonify({'trades': user.trades or ''}), 200
+    # Find any builder in the same company that has trades set
+    if user.trades and user.trades.strip():
+        return jsonify({'trades': user.trades}), 200
+    if user.companyName:
+        peer = LoginInfo.query.filter(
+            LoginInfo.role == 'builder',
+            db.func.lower(LoginInfo.companyName) == user.companyName.lower(),
+            LoginInfo.trades != '',
+            LoginInfo.trades.isnot(None),
+        ).first()
+        if peer:
+            # Sync to this user so they stay up to date
+            user.trades = peer.trades
+            db.session.commit()
+            return jsonify({'trades': peer.trades}), 200
+    return jsonify({'trades': ''}), 200
 
 
 # ============================================================
