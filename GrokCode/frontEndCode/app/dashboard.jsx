@@ -56,6 +56,7 @@ export default function Dashboard() {
   const [subdivTab, setSubdivTab] = useState('subs'); // 'subs' | 'docs'
   const [sdSubs, setSdSubs] = useState([]);
   const [sdSubsLoading, setSdSubsLoading] = useState(false);
+  const [sdOpenTrade, setSdOpenTrade] = useState(null);  // which trade dropdown is open
   const [sdDocs, setSdDocs] = useState([]);
   const [sdDocsLoading, setSdDocsLoading] = useState(false);
   const [sdDocTemplates, setSdDocTemplates] = useState([]);
@@ -420,36 +421,17 @@ export default function Dashboard() {
     setSelectedSubdivision(sd);
     setSelectedProject(null);
     setSubdivTab('subs');
-    // Fetch contractors for this subdivision
+    setSdOpenTrade(null);
+    // Fetch all contractors for trade dropdowns
     setSdSubsLoading(true);
     setSdSubs([]);
-    const sdProjects = projects.filter(p => p.subdivision_id === sd.id);
     (async () => {
       try {
-        const allContractorIds = new Set();
-        const projUserMap = {}; // uid -> Set of project ids
-        for (const proj of sdProjects) {
-          const res = await fetch(`${API_BASE}/projects/${proj.id}/users`);
-          const data = await res.json();
-          if (Array.isArray(data)) {
-            data.forEach(u => {
-              allContractorIds.add(u.user_id);
-              if (!projUserMap[u.user_id]) projUserMap[u.user_id] = new Set();
-              projUserMap[u.user_id].add(proj.id);
-            });
-          }
-        }
         const userRes = await fetch(`${API_BASE}/users`);
         const allUsers = await userRes.json();
-        const result = [];
         if (Array.isArray(allUsers)) {
-          allUsers.forEach(u => {
-            if (allContractorIds.has(u.id) && (u.role === 'contractor' || u.role === 'builder')) {
-              result.push({ ...u, projCount: projUserMap[u.id]?.size || 0 });
-            }
-          });
+          setSdSubs(allUsers.filter(u => u.role === 'contractor'));
         }
-        setSdSubs(result);
       } catch (e) { console.warn('Fetch subdiv subs error:', e); }
       setSdSubsLoading(false);
     })();
@@ -849,45 +831,61 @@ export default function Dashboard() {
               <View style={{ alignItems: 'center', paddingVertical: 40 }}>
                 <ActivityIndicator color={C.gd} size="large" />
               </View>
-            ) : sdSubs.length === 0 ? (
-              <View style={{ alignItems: 'center', paddingVertical: 60 }}>
-                <Text style={{ fontSize: 48, marginBottom: 12 }}>👷</Text>
-                <Text style={{ fontSize: 21, fontWeight: '600', color: C.textBold }}>No Subcontractors</Text>
-                <Text style={{ fontSize: 17, color: C.dm, marginTop: 4, textAlign: 'center' }}>
-                  Assign contractors to projects in this subdivision and they'll appear here.
-                </Text>
-              </View>
             ) : (
-              sdSubs.map(sub => {
-                const tradesArr = sub.trades ? sub.trades.split(',').map(t => t.trim()).filter(Boolean) : [];
+              TEMPLATE_TRADES.map(trade => {
+                const matchingSubs = sdSubs.filter(u => {
+                  const userTrades = u.trades ? u.trades.split(',').map(t => t.trim().toLowerCase()) : [];
+                  return userTrades.includes(trade.toLowerCase());
+                });
+                const isOpen = sdOpenTrade === trade;
                 return (
-                  <View key={sub.id} style={{ flexDirection: 'row', alignItems: 'center', padding: 14, marginBottom: 10, backgroundColor: C.card, borderRadius: 12, borderWidth: 1, borderColor: C.w08 }}>
-                    <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: C.gd + '20', alignItems: 'center', justifyContent: 'center', marginRight: 14 }}>
-                      <Text style={{ fontSize: 20, fontWeight: '700', color: C.gd }}>
-                        {(sub.first_name || '?')[0]}{(sub.last_name || '?')[0]}
-                      </Text>
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={{ fontSize: 19, fontWeight: '600', color: C.textBold }}>
-                        {sub.company_name || `${sub.first_name} ${sub.last_name}`}
-                      </Text>
-                      {sub.company_name ? (
-                        <Text style={{ fontSize: 15, color: C.dm }}>{sub.first_name} {sub.last_name}</Text>
-                      ) : null}
-                      {tradesArr.length > 0 && (
-                        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: 4 }}>
-                          {tradesArr.map(t => (
-                            <View key={t} style={{ backgroundColor: C.gd + '15', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 }}>
-                              <Text style={{ fontSize: 13, fontWeight: '600', color: C.gd }}>{t}</Text>
-                            </View>
-                          ))}
+                  <View key={trade} style={{ marginBottom: 8 }}>
+                    <TouchableOpacity
+                      activeOpacity={0.7}
+                      onPress={() => setSdOpenTrade(isOpen ? null : trade)}
+                      style={{
+                        flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+                        padding: 14, backgroundColor: C.card, borderRadius: 12,
+                        borderWidth: 1, borderColor: isOpen ? C.gd : C.w08,
+                      }}
+                    >
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                        <View style={{ width: 36, height: 36, borderRadius: 8, backgroundColor: C.gd + '15', alignItems: 'center', justifyContent: 'center' }}>
+                          <Text style={{ fontSize: 16, fontWeight: '700', color: C.gd }}>{trade[0]}</Text>
                         </View>
-                      )}
-                    </View>
-                    <View style={{ alignItems: 'flex-end' }}>
-                      <Text style={{ fontSize: 15, fontWeight: '600', color: C.dm }}>{sub.projCount} project{sub.projCount !== 1 ? 's' : ''}</Text>
-                      {sub.phone ? <Text style={{ fontSize: 14, color: C.dm, marginTop: 2 }}>{sub.phone}</Text> : null}
-                    </View>
+                        <Text style={{ fontSize: 17, fontWeight: '600', color: C.textBold }}>{trade}</Text>
+                      </View>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                        <Text style={{ fontSize: 14, color: C.dm }}>{matchingSubs.length} sub{matchingSubs.length !== 1 ? 's' : ''}</Text>
+                        <Text style={{ fontSize: 16, color: C.dm }}>{isOpen ? '▲' : '▼'}</Text>
+                      </View>
+                    </TouchableOpacity>
+                    {isOpen && (
+                      <View style={{ marginTop: 4, marginLeft: 12, borderLeftWidth: 2, borderLeftColor: C.gd + '30', paddingLeft: 12 }}>
+                        {matchingSubs.length === 0 ? (
+                          <Text style={{ fontSize: 15, color: C.dm, paddingVertical: 12 }}>No subcontractors for this trade</Text>
+                        ) : (
+                          matchingSubs.map(sub => (
+                            <View key={sub.id} style={{ flexDirection: 'row', alignItems: 'center', padding: 10, marginBottom: 4, backgroundColor: C.bg, borderRadius: 8 }}>
+                              <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: C.gd + '20', alignItems: 'center', justifyContent: 'center', marginRight: 10 }}>
+                                <Text style={{ fontSize: 14, fontWeight: '700', color: C.gd }}>
+                                  {(sub.first_name || '?')[0]}{(sub.last_name || '?')[0]}
+                                </Text>
+                              </View>
+                              <View style={{ flex: 1 }}>
+                                <Text style={{ fontSize: 16, fontWeight: '600', color: C.textBold }}>
+                                  {sub.company_name || `${sub.first_name} ${sub.last_name}`}
+                                </Text>
+                                {sub.company_name ? (
+                                  <Text style={{ fontSize: 14, color: C.dm }}>{sub.first_name} {sub.last_name}</Text>
+                                ) : null}
+                              </View>
+                              {sub.phone ? <Text style={{ fontSize: 14, color: C.dm }}>{sub.phone}</Text> : null}
+                            </View>
+                          ))
+                        )}
+                      </View>
+                    )}
                   </View>
                 );
               })
@@ -3896,11 +3894,7 @@ export default function Dashboard() {
             </TouchableOpacity>
           )}
           <View style={st.logoBox}>
-            {companyLogo ? (
-              <Image source={{ uri: companyLogo }} style={{ width: 36, height: 36, borderRadius: 8, resizeMode: 'contain' }} />
-            ) : (
-              <Text style={{ fontSize: 24, color: C.chromeTxt, fontWeight: '700' }}>⬡</Text>
-            )}
+            <Text style={{ fontSize: 24, color: '#fff', fontWeight: '700' }}>⬡</Text>
           </View>
           <Text style={st.brandName}>{isWide || (!showingDetail && !showingContractorProject) ? 'BuilderSync' : ''}</Text>
         </View>
