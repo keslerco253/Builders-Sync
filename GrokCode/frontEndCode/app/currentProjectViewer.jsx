@@ -283,7 +283,7 @@ const HoverTab = ({ onPress, active, style, activeStyle, children }) => {
 // ============================================================
 // MAIN COMPONENT
 // ============================================================
-const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onClientViewToggle, activeTab, activeSub, onTabChange, onSubChange, onProjectUpdate, onProjectDeleted, scheduleVersion, onScheduleChange, syncRef, calYear, calMonth, onMonthChange, subdivisions = [], builderTrades: builderTradesProp }) => {
+const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onClientViewToggle, activeTab, activeSub, onTabChange, onSubChange, onProjectUpdate, onProjectDeleted, scheduleVersion, onScheduleChange, syncRef, calYear, calMonth, onMonthChange, subdivisions = [], builderTrades: builderTradesProp, floorPlans = [] }) => {
   const C = React.useContext(ThemeContext);
   const s = React.useMemo(() => getStyles(C), [C]);
   const bl = React.useMemo(() => getBLStyles(C), [C]);
@@ -303,11 +303,12 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
     customer_phone: '', email: '',
     start_date: '', sqft: '', bedrooms: '', bathrooms: '',
     garage: '', garage_sqft: '', lot_size: '', stories: '', story_details: [], original_price: '0', reconciliation: '0',
-    subdivision_id: null, permit_number: '',
+    subdivision_id: null, permit_number: '', plan_name: '',
   };
   const [editInfo, setEditInfo] = useState(INFO_DEFAULTS);
   const [infoDirty, setInfoDirty] = useState(false);
   const [infoSaving, setInfoSaving] = useState(false);  const [showAddrState, setShowAddrState] = useState(false);
+  const [showPlanPicker, setShowPlanPicker] = useState(false);
   const [showSubdivPicker, setShowSubdivPicker] = useState(false);
 
   // Go Live toggle
@@ -403,6 +404,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
         reconciliation: String(project.reconciliation || 0),
         subdivision_id: project.subdivision_id || null,
         permit_number: project.permit_number || '',
+        plan_name: project.plan_name || '',
       });
       setInfoDirty(false);
     }
@@ -445,6 +447,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
         reconciliation: parseFloat(editInfo.reconciliation) || 0,
         subdivision_id: editInfo.subdivision_id || null,
         permit_number: editInfo.permit_number.trim(),
+        plan_name: editInfo.plan_name || '',
       };
       const res = await apiFetch(`/projects/${project.id}`, {
         method: 'PUT',
@@ -1113,6 +1116,48 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
                   <View style={{ flex: 1 }}>{infoField("ZIP", "zip_code", "numeric", "83616")}</View>
                 </View>
                 {infoField("PERMIT #", "permit_number", undefined, "BLD-2026-001234")}
+                <View style={{ marginBottom: 14 }}>
+                  <Text style={s.infoLbl}>PLAN NAME</Text>
+                  {isB ? (
+                    <>
+                      <TouchableOpacity onPress={() => setShowPlanPicker(p => !p)}
+                        style={{ backgroundColor: C.inputBg, borderWidth: 1, borderColor: C.w10, borderRadius: 8, padding: 10, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <Text style={{ fontSize: 22, color: editInfo.plan_name ? C.text : C.ph }}>{editInfo.plan_name || 'Select plan...'}</Text>
+                        <Text style={{ fontSize: 15, color: C.dm }}>▼</Text>
+                      </TouchableOpacity>
+                      <Modal visible={showPlanPicker} transparent animationType="fade">
+                        <TouchableOpacity style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', alignItems: 'center' }} activeOpacity={1} onPress={() => setShowPlanPicker(false)}>
+                          <TouchableOpacity activeOpacity={1} onPress={e => e.stopPropagation()}>
+                            <View style={{ width: 300, maxHeight: 400, backgroundColor: C.cardBg || C.card, borderRadius: 12, borderWidth: 1, borderColor: C.w10, overflow: 'hidden', ...(Platform.OS === 'web' ? { boxShadow: '0 10px 30px rgba(0,0,0,0.5)' } : { elevation: 20 }) }}>
+                              <View style={{ padding: 14, borderBottomWidth: 1, borderBottomColor: C.w06 }}>
+                                <Text style={{ fontSize: 22, fontWeight: '700', color: C.textBold }}>Select Plan</Text>
+                              </View>
+                              <ScrollView style={{ maxHeight: 320 }} nestedScrollEnabled keyboardShouldPersistTaps="handled">
+                                <TouchableOpacity onPress={() => { setField('plan_name', ''); setShowPlanPicker(false); }}
+                                  style={{ paddingVertical: 10, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: C.w06, backgroundColor: !editInfo.plan_name ? C.gd + '22' : 'transparent' }}>
+                                  <Text style={{ fontSize: 21, color: !editInfo.plan_name ? C.gd : C.dm, fontStyle: 'italic' }}>None</Text>
+                                </TouchableOpacity>
+                                {floorPlans.map(fp => (
+                                  <TouchableOpacity key={fp.id} onPress={() => { setField('plan_name', fp.name); setShowPlanPicker(false); }}
+                                    style={{ paddingVertical: 10, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: C.w06, backgroundColor: editInfo.plan_name === fp.name ? C.gd + '22' : 'transparent' }}>
+                                    <Text style={{ fontSize: 21, color: editInfo.plan_name === fp.name ? C.gd : C.text }}>{fp.name}</Text>
+                                  </TouchableOpacity>
+                                ))}
+                                {floorPlans.length === 0 && (
+                                  <View style={{ padding: 18, alignItems: 'center' }}>
+                                    <Text style={{ fontSize: 16, color: C.dm }}>No floor plans yet. Add them in Settings → Manage Floor Plans</Text>
+                                  </View>
+                                )}
+                              </ScrollView>
+                            </View>
+                          </TouchableOpacity>
+                        </TouchableOpacity>
+                      </Modal>
+                    </>
+                  ) : (
+                    <Text style={s.infoVal}>{editInfo.plan_name || '—'}</Text>
+                  )}
+                </View>
               </Card>
             );
 
@@ -1548,12 +1593,18 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
 
       return (
         <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
-          {/* Permit # header */}
+          {/* Permit # & Plan Name header */}
           <Card style={{ marginBottom: 18 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: (project?.plan_name || editInfo.plan_name) ? 8 : 0 }}>
               <Text style={{ fontSize: 15, fontWeight: '700', color: C.dm, letterSpacing: 0.8 }}>PERMIT #</Text>
               <Text style={{ fontSize: 22, fontWeight: '600', color: C.text }}>{project?.permit_number || editInfo.permit_number || '—'}</Text>
             </View>
+            {(project?.plan_name || editInfo.plan_name) ? (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                <Text style={{ fontSize: 15, fontWeight: '700', color: C.dm, letterSpacing: 0.8 }}>PLAN</Text>
+                <Text style={{ fontSize: 22, fontWeight: '600', color: C.text }}>{project?.plan_name || editInfo.plan_name}</Text>
+              </View>
+            ) : null}
           </Card>
 
           {/* Project info summary */}

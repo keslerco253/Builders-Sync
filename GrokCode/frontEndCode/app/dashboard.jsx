@@ -83,6 +83,9 @@ export default function Dashboard() {
   const [goLiveStepsLoading, setGoLiveStepsLoading] = useState(false);
   const [builderTrades, setBuilderTrades] = useState(DEFAULT_TRADES);
   const [newTradeName, setNewTradeName] = useState('');
+  const [showFloorPlanManager, setShowFloorPlanManager] = useState(false);
+  const [floorPlans, setFloorPlans] = useState([]);
+  const [newFloorPlanName, setNewFloorPlanName] = useState('');
   const [clientView, setClientView] = useState(false);
   const [subView, setSubView] = useState(false);
 
@@ -359,6 +362,14 @@ export default function Dashboard() {
     } catch (e) { /* ignore */ }
   };
 
+  const fetchFloorPlans = async () => {
+    try {
+      const res = await apiFetch(`/floor-plans${user.company_id ? `?company_id=${user.company_id}` : ''}`);
+      const data = await res.json();
+      if (Array.isArray(data)) setFloorPlans(data);
+    } catch (e) { console.warn('Fetch floor plans error:', e.message); }
+  };
+
   const fetchGoLiveStepsDef = async () => {
     if (!user?.company_id) return;
     setGoLiveStepsLoading(true);
@@ -452,6 +463,7 @@ export default function Dashboard() {
       if (isBuilder) {
         fetchSubdivisions();
         fetchCompanyTrades();
+        fetchFloorPlans();
       }
     }
     // Fetch company logo — try own logo first, then fallback to any builder's logo
@@ -3705,6 +3717,108 @@ export default function Dashboard() {
         </Modal>
       )}
 
+      {/* Floor Plan Manager Modal */}
+      {showFloorPlanManager && (
+        <Modal visible animationType="fade" transparent>
+          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }}>
+            <View style={{ width: isWide ? 460 : '92%', maxHeight: '80%', backgroundColor: C.bg, borderRadius: 16, overflow: 'hidden' }}>
+              {/* Header */}
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 18, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: C.bd }}>
+                <Text style={{ fontSize: 20, fontWeight: '700', color: C.textBold }}>Manage Floor Plans</Text>
+                <TouchableOpacity onPress={() => { setShowFloorPlanManager(false); setNewFloorPlanName(''); }} activeOpacity={0.7}>
+                  <Text style={{ fontSize: 28, color: C.dm, fontWeight: '300' }}>×</Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Add new floor plan */}
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 18, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: C.bd }}>
+                <TextInput
+                  value={newFloorPlanName}
+                  onChangeText={setNewFloorPlanName}
+                  placeholder="Add new floor plan..."
+                  placeholderTextColor={C.dm}
+                  style={{ flex: 1, fontSize: 16, color: C.text, backgroundColor: C.w04, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, borderWidth: 1, borderColor: C.w08 }}
+                  onSubmitEditing={async () => {
+                    const n = newFloorPlanName.trim();
+                    if (!n) return;
+                    try {
+                      const res = await apiFetch('/floor-plans', {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ name: n, user_id: user.id }),
+                      });
+                      if (res.ok) {
+                        const fp = await res.json();
+                        setFloorPlans(prev => [...prev, fp].sort((a, b) => a.name.localeCompare(b.name)));
+                        setNewFloorPlanName('');
+                      }
+                    } catch (e) { console.warn('Add floor plan:', e); }
+                  }}
+                />
+                <TouchableOpacity
+                  onPress={async () => {
+                    const n = newFloorPlanName.trim();
+                    if (!n) return;
+                    try {
+                      const res = await apiFetch('/floor-plans', {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ name: n, user_id: user.id }),
+                      });
+                      if (res.ok) {
+                        const fp = await res.json();
+                        setFloorPlans(prev => [...prev, fp].sort((a, b) => a.name.localeCompare(b.name)));
+                        setNewFloorPlanName('');
+                      }
+                    } catch (e) { console.warn('Add floor plan:', e); }
+                  }}
+                  style={{ backgroundColor: C.gd, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 8 }}
+                  activeOpacity={0.7}
+                >
+                  <Text style={{ fontSize: 16, fontWeight: '600', color: '#fff' }}>Add</Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Floor plan list */}
+              <ScrollView style={{ maxHeight: 400 }} contentContainerStyle={{ paddingVertical: 4 }}>
+                {floorPlans.map((fp, idx) => (
+                  <View key={fp.id} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 18, paddingVertical: 12,
+                    borderBottomWidth: idx < floorPlans.length - 1 ? 1 : 0, borderBottomColor: C.w04,
+                  }}>
+                    <Text style={{ fontSize: 17, fontWeight: '500', color: C.text }}>{fp.name}</Text>
+                    <TouchableOpacity
+                      onPress={() => {
+                        const doDelete = async () => {
+                          try {
+                            await apiFetch(`/floor-plans/${fp.id}`, { method: 'DELETE' });
+                            setFloorPlans(prev => prev.filter(p => p.id !== fp.id));
+                          } catch (e) { console.warn('Delete floor plan:', e); }
+                        };
+                        if (Platform.OS === 'web') {
+                          if (window.confirm(`Remove "${fp.name}" from your floor plans?`)) doDelete();
+                        } else {
+                          Alert.alert('Delete Floor Plan', `Remove "${fp.name}" from your floor plans?`, [
+                            { text: 'Cancel', style: 'cancel' },
+                            { text: 'Delete', style: 'destructive', onPress: doDelete },
+                          ]);
+                        }
+                      }}
+                      activeOpacity={0.7}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      <Text style={{ fontSize: 20, color: '#ef4444' }}>🗑</Text>
+                    </TouchableOpacity>
+                  </View>
+                ))}
+                {floorPlans.length === 0 && (
+                  <View style={{ padding: 24, alignItems: 'center' }}>
+                    <Text style={{ fontSize: 16, color: C.dm }}>No floor plans added yet</Text>
+                  </View>
+                )}
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
+      )}
+
       {/* Go Live Steps Manager Modal (company admin only) */}
       {showGoLiveManager && (
         <Modal visible animationType="fade" transparent>
@@ -4254,6 +4368,14 @@ export default function Dashboard() {
                     <Text style={st.settingsItemIcon}>🔧</Text>
                     <Text style={st.settingsItemTxt}>Manage Trades</Text>
                   </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => { setShowSettings(false); fetchFloorPlans(); setShowFloorPlanManager(true); }}
+                    style={st.settingsItem}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={st.settingsItemIcon}>🏠</Text>
+                    <Text style={st.settingsItemTxt}>Manage Floor Plans</Text>
+                  </TouchableOpacity>
                   {user?.role === 'company_admin' && (
                     <TouchableOpacity
                       onPress={() => { setShowSettings(false); fetchGoLiveStepsDef(); setShowGoLiveManager(true); }}
@@ -4345,6 +4467,7 @@ export default function Dashboard() {
               syncRef={syncRef}
               subdivisions={subdivisions}
               builderTrades={builderTrades}
+              floorPlans={floorPlans}
               calYear={globalCalMonth.getFullYear()}
               calMonth={globalCalMonth.getMonth()}
               onMonthChange={(y, m) => setGlobalCalMonth(new Date(y, m, 1))}
@@ -4623,6 +4746,7 @@ export default function Dashboard() {
                   syncRef={syncRef}
                   subdivisions={subdivisions}
                   builderTrades={builderTrades}
+                  floorPlans={floorPlans}
               calYear={globalCalMonth.getFullYear()}
                   calMonth={globalCalMonth.getMonth()}
                   onMonthChange={(y, m) => setGlobalCalMonth(new Date(y, m, 1))}
@@ -4660,6 +4784,7 @@ export default function Dashboard() {
               syncRef={syncRef}
               subdivisions={subdivisions}
               builderTrades={builderTrades}
+              floorPlans={floorPlans}
               calYear={globalCalMonth.getFullYear()}
               calMonth={globalCalMonth.getMonth()}
               onMonthChange={(y, m) => setGlobalCalMonth(new Date(y, m, 1))}
