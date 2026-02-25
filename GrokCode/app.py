@@ -357,13 +357,15 @@ class SelectionItem(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     category = db.Column(db.String(100), default='')
     item = db.Column(db.String(200), default='')
-    options = db.Column(db.Text, default='[]')  # JSON: [{name, image_path, price, comes_standard}]
+    options = db.Column(db.Text, default='[]')  # JSON: [{name, image_path, price, comes_standard, price_tbd}]
     company_id = db.Column(db.Integer, db.ForeignKey('company.id'), nullable=True)
+    allow_multiple = db.Column(db.Boolean, default=False)
 
     def to_dict(self):
         return {
             'id': self.id, 'category': self.category, 'item': self.item,
             'options': json.loads(self.options) if self.options else [],
+            'allow_multiple': bool(self.allow_multiple),
         }
 
 
@@ -372,17 +374,26 @@ class ProjectSelection(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     job_id = db.Column(db.Integer, db.ForeignKey('projects.id'), nullable=False)
     selection_item_id = db.Column(db.Integer, db.ForeignKey('selection_item.id'), nullable=False)
-    selected = db.Column(db.String(200), nullable=True)
+    selected = db.Column(db.Text, nullable=True)  # single option name OR JSON array for multi-select
     status = db.Column(db.String(30), default='pending')  # pending | confirmed
+    price_override = db.Column(db.Float, nullable=True)  # builder sets this for Price TBD options
 
     def to_dict(self):
         item = SelectionItem.query.get(self.selection_item_id)
-        d = item.to_dict() if item else {'id': self.selection_item_id, 'category': '', 'item': '', 'options': []}
+        d = item.to_dict() if item else {'id': self.selection_item_id, 'category': '', 'item': '', 'options': [], 'allow_multiple': False}
         d['project_selection_id'] = self.id
         d['job_id'] = self.job_id
-        d['selected'] = self.selected
+        # Parse selected: try JSON array first, fall back to plain string
+        sel = self.selected
+        if sel and sel.startswith('['):
+            try:
+                sel = json.loads(sel)
+            except (json.JSONDecodeError, ValueError):
+                pass
+        d['selected'] = sel
         d['status'] = self.status
         d['selection_item_id'] = self.selection_item_id
+        d['price_override'] = self.price_override
         return d
 
 
@@ -2333,6 +2344,7 @@ def create_selection_item():
         category=data.get('category', ''),
         item=data.get('item', ''),
         options=json.dumps(data.get('options', [])),
+        allow_multiple=bool(data.get('allow_multiple', False)),
     )
     user_id = data.get('user_id')
     if user_id:
@@ -2351,6 +2363,7 @@ def update_selection_item(sid):
     if 'category' in data: item.category = data['category']
     if 'item' in data: item.item = data['item']
     if 'options' in data: item.options = json.dumps(data['options'])
+    if 'allow_multiple' in data: item.allow_multiple = bool(data['allow_multiple'])
     db.session.commit()
     return jsonify(item.to_dict())
 
@@ -2393,9 +2406,16 @@ def update_project_selection(psid):
     ps = ProjectSelection.query.get_or_404(psid)
     data = request.get_json()
     if 'selected' in data:
-        ps.selected = data['selected']
+        sel_val = data['selected']
+        # Store as JSON string if array (multi-select), plain string if single
+        if isinstance(sel_val, list):
+            ps.selected = json.dumps(sel_val)
+        else:
+            ps.selected = sel_val
         if ps.status != 'confirmed':
-            ps.status = 'selected'
+            ps.status = 'selected' if ps.selected else 'pending'
+    if 'price_override' in data:
+        ps.price_override = float(data['price_override']) if data['price_override'] is not None else None
     if data.get('confirm'):
         ps.status = 'confirmed'
     db.session.commit()
@@ -3263,6 +3283,14 @@ def auto_migrate():
         db.session.execute(text("ALTER TABLE login_info MODIFY COLUMN trades TEXT"))
         db.session.commit()
         changes.append("WIDEN login_info.trades to TEXT")
+    except Exception:
+        db.session.rollback()
+
+    # Widen project_selection.selected from VARCHAR(200) to TEXT for multi-select JSON arrays
+    try:
+        db.session.execute(text("ALTER TABLE project_selection MODIFY COLUMN selected TEXT"))
+        db.session.commit()
+        changes.append("WIDEN project_selection.selected to TEXT")
     except Exception:
         db.session.rollback()
 

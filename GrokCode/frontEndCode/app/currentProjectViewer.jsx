@@ -1517,13 +1517,24 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
       const reconciliation = parseFloat(editReconciliation) || 0;
       const baseContract = origPrice + reconciliation;
 
-      // Confirmed selections with upgrade prices
+      // Confirmed selections with upgrade prices (supports multi-select + price_override for TBD)
       const confirmedSels = selections.filter(sl => sl.status === 'confirmed' && sl.selected);
-      const selectionLines = confirmedSels.map(sel => {
-        const opt = (sel.options || []).find(o => (typeof o === 'object' ? o.name : o) === sel.selected);
-        const isObj = typeof opt === 'object';
-        const price = isObj ? (opt.comes_standard ? 0 : (opt.price || 0)) : 0;
-        return { item: sel.item, selected: sel.selected, price };
+      const selectionLines = [];
+      confirmedSels.forEach(sel => {
+        const selectedArr = Array.isArray(sel.selected) ? sel.selected : (sel.selected ? [sel.selected] : []);
+        // If price_override is set (TBD item), use that as total price for this selection
+        const hasTbd = (sel.options || []).some(o => typeof o === 'object' && o.price_tbd && selectedArr.includes(o.name));
+        if (hasTbd && sel.price_override != null) {
+          selectionLines.push({ item: sel.item, selected: selectedArr.join(', '), price: sel.price_override, tbd: false });
+        } else {
+          selectedArr.forEach(optName => {
+            const opt = (sel.options || []).find(o => (typeof o === 'object' ? o.name : o) === optName);
+            const isObj = typeof opt === 'object';
+            const isTbd = isObj && !!opt.price_tbd;
+            const price = isObj ? (opt.comes_standard ? 0 : (isTbd ? 0 : (opt.price || 0))) : 0;
+            selectionLines.push({ item: sel.item, selected: optName, price, tbd: isTbd });
+          });
+        }
       });
       const selectionTotal = selectionLines.reduce((sum, l) => sum + l.price, 0);
       const grandTotal = baseContract + coTotal + selectionTotal;
@@ -1594,8 +1605,8 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
                   selectionLines.map((line, i) => (
                     <View key={i} style={s.priceRow}>
                       <Text style={[s.priceLbl, { flex: 1 }]}>{line.item} — {line.selected}</Text>
-                      <Text style={[s.priceAmt, line.price > 0 ? { color: C.yl } : { color: C.gn }]}>
-                        {line.price > 0 ? `+${f$(line.price)}` : 'Standard'}
+                      <Text style={[s.priceAmt, line.tbd ? { color: '#f59e0b' } : line.price > 0 ? { color: C.yl } : { color: C.gn }]}>
+                        {line.tbd ? 'Price TBD' : line.price > 0 ? `+${f$(line.price)}` : 'Standard'}
                       </Text>
                     </View>
                   ))
@@ -2372,15 +2383,33 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
     // --- SELECTIONS ---
     if (tab === 'selections') {
       const canPick = isB || isC;
-      const pick = async (psId, optName, currentStatus) => {
+      const pick = async (psId, optName, currentStatus, allowMulti) => {
         if (currentStatus === 'confirmed') return; // locked
-        setSelections(prev => prev.map(sel => sel.project_selection_id === psId ? { ...sel, selected: optName, status: 'selected' } : sel));
-        api(`/project-selections/${psId}`, { method: 'PUT', body: { selected: optName } });
+        if (allowMulti) {
+          // Toggle: add or remove from array
+          setSelections(prev => prev.map(sel => {
+            if (sel.project_selection_id !== psId) return sel;
+            const current = Array.isArray(sel.selected) ? sel.selected : (sel.selected ? [sel.selected] : []);
+            const updated = current.includes(optName) ? current.filter(n => n !== optName) : [...current, optName];
+            const newSel = { ...sel, selected: updated, status: updated.length > 0 ? 'selected' : 'pending' };
+            api(`/project-selections/${psId}`, { method: 'PUT', body: { selected: updated } });
+            return newSel;
+          }));
+        } else {
+          setSelections(prev => prev.map(sel => sel.project_selection_id === psId ? { ...sel, selected: optName, status: 'selected' } : sel));
+          api(`/project-selections/${psId}`, { method: 'PUT', body: { selected: optName } });
+        }
       };
       const confirmSelection = async (psId) => {
         setSelections(prev => prev.map(sel => sel.project_selection_id === psId ? { ...sel, status: 'confirmed' } : sel));
         api(`/project-selections/${psId}`, { method: 'PUT', body: { confirm: true } });
         setModal(null);
+      };
+      const savePriceOverride = async (psId, price) => {
+        const val = parseFloat(price);
+        if (isNaN(val)) return;
+        setSelections(prev => prev.map(sel => sel.project_selection_id === psId ? { ...sel, price_override: val } : sel));
+        api(`/project-selections/${psId}`, { method: 'PUT', body: { price_override: val } });
       };
 
       // Split by status, then group by category within each
@@ -2394,13 +2423,22 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
 
       const renderSelectionCard = (sel) => {
         const isConfirmed = sel.status === 'confirmed';
-        const hasSelection = !!sel.selected;
+        const allowMulti = !!sel.allow_multiple;
+        const selectedArr = Array.isArray(sel.selected) ? sel.selected : (sel.selected ? [sel.selected] : []);
+        const hasSelection = selectedArr.length > 0;
         const needsConfirm = hasSelection && !isConfirmed;
+        // Check if any selected option has price_tbd
+        const hasTbd = (sel.options || []).some(o => typeof o === 'object' && o.price_tbd && selectedArr.includes(o.name));
         return (
           <Card key={sel.project_selection_id || sel.id} style={{ marginBottom: 14 }}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
-              <View style={{ flex: 1 }}>
+              <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                 <Text style={{ fontSize: 24, fontWeight: '600', color: C.text }}>{sel.item}</Text>
+                {allowMulti && (
+                  <View style={{ backgroundColor: C.bH12, paddingHorizontal: 7, paddingVertical: 2, borderRadius: 5 }}>
+                    <Text style={{ fontSize: 12, fontWeight: '700', color: C.gd }}>MULTI</Text>
+                  </View>
+                )}
               </View>
               {isConfirmed ? (
                 <View style={{ backgroundColor: 'rgba(34,197,94,0.12)', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 }}>
@@ -2421,10 +2459,11 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
                 const imgPath = isObj ? opt.image_path : null;
                 const price = isObj ? opt.price : null;
                 const standard = isObj ? opt.comes_standard : false;
-                const active = sel.selected === optName;
+                const priceTbd = isObj ? opt.price_tbd : false;
+                const active = selectedArr.includes(optName);
                 return (
                   <TouchableOpacity key={i}
-                    onPress={() => canPick && !isConfirmed && sel.project_selection_id && pick(sel.project_selection_id, optName, sel.status)}
+                    onPress={() => canPick && !isConfirmed && sel.project_selection_id && pick(sel.project_selection_id, optName, sel.status, allowMulti)}
                     activeOpacity={canPick && !isConfirmed ? 0.7 : 1}
                     style={{
                       width: 150, borderRadius: 10, overflow: 'hidden',
@@ -2444,6 +2483,8 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
                       <Text style={{ fontSize: 20, fontWeight: '600', color: active ? C.gd : C.text }} numberOfLines={2}>{active ? '✓ ' : ''}{optName}</Text>
                       {standard ? (
                         <Text style={{ fontSize: 18, color: C.gn, fontWeight: '600', marginTop: 4 }}>Standard</Text>
+                      ) : priceTbd ? (
+                        <Text style={{ fontSize: 18, color: '#f59e0b', fontWeight: '600', marginTop: 4 }}>Price TBD</Text>
                       ) : price != null && price > 0 ? (
                         <Text style={{ fontSize: 18, color: C.mt, marginTop: 4 }}>+{f$(price)}</Text>
                       ) : null}
@@ -2452,13 +2493,33 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
                 );
               })}
             </View>
+            {/* Builder price override for TBD selections */}
+            {hasTbd && isB && isConfirmed && (
+              <View style={{ marginTop: 12, padding: 12, backgroundColor: C.mode === 'dark' ? 'rgba(245,158,11,0.08)' : 'rgba(245,158,11,0.06)', borderRadius: 8, borderWidth: 1, borderColor: 'rgba(245,158,11,0.25)' }}>
+                <Text style={{ fontSize: 16, fontWeight: '700', color: '#f59e0b', marginBottom: 8 }}>SET TBD PRICE</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                  <Text style={{ fontSize: 18, color: C.mt }}>$</Text>
+                  <TextInput
+                    style={{ flex: 1, fontSize: 20, color: C.text, borderBottomWidth: 1, borderBottomColor: C.w15, paddingVertical: 6 }}
+                    keyboardType="numeric"
+                    placeholder={sel.price_override != null ? String(sel.price_override) : '0'}
+                    placeholderTextColor={C.ph}
+                    defaultValue={sel.price_override != null ? String(sel.price_override) : ''}
+                    onEndEditing={(e) => savePriceOverride(sel.project_selection_id, e.nativeEvent.text)}
+                  />
+                </View>
+                {sel.price_override != null && (
+                  <Text style={{ fontSize: 16, color: C.gn, marginTop: 6 }}>Price set: {f$(sel.price_override)}</Text>
+                )}
+              </View>
+            )}
             {needsConfirm && canPick && (
               <TouchableOpacity
-                onPress={() => setModal({ type: 'confirmsel', psId: sel.project_selection_id, item: sel.item, selected: sel.selected })}
+                onPress={() => setModal({ type: 'confirmsel', psId: sel.project_selection_id, item: sel.item, selected: allowMulti ? selectedArr.join(', ') : sel.selected })}
                 style={{ backgroundColor: C.gd, paddingVertical: 12, borderRadius: 8, marginTop: 14, alignItems: 'center' }}
                 activeOpacity={0.8}
               >
-                <Text style={{ fontSize: 21, fontWeight: '700', color: C.textBold }}>Confirm Selection</Text>
+                <Text style={{ fontSize: 21, fontWeight: '700', color: C.textBold }}>Confirm Selection{allowMulti && selectedArr.length > 1 ? 's' : ''}</Text>
               </TouchableOpacity>
             )}
           </Card>
@@ -4091,11 +4152,14 @@ const SelectionChangeOrderModal = ({ project, api, selections, onClose, onCreate
     return opt.comes_standard ? 0 : (opt.price || 0);
   };
 
-  const currentPrice = selectedItem ? getOptPrice(selectedItem.options, selectedItem.selected) : 0;
+  const selectedDisplay = selectedItem ? (Array.isArray(selectedItem.selected) ? selectedItem.selected.join(', ') : selectedItem.selected) : '';
+  const currentPrice = selectedItem ? (Array.isArray(selectedItem.selected)
+    ? selectedItem.selected.reduce((sum, n) => sum + getOptPrice(selectedItem.options, n), 0)
+    : getOptPrice(selectedItem.options, selectedItem.selected)) : 0;
   const newPrice = newOption ? getOptPrice(selectedItem?.options, newOption) : 0;
   const priceDiff = newPrice - currentPrice;
-  const coTitle = selectedItem && newOption ? `Selection Change: ${selectedItem.item} — ${selectedItem.selected} → ${newOption}` : '';
-  const coDesc = selectedItem && newOption ? `Changed ${selectedItem.item} from ${selectedItem.selected} to ${newOption}` : '';
+  const coTitle = selectedItem && newOption ? `Selection Change: ${selectedItem.item} — ${selectedDisplay} → ${newOption}` : '';
+  const coDesc = selectedItem && newOption ? `Changed ${selectedItem.item} from ${selectedDisplay} to ${newOption}` : '';
 
   const create = async () => {
     setLoading(true);
@@ -4113,7 +4177,10 @@ const SelectionChangeOrderModal = ({ project, api, selections, onClose, onCreate
   };
 
   // Available selections (those with a current choice)
-  const available = selections.filter(sel => sel.selected);
+  const available = selections.filter(sel => {
+    if (Array.isArray(sel.selected)) return sel.selected.length > 0;
+    return !!sel.selected;
+  });
 
   if (signStep) {
     return (
@@ -4128,7 +4195,7 @@ const SelectionChangeOrderModal = ({ project, api, selections, onClose, onCreate
               Sign Change Order
             </Text>
             <Text style={{ fontSize: 20, fontWeight: '600', color: C.gd, textAlign: 'center', marginBottom: 16 }} numberOfLines={2}>
-              {selectedItem?.item}: {selectedItem?.selected} → {newOption}
+              {selectedItem?.item}: {selectedDisplay} → {newOption}
             </Text>
 
             <View style={{
@@ -4204,7 +4271,7 @@ const SelectionChangeOrderModal = ({ project, api, selections, onClose, onCreate
                 activeOpacity={0.7}>
                 <View style={{ flex: 1 }}>
                   <Text style={{ fontSize: 20, fontWeight: '600', color: C.text }}>{sel.item}</Text>
-                  <Text style={{ fontSize: 17, color: C.dm, marginTop: 2 }}>Currently: {sel.selected}</Text>
+                  <Text style={{ fontSize: 17, color: C.dm, marginTop: 2 }}>Currently: {Array.isArray(sel.selected) ? sel.selected.join(', ') : sel.selected}</Text>
                 </View>
                 <Text style={{ fontSize: 20, color: C.dm }}>›</Text>
               </TouchableOpacity>
@@ -4228,7 +4295,7 @@ const SelectionChangeOrderModal = ({ project, api, selections, onClose, onCreate
             <Text style={{ fontSize: 16, color: C.dm, fontWeight: '600', marginBottom: 4 }}>CURRENT SELECTION</Text>
             <Text style={{ fontSize: 22, fontWeight: '700', color: C.text }}>{selectedItem.item}</Text>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 6 }}>
-              <Text style={{ fontSize: 20, color: C.gd, fontWeight: '600' }}>{selectedItem.selected}</Text>
+              <Text style={{ fontSize: 20, color: C.gd, fontWeight: '600' }}>{selectedDisplay}</Text>
               <Text style={{ fontSize: 18, color: currentPrice > 0 ? C.yl : C.gn, fontWeight: '600' }}>
                 {currentPrice > 0 ? f$(currentPrice) : 'Standard'}
               </Text>
@@ -4238,7 +4305,8 @@ const SelectionChangeOrderModal = ({ project, api, selections, onClose, onCreate
           <Lbl>CHOOSE NEW OPTION</Lbl>
           {(selectedItem.options || []).filter(opt => {
             const optName = typeof opt === 'object' ? opt.name : opt;
-            return optName !== selectedItem.selected;
+            const selArr = Array.isArray(selectedItem.selected) ? selectedItem.selected : [selectedItem.selected];
+            return !selArr.includes(optName);
           }).map((opt, i) => {
             const isObj = typeof opt === 'object';
             const optName = isObj ? opt.name : opt;
@@ -4282,7 +4350,7 @@ const SelectionChangeOrderModal = ({ project, api, selections, onClose, onCreate
           }}>
             <Text style={{ fontSize: 18, fontWeight: '700', color: C.text, marginBottom: 10 }}>{selectedItem.item}</Text>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 6 }}>
-              <Text style={{ fontSize: 18, color: C.dm, textDecorationLine: 'line-through' }}>{selectedItem.selected}</Text>
+              <Text style={{ fontSize: 18, color: C.dm, textDecorationLine: 'line-through' }}>{selectedDisplay}</Text>
               <Text style={{ fontSize: 18, color: C.dm }}>→</Text>
               <Text style={{ fontSize: 18, color: C.gd, fontWeight: '600' }}>{newOption}</Text>
             </View>
