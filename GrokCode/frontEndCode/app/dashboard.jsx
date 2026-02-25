@@ -6064,7 +6064,7 @@ const SelectionManagerModal = ({ onClose, builderTrades = [] }) => {
   const [trade, setTrade] = useState('');
   const [itemName, setItemName] = useState('');
   const [allowMultiple, setAllowMultiple] = useState(false);
-  const [options, setOptions] = useState([{ name: '', image_b64: '', image_path: '', price: '', comes_standard: false, price_tbd: false }]);
+  const [options, setOptions] = useState([{ name: '', description: '', image_b64: '', image_path: '', price: '', comes_standard: false, price_tbd: false }]);
   const [saving, setSaving] = useState(false);
   const [editingId, setEditingId] = useState(null);
 
@@ -6112,7 +6112,7 @@ const SelectionManagerModal = ({ onClose, builderTrades = [] }) => {
     return '';
   };
 
-  const addOption = () => setOptions(prev => [...prev, { name: '', image_b64: '', image_path: '', price: '', comes_standard: false, price_tbd: false }]);
+  const addOption = () => setOptions(prev => [...prev, { name: '', description: '', image_b64: '', image_path: '', price: '', comes_standard: false, price_tbd: false }]);
   const removeOption = (idx) => setOptions(prev => prev.filter((_, i) => i !== idx));
   const updateOption = (idx, field, val) => {
     setOptions(prev => prev.map((o, i) => {
@@ -6126,7 +6126,7 @@ const SelectionManagerModal = ({ onClose, builderTrades = [] }) => {
 
   const resetForm = () => {
     setTrade(''); setItemName(''); setAllowMultiple(false);
-    setOptions([{ name: '', image_b64: '', image_path: '', price: '', comes_standard: false, price_tbd: false }]);
+    setOptions([{ name: '', description: '', image_b64: '', image_path: '', price: '', comes_standard: false, price_tbd: false }]);
     setEditingId(null);
   };
 
@@ -6144,7 +6144,8 @@ const SelectionManagerModal = ({ onClose, builderTrades = [] }) => {
           imgPath = await uploadImage(o.image_b64);
         }
         cleanOptions.push({
-          name: o.name, image_path: imgPath,
+          name: o.name, description: o.description || '',
+          image_path: imgPath,
           price: (o.comes_standard || o.price_tbd) ? 0 : parseFloat(o.price) || 0,
           comes_standard: !!o.comes_standard,
           price_tbd: !!o.price_tbd,
@@ -6179,7 +6180,7 @@ const SelectionManagerModal = ({ onClose, builderTrades = [] }) => {
     setItemName(item.item);
     setAllowMultiple(!!item.allow_multiple);
     setOptions((item.options || []).map(o => ({
-      name: o.name || '', image_b64: '', image_path: o.image_path || '',
+      name: o.name || '', description: o.description || '', image_b64: '', image_path: o.image_path || '',
       price: String(o.price || ''), comes_standard: !!o.comes_standard, price_tbd: !!o.price_tbd,
     })));
     setView('create');
@@ -6335,6 +6336,7 @@ const SelectionManagerModal = ({ onClose, builderTrades = [] }) => {
                   </View>
 
                   <Inp2 label="NAME" value={opt.name} onChange={v => updateOption(idx, 'name', v)} placeholder="e.g., Quartz - Arctic White" />
+                  <Inp2 label="DESCRIPTION" value={opt.description} onChange={v => updateOption(idx, 'description', v)} placeholder="e.g., Durable quartz surface with a clean white finish" />
 
                   {/* Image upload */}
                   <Text style={st.formLbl}>IMAGE</Text>
