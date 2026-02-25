@@ -3,12 +3,13 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
 from datetime import datetime, timedelta
 from werkzeug.security import generate_password_hash, check_password_hash
-from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
+from itsdangerous import URLSafeTimedSerializer, BadData
 import json
 import os, uuid, base64
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, resources={r"/*": {"origins": "*", "allow_headers": ["Content-Type", "Authorization"]}})
+
 
 app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://root:auth_socket@localhost/liberty_homes'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
@@ -47,10 +48,8 @@ def require_auth():
     try:
         data = token_serializer.loads(token, max_age=TOKEN_MAX_AGE)
         request.current_user = data
-    except SignatureExpired:
-        return jsonify({'error': 'Token expired, please log in again'}), 401
-    except BadSignature:
-        return jsonify({'error': 'Invalid token'}), 401
+    except BadData:
+        return jsonify({'error': 'Invalid or expired token'}), 401
 
 
 # ============================================================
