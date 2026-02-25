@@ -318,6 +318,9 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
   useEffect(() => {
     if (project) setGoLive(!!project.go_live);
   }, [project?.id, project?.go_live]);
+  useEffect(() => {
+    if (project?.id && tab === 'info' && sub === 'jobinfo') fetchGoLiveSteps();
+  }, [project?.id, tab, sub]);
 
   const fetchGoLiveSteps = async () => {
     if (!project?.id) return;
@@ -1148,6 +1151,72 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
               </Card>
             );
 
+            const goLiveStepsCard = (
+              <Card style={{ marginBottom: 14 }}>
+                <Text style={s.cardTitle}>Go Live Steps</Text>
+                {goLiveLoading ? (
+                  <ActivityIndicator color={C.gd} style={{ marginVertical: 20 }} />
+                ) : goLiveSteps.length === 0 ? (
+                  <Text style={{ fontSize: 14, color: C.dm, fontStyle: 'italic', paddingVertical: 10 }}>No go live steps configured.</Text>
+                ) : (
+                  <>
+                    {/* Progress bar */}
+                    {(() => {
+                      const done = goLiveSteps.filter(s2 => s2.completed).length;
+                      const total = goLiveSteps.length;
+                      const pct = Math.round((done / total) * 100);
+                      return (
+                        <View style={{ marginBottom: 16 }}>
+                          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
+                            <Text style={{ fontSize: 13, color: C.dm }}>{done} of {total} complete</Text>
+                            <Text style={{ fontSize: 13, fontWeight: '700', color: pct === 100 ? C.gn : C.gd }}>{pct}%</Text>
+                          </View>
+                          <View style={{ height: 8, borderRadius: 4, backgroundColor: C.w08 }}>
+                            <View style={{ height: 8, borderRadius: 4, backgroundColor: pct === 100 ? C.gn : C.gd, width: `${pct}%` }} />
+                          </View>
+                        </View>
+                      );
+                    })()}
+                    {goLiveSteps.map((step, idx) => (
+                      <TouchableOpacity
+                        key={step.id}
+                        onPress={() => toggleGoLiveStep(step.id, !step.completed)}
+                        activeOpacity={0.7}
+                        style={{
+                          flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingVertical: 10, paddingHorizontal: 8,
+                          borderRadius: 8, marginBottom: 4,
+                          backgroundColor: step.completed ? 'rgba(16,185,129,0.06)' : 'transparent',
+                        }}
+                      >
+                        <View style={{
+                          width: 24, height: 24, borderRadius: 12, borderWidth: 2, marginTop: 1,
+                          borderColor: step.completed ? '#10b981' : C.w15,
+                          backgroundColor: step.completed ? '#10b981' : 'transparent',
+                          alignItems: 'center', justifyContent: 'center',
+                        }}>
+                          {step.completed && <Text style={{ fontSize: 14, color: '#fff', fontWeight: '700' }}>✓</Text>}
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={{
+                            fontSize: 15, fontWeight: '600',
+                            color: step.completed ? '#10b981' : C.text,
+                            textDecorationLine: step.completed ? 'line-through' : 'none',
+                          }}>
+                            {idx + 1}. {step.title}
+                          </Text>
+                          {step.completed && step.completed_by ? (
+                            <Text style={{ fontSize: 12, color: C.dm, marginTop: 2 }}>
+                              {step.completed_by}{step.completed_at ? ` · ${new Date(step.completed_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} at ${new Date(step.completed_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}` : ''}
+                            </Text>
+                          ) : null}
+                        </View>
+                      </TouchableOpacity>
+                    ))}
+                  </>
+                )}
+              </Card>
+            );
+
             const houseSpecsCard = (
               <Card style={{ marginBottom: 14 }}>
                 <Text style={s.cardTitle}>House Specs</Text>
@@ -1296,11 +1365,11 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
 
             return IS_WIDE ? (
               <View style={s.twoColRow}>
-                <View style={s.twoColLeft}>{contractPriceCard}{houseSpecsCard}</View>
-                <View style={[s.twoColRight, { zIndex: 20 }]}>{projectDetailsCard}{datesCard}</View>
+                <View style={s.twoColLeft}>{contractPriceCard}{houseSpecsCard}{datesCard}</View>
+                <View style={[s.twoColRight, { zIndex: 20 }]}>{projectDetailsCard}{goLiveStepsCard}</View>
               </View>
             ) : (
-              <>{contractPriceCard}{projectDetailsCard}{datesCard}{houseSpecsCard}</>
+              <>{contractPriceCard}{projectDetailsCard}{datesCard}{houseSpecsCard}{goLiveStepsCard}</>
             );
           })()}
 
