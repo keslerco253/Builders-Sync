@@ -3599,7 +3599,7 @@ export default function Dashboard() {
 
       {/* Selection Manager Modal */}
       {showSelectionManager && (
-        <SelectionManagerModal onClose={() => setShowSelectionManager(false)} />
+        <SelectionManagerModal onClose={() => setShowSelectionManager(false)} builderTrades={builderTrades} />
       )}
 
       {/* Document Manager Modal */}
@@ -6053,9 +6053,7 @@ const SubdivisionUploadModal = ({ subdivision, user, templateId, templateName, o
 // ============================================================
 // SELECTION MANAGER MODAL
 // ============================================================
-const SELECTION_CATEGORIES = ['Countertops', 'Flooring', 'Cabinets', 'Tile', 'Lighting', 'Plumbing Fixtures', 'Appliances', 'Paint', 'Hardware', 'Exterior', 'Landscaping', 'Other'];
-
-const SelectionManagerModal = ({ onClose }) => {
+const SelectionManagerModal = ({ onClose, builderTrades = [] }) => {
   const C = React.useContext(ThemeContext);
   const { user } = React.useContext(AuthContext);
   const st = React.useMemo(() => getStyles(C), [C]);
@@ -6063,8 +6061,7 @@ const SelectionManagerModal = ({ onClose }) => {
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState('list'); // list | create
   // Create form state
-  const [category, setCategory] = useState('');
-  const [customCat, setCustomCat] = useState('');
+  const [trade, setTrade] = useState('');
   const [itemName, setItemName] = useState('');
   const [options, setOptions] = useState([{ name: '', image_b64: '', image_path: '', price: '', comes_standard: false }]);
   const [saving, setSaving] = useState(false);
@@ -6126,14 +6123,13 @@ const SelectionManagerModal = ({ onClose }) => {
   };
 
   const resetForm = () => {
-    setCategory(''); setCustomCat(''); setItemName('');
+    setTrade(''); setItemName('');
     setOptions([{ name: '', image_b64: '', image_path: '', price: '', comes_standard: false }]);
     setEditingId(null);
   };
 
   const saveItem = async () => {
-    const finalCat = category === 'Other' ? customCat : category;
-    if (!finalCat || !itemName) return Alert.alert('Error', 'Category and item name required');
+    if (!trade || !itemName) return Alert.alert('Error', 'Trade and item name required');
     if (!options[0]?.name) return Alert.alert('Error', 'At least one option required');
     setSaving(true);
     try {
@@ -6151,7 +6147,7 @@ const SelectionManagerModal = ({ onClose }) => {
           comes_standard: !!o.comes_standard,
         });
       }
-      const body = { category: finalCat, item: itemName, options: cleanOptions, user_id: user.id };
+      const body = { category: trade, item: itemName, options: cleanOptions, user_id: user.id };
       const path = editingId ? `/selection-items/${editingId}` : `/selection-items`;
       const method = editingId ? 'PUT' : 'POST';
       const res = await apiFetch(path, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
@@ -6176,8 +6172,7 @@ const SelectionManagerModal = ({ onClose }) => {
 
   const editItem = (item) => {
     setEditingId(item.id);
-    setCategory(SELECTION_CATEGORIES.includes(item.category) ? item.category : 'Other');
-    setCustomCat(SELECTION_CATEGORIES.includes(item.category) ? '' : item.category);
+    setTrade(item.category || '');
     setItemName(item.item);
     setOptions((item.options || []).map(o => ({
       name: o.name || '', image_b64: '', image_path: o.image_path || '',
@@ -6270,23 +6265,22 @@ const SelectionManagerModal = ({ onClose }) => {
           ) : (
             /* CREATE / EDIT VIEW */
             <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 18 }} keyboardShouldPersistTaps="handled">
-              {/* Category */}
-              <Text style={st.formLbl}>CATEGORY</Text>
+              {/* Trade */}
+              <Text style={st.formLbl}>TRADE</Text>
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 14 }}>
-                {SELECTION_CATEGORIES.map(cat => (
-                  <TouchableOpacity key={cat} onPress={() => setCategory(cat)}
+                {builderTrades.length > 0 ? builderTrades.map(t => (
+                  <TouchableOpacity key={t} onPress={() => setTrade(t)}
                     style={{
                       paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8,
-                      borderWidth: 1, borderColor: category === cat ? C.gd : C.w10,
-                      backgroundColor: category === cat ? C.bH12 : C.w03,
+                      borderWidth: 1, borderColor: trade === t ? C.gd : C.w10,
+                      backgroundColor: trade === t ? C.bH12 : C.w03,
                     }} activeOpacity={0.7}>
-                    <Text style={{ fontSize: 18, fontWeight: category === cat ? '700' : '500', color: category === cat ? C.gd : C.mt }}>{cat}</Text>
+                    <Text style={{ fontSize: 18, fontWeight: trade === t ? '700' : '500', color: trade === t ? C.gd : C.mt }}>{t}</Text>
                   </TouchableOpacity>
-                ))}
+                )) : (
+                  <Text style={{ fontSize: 16, color: C.dm }}>No trades configured yet. Add trades to your company profile.</Text>
+                )}
               </View>
-              {category === 'Other' && (
-                <Inp2 label="CUSTOM CATEGORY" value={customCat} onChange={setCustomCat} placeholder="e.g., Windows" />
-              )}
 
               <Inp2 label="ITEM NAME" value={itemName} onChange={setItemName} placeholder="e.g., Master Bath Countertop" />
 
@@ -6355,8 +6349,8 @@ const SelectionManagerModal = ({ onClose }) => {
                 </View>
               ))}
 
-              <TouchableOpacity onPress={saveItem} disabled={saving || !category || !itemName || !options[0]?.name}
-                style={[st.submitBtn, (saving || !category || !itemName || !options[0]?.name) && { backgroundColor: C.dm }]} activeOpacity={0.8}>
+              <TouchableOpacity onPress={saveItem} disabled={saving || !trade || !itemName || !options[0]?.name}
+                style={[st.submitBtn, (saving || !trade || !itemName || !options[0]?.name) && { backgroundColor: C.dm }]} activeOpacity={0.8}>
                 <Text style={{ color: C.textBold, fontSize: 22, fontWeight: '700', textAlign: 'center' }}>
                   {saving ? 'Saving...' : (editingId ? 'Update Selection' : 'Create Selection')}
                 </Text>
