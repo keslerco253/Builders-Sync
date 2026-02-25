@@ -839,14 +839,7 @@ export default function Dashboard() {
                         activeOpacity={0.7}
                         onPress={() => selectSubdivision(sd)}
                         style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 16, backgroundColor: sdActive ? (C.gd + '18') : (C.mode === 'light' ? 'rgba(0,0,0,0.04)' : C.w04), borderBottomWidth: 1, borderBottomColor: C.sw06, borderLeftWidth: sdActive ? 3 : 0, borderLeftColor: C.gd }}
-                        {...(Platform.OS === 'web' && isBuilder ? {
-                          onContextMenu: (e) => {
-                            e.preventDefault();
-                            if (window.confirm(`Delete subdivision "${sd.name}"?\n\nProjects will be ungrouped.`)) {
-                              deleteSubdivision(sd.id);
-                            }
-                          },
-                        } : {})}
+                        {...(Platform.OS === 'web' && isBuilder ? {} : {})}
                       >
                         {editSubdivId === sd.id ? (
                           <TextInput
@@ -3595,6 +3588,7 @@ export default function Dashboard() {
       {showTemplateManager && (
         <TemplateManagerModal
           onClose={() => setShowTemplateManager(false)}
+          builderTrades={builderTrades}
         />
       )}
 
@@ -4774,7 +4768,7 @@ const ChipSelect = ({ options, value, onChange }) => {
 
 const TEMPLATE_ICONS = ['📋', '🏠', '🍳', '🚿', '🔨', '🏢', '🏗', '🛠', '🪵', '🧱', '🪟', '🚪', '⚡', '💧', '🌡', '🏡', '🏘'];
 
-const TemplateManagerModal = ({ onClose }) => {
+const TemplateManagerModal = ({ onClose, builderTrades = [] }) => {
   const C = React.useContext(ThemeContext);
   const { user } = React.useContext(AuthContext);
   const st = React.useMemo(() => getStyles(C), [C]);

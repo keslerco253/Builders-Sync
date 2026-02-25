@@ -504,20 +504,6 @@ export default function ScheduleCalendar({ schedule, onUpdateTask, onEditTask, o
     };
   }, []);
 
-  // ============================================================
-  // RIGHT-CLICK EDIT POPUP
-  // ============================================================
-  const handleContextMenu = (task, e) => {
-    if (!isBuilder || Platform.OS !== 'web') return;
-    e.preventDefault();
-    e.stopPropagation();
-    const currentDur = workdayCount(task.start_date, task.end_date);
-    setEditPopup({ task, x: e.clientX, y: e.clientY });
-    setEditDuration(String(currentDur));
-    setEditReason('');
-    setEditSaving(false);
-  };
-
   const closeEditPopup = () => {
     setEditPopup(null);
     setEditDuration('');
@@ -725,10 +711,6 @@ export default function ScheduleCalendar({ schedule, onUpdateTask, onEditTask, o
                         ]}
                         {...(Platform.OS === 'web' && isBuilder ? {
                           onPointerDown: (e) => handleDragStart(task, e),
-                          onContextMenu: (e) => {
-                            e.preventDefault(); e.stopPropagation();
-                            handleContextMenu(task, e);
-                          },
                         } : {})}
                       >
                         {task.progress === 100 && <Text style={[st.taskCheck, (isExc || isOnHold) && { color: '#fff' }]}>✓</Text>}
@@ -822,10 +804,6 @@ export default function ScheduleCalendar({ schedule, onUpdateTask, onEditTask, o
                             ]}
                             {...(Platform.OS === 'web' && isBuilder ? {
                               onPointerDown: (e) => { suppressDayPress.current = true; setTimeout(() => { suppressDayPress.current = false; }, 500); handleDragStart(task, e); },
-                              onContextMenu: (e) => {
-                                e.preventDefault(); e.stopPropagation();
-                                handleContextMenu(task, e);
-                              },
                             } : {})}
                           >
                             <Text style={[st.tfChipName, isComplete && { textDecorationLine: 'line-through', color: C.dm }, (isExc || isOnHold) && { color: '#fff' }]}>
