@@ -513,6 +513,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
   const lastTapRef = useRef({}); // { taskId: timestamp } for double-tap detection
   const [changeOrders, setChangeOrders] = useState([]);
   const [selections, setSelections] = useState([]);
+  const [expandedSelTrades, setExpandedSelTrades] = useState({});
   const [documents, setDocuments] = useState([]);
   const [docTemplates, setDocTemplates] = useState([]);
   const [docEditMode, setDocEditMode] = useState(false);
@@ -2474,12 +2475,33 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
                 {confirmedSels.length > 0 && (
                   <>
                     <Text style={s.groupSubtitle}>Confirmed</Text>
-                    {groupByCategory(confirmedSels).map(([cat, sels]) => (
-                      <View key={cat} style={{ marginBottom: 20 }}>
-                        <Text style={{ fontSize: 20, fontWeight: '700', color: C.gd, letterSpacing: 1, marginBottom: 10 }}>{cat.toUpperCase()}</Text>
-                        {sels.map(renderSelectionCard)}
-                      </View>
-                    ))}
+                    {groupByCategory(confirmedSels).map(([cat, sels]) => {
+                      const key = `confirmed-${cat}`;
+                      const isOpen = !!expandedSelTrades[key];
+                      return (
+                        <View key={cat} style={{ marginBottom: 12 }}>
+                          <TouchableOpacity
+                            onPress={() => setExpandedSelTrades(prev => ({ ...prev, [key]: !prev[key] }))}
+                            activeOpacity={0.7}
+                            style={{
+                              flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+                              paddingVertical: 10, paddingHorizontal: 12, borderRadius: 8,
+                              backgroundColor: C.w03, borderWidth: 1, borderColor: C.w08,
+                            }}>
+                            <Text style={{ fontSize: 20, fontWeight: '700', color: C.gd, letterSpacing: 1 }}>{cat.toUpperCase()}</Text>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                              <Text style={{ fontSize: 16, color: C.dm }}>{sels.length}</Text>
+                              <Text style={{ fontSize: 18, color: C.dm }}>{isOpen ? '▼' : '▶'}</Text>
+                            </View>
+                          </TouchableOpacity>
+                          {isOpen && (
+                            <View style={{ marginTop: 10 }}>
+                              {sels.map(renderSelectionCard)}
+                            </View>
+                          )}
+                        </View>
+                      );
+                    })}
                   </>
                 )}
               </View>
@@ -2487,12 +2509,33 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
                 {awaitingSels.length > 0 && (
                   <>
                     <Text style={s.groupSubtitle}>Awaiting Confirmation</Text>
-                    {groupByCategory(awaitingSels).map(([cat, sels]) => (
-                      <View key={cat} style={{ marginBottom: 20 }}>
-                        <Text style={{ fontSize: 20, fontWeight: '700', color: C.gd, letterSpacing: 1, marginBottom: 10 }}>{cat.toUpperCase()}</Text>
-                        {sels.map(renderSelectionCard)}
-                      </View>
-                    ))}
+                    {groupByCategory(awaitingSels).map(([cat, sels]) => {
+                      const key = `awaiting-${cat}`;
+                      const isOpen = !!expandedSelTrades[key];
+                      return (
+                        <View key={cat} style={{ marginBottom: 12 }}>
+                          <TouchableOpacity
+                            onPress={() => setExpandedSelTrades(prev => ({ ...prev, [key]: !prev[key] }))}
+                            activeOpacity={0.7}
+                            style={{
+                              flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+                              paddingVertical: 10, paddingHorizontal: 12, borderRadius: 8,
+                              backgroundColor: C.w03, borderWidth: 1, borderColor: C.w08,
+                            }}>
+                            <Text style={{ fontSize: 20, fontWeight: '700', color: C.gd, letterSpacing: 1 }}>{cat.toUpperCase()}</Text>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                              <Text style={{ fontSize: 16, color: C.dm }}>{sels.length}</Text>
+                              <Text style={{ fontSize: 18, color: C.dm }}>{isOpen ? '▼' : '▶'}</Text>
+                            </View>
+                          </TouchableOpacity>
+                          {isOpen && (
+                            <View style={{ marginTop: 10 }}>
+                              {sels.map(renderSelectionCard)}
+                            </View>
+                          )}
+                        </View>
+                      );
+                    })}
                   </>
                 )}
               </View>
