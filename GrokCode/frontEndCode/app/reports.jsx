@@ -1,18 +1,34 @@
-import React from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView,
+  ActivityIndicator, Platform, useWindowDimensions,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { AuthContext, ThemeContext } from './context';
+import { AuthContext, ThemeContext, apiFetch } from './context';
 
-const ini = n => n?.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() || '??';
-const rG = (r, C) => r === 'builder' ? C.gd : r === 'contractor' ? C.bl : C.gn;
+// ── helpers ─────────────────────────────────────────────────
+const fD = d => {
+  if (!d) return '—';
+  try {
+    const dt = new Date(d + 'T00:00:00');
+    return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  } catch { return d; }
+};
 
+// ============================================================
+// MAIN SCREEN
+// ============================================================
 export default function ReportsScreen() {
   const C = React.useContext(ThemeContext);
-  const st = React.useMemo(() => getStyles(C), [C]);
+  const st = useMemo(() => getStyles(C), [C]);
   const { user } = React.useContext(AuthContext);
   const navigation = useNavigation();
+
+  const [activeReport, setActiveReport] = useState(null);
+
+  if (activeReport === 'spec') {
+    return <SpecReport C={C} user={user} onBack={() => setActiveReport(null)} navigation={navigation} />;
+  }
 
   return (
     <View style={st.container}>
@@ -31,48 +47,253 @@ export default function ReportsScreen() {
         <Text style={st.sectionTitle}>Available Reports</Text>
 
         <View style={st.cardGrid}>
-          <ReportCard
-            C={C} st={st}
-            icon="📋"
-            title="Schedule Report"
-            description="View full project schedule details and timeline"
-          />
-          <ReportCard
-            C={C} st={st}
-            icon="💰"
-            title="Budget Report"
-            description="Project costs, change orders, and financial summary"
-          />
-          <ReportCard
-            C={C} st={st}
-            icon="📝"
-            title="Change Order Report"
-            description="All change orders with status and signature details"
-          />
-          <ReportCard
-            C={C} st={st}
-            icon="👷"
-            title="Subcontractor Report"
-            description="Contractor assignments, trades, and task progress"
-          />
-          <ReportCard
-            C={C} st={st}
-            icon="📄"
-            title="Document Report"
-            description="All project documents, photos, and files"
-          />
-          <ReportCard
-            C={C} st={st}
-            icon="📊"
-            title="Progress Report"
-            description="Overall project progress and milestone tracking"
-          />
+          {/* ── Spec Report (live) ── */}
+          <TouchableOpacity style={[st.card, { borderColor: C.gd, borderWidth: 2 }]} activeOpacity={0.7}
+            onPress={() => setActiveReport('spec')}>
+            <Text style={{ fontSize: 32 }}>🏗️</Text>
+            <Text style={st.cardTitle}>Spec Report</Text>
+            <Text style={st.cardDesc}>Projects without a client — sortable by subdivision, plan, task & date</Text>
+            <View style={[st.cardBadge, { backgroundColor: C.gd + '30' }]}>
+              <Text style={st.cardBadgeTxt}>View Report</Text>
+            </View>
+          </TouchableOpacity>
+
+          {/* ── Coming soon cards ── */}
+          <ReportCard C={C} st={st} icon="📋" title="Schedule Report"
+            description="View full project schedule details and timeline" />
+          <ReportCard C={C} st={st} icon="💰" title="Budget Report"
+            description="Project costs, change orders, and financial summary" />
+          <ReportCard C={C} st={st} icon="📝" title="Change Order Report"
+            description="All change orders with status and signature details" />
+          <ReportCard C={C} st={st} icon="👷" title="Subcontractor Report"
+            description="Contractor assignments, trades, and task progress" />
+          <ReportCard C={C} st={st} icon="📄" title="Document Report"
+            description="All project documents, photos, and files" />
+          <ReportCard C={C} st={st} icon="📊" title="Progress Report"
+            description="Overall project progress and milestone tracking" />
         </View>
       </ScrollView>
     </View>
   );
 }
 
+// ============================================================
+// SPEC REPORT
+// ============================================================
+function SpecReport({ C, user, onBack, navigation }) {
+  const { width: winW } = useWindowDimensions();
+  const isWide = winW > 800;
+  const st = useMemo(() => getSpecStyles(C, isWide), [C, isWide]);
+
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  // Sorting
+  const [sortCol, setSortCol] = useState('subdivision');
+  const [sortDir, setSortDir] = useState('asc');
+
+  // Filters
+  const [filterSubdiv, setFilterSubdiv] = useState('');
+  const [filterPlan, setFilterPlan] = useState('');
+  const [showSubdivDrop, setShowSubdivDrop] = useState(false);
+  const [showPlanDrop, setShowPlanDrop] = useState(false);
+
+  // Fetch
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await apiFetch(`/reports/spec${user?.company_id ? `?company_id=${user.company_id}` : ''}`);
+        const data = await res.json();
+        if (Array.isArray(data)) setRows(data);
+      } catch (e) { console.warn('Spec report fetch:', e); }
+      setLoading(false);
+    })();
+  }, []);
+
+  // Unique values for filter dropdowns
+  const subdivisions = useMemo(() => [...new Set(rows.map(r => r.subdivision).filter(Boolean))].sort(), [rows]);
+  const planNames = useMemo(() => [...new Set(rows.map(r => r.plan_name).filter(Boolean))].sort(), [rows]);
+
+  // Filter + sort
+  const filtered = useMemo(() => {
+    let list = rows;
+    if (filterSubdiv) list = list.filter(r => r.subdivision === filterSubdiv);
+    if (filterPlan) list = list.filter(r => r.plan_name === filterPlan);
+    return list;
+  }, [rows, filterSubdiv, filterPlan]);
+
+  const sorted = useMemo(() => {
+    const arr = [...filtered];
+    arr.sort((a, b) => {
+      let va = a[sortCol] || '';
+      let vb = b[sortCol] || '';
+      if (sortCol === 'end_date') {
+        va = va || '9999-12-31';
+        vb = vb || '9999-12-31';
+      }
+      const cmp = typeof va === 'string' ? va.localeCompare(vb) : va - vb;
+      return sortDir === 'asc' ? cmp : -cmp;
+    });
+    return arr;
+  }, [filtered, sortCol, sortDir]);
+
+  const toggleSort = (col) => {
+    if (sortCol === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    else { setSortCol(col); setSortDir('asc'); }
+  };
+
+  const arrow = (col) => sortCol === col ? (sortDir === 'asc' ? ' ▲' : ' ▼') : '';
+
+  const COLS = [
+    { key: 'subdivision', label: 'Subdivision', flex: 1.2 },
+    { key: 'address', label: 'Address', flex: 1.5 },
+    { key: 'plan_name', label: 'Plan Name', flex: 1 },
+    { key: 'current_task', label: 'Current Task', flex: 1.3 },
+    { key: 'end_date', label: 'End Date', flex: 0.9 },
+  ];
+
+  return (
+    <View style={st.container}>
+      {/* Header */}
+      <View style={st.header}>
+        <TouchableOpacity onPress={onBack} style={st.backBtn} activeOpacity={0.7}>
+          <Text style={{ fontSize: 24, color: C.gd }}>‹</Text>
+          <Text style={{ fontSize: 17, color: C.gd, fontWeight: '600' }}>Back</Text>
+        </TouchableOpacity>
+        <Text style={st.headerTitle}>Spec Report</Text>
+        <View style={{ width: 80 }} />
+      </View>
+
+      {loading ? (
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <ActivityIndicator size="large" color={C.gd} />
+        </View>
+      ) : (
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: isWide ? 24 : 14, paddingBottom: 60 }}>
+
+          {/* Filter bar */}
+          <View style={st.filterBar}>
+            {/* Subdivision filter */}
+            <View style={{ position: 'relative', zIndex: 20 }}>
+              <Text style={st.filterLabel}>Subdivision</Text>
+              <TouchableOpacity style={st.filterBtn} activeOpacity={0.7}
+                onPress={() => { setShowSubdivDrop(p => !p); setShowPlanDrop(false); }}>
+                <Text style={[st.filterBtnTxt, !filterSubdiv && { color: C.dm }]} numberOfLines={1}>
+                  {filterSubdiv || 'All'}
+                </Text>
+                <Text style={{ fontSize: 13, color: C.dm }}>▼</Text>
+              </TouchableOpacity>
+              {showSubdivDrop && (
+                <View style={st.dropdown}>
+                  <ScrollView style={{ maxHeight: 250 }} nestedScrollEnabled keyboardShouldPersistTaps="handled">
+                    <TouchableOpacity style={[st.dropItem, !filterSubdiv && st.dropItemActive]}
+                      onPress={() => { setFilterSubdiv(''); setShowSubdivDrop(false); }}>
+                      <Text style={[st.dropItemTxt, !filterSubdiv && { color: C.gd }]}>All</Text>
+                    </TouchableOpacity>
+                    {subdivisions.map(s => (
+                      <TouchableOpacity key={s} style={[st.dropItem, filterSubdiv === s && st.dropItemActive]}
+                        onPress={() => { setFilterSubdiv(s); setShowSubdivDrop(false); }}>
+                        <Text style={[st.dropItemTxt, filterSubdiv === s && { color: C.gd }]}>{s}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </View>
+              )}
+            </View>
+
+            {/* Plan Name filter */}
+            <View style={{ position: 'relative', zIndex: 19 }}>
+              <Text style={st.filterLabel}>Plan Name</Text>
+              <TouchableOpacity style={st.filterBtn} activeOpacity={0.7}
+                onPress={() => { setShowPlanDrop(p => !p); setShowSubdivDrop(false); }}>
+                <Text style={[st.filterBtnTxt, !filterPlan && { color: C.dm }]} numberOfLines={1}>
+                  {filterPlan || 'All'}
+                </Text>
+                <Text style={{ fontSize: 13, color: C.dm }}>▼</Text>
+              </TouchableOpacity>
+              {showPlanDrop && (
+                <View style={st.dropdown}>
+                  <ScrollView style={{ maxHeight: 250 }} nestedScrollEnabled keyboardShouldPersistTaps="handled">
+                    <TouchableOpacity style={[st.dropItem, !filterPlan && st.dropItemActive]}
+                      onPress={() => { setFilterPlan(''); setShowPlanDrop(false); }}>
+                      <Text style={[st.dropItemTxt, !filterPlan && { color: C.gd }]}>All</Text>
+                    </TouchableOpacity>
+                    {planNames.map(p => (
+                      <TouchableOpacity key={p} style={[st.dropItem, filterPlan === p && st.dropItemActive]}
+                        onPress={() => { setFilterPlan(p); setShowPlanDrop(false); }}>
+                        <Text style={[st.dropItemTxt, filterPlan === p && { color: C.gd }]}>{p}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </View>
+              )}
+            </View>
+
+            {/* Result count */}
+            <View style={{ justifyContent: 'flex-end', paddingBottom: 4 }}>
+              <Text style={{ fontSize: 14, color: C.dm, fontWeight: '500' }}>
+                {sorted.length} {sorted.length === 1 ? 'project' : 'projects'}
+              </Text>
+            </View>
+          </View>
+
+          {/* Close any open dropdown on tap */}
+          {(showSubdivDrop || showPlanDrop) && (
+            <TouchableOpacity
+              style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 10 }}
+              activeOpacity={1}
+              onPress={() => { setShowSubdivDrop(false); setShowPlanDrop(false); }}
+            />
+          )}
+
+          {/* Table */}
+          <View style={st.table}>
+            {/* Column headers */}
+            <View style={st.tableHeaderRow}>
+              {COLS.map(col => (
+                <TouchableOpacity key={col.key} style={[st.tableHeaderCell, { flex: col.flex }]}
+                  activeOpacity={0.7} onPress={() => toggleSort(col.key)}>
+                  <Text style={st.tableHeaderTxt} numberOfLines={1}>{col.label}{arrow(col.key)}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* Data rows */}
+            {sorted.length === 0 ? (
+              <View style={{ padding: 32, alignItems: 'center' }}>
+                <Text style={{ fontSize: 16, color: C.dm }}>No spec projects found</Text>
+              </View>
+            ) : (
+              sorted.map((row, idx) => (
+                <View key={row.id} style={[st.tableRow, idx % 2 === 1 && st.tableRowAlt]}>
+                  <View style={[st.tableCell, { flex: 1.2 }]}>
+                    <Text style={st.tableCellTxt} numberOfLines={1}>{row.subdivision || '—'}</Text>
+                  </View>
+                  <View style={[st.tableCell, { flex: 1.5 }]}>
+                    <Text style={st.tableCellTxt} numberOfLines={1}>{row.address || '—'}</Text>
+                  </View>
+                  <View style={[st.tableCell, { flex: 1 }]}>
+                    <Text style={st.tableCellTxt} numberOfLines={1}>{row.plan_name || '—'}</Text>
+                  </View>
+                  <View style={[st.tableCell, { flex: 1.3 }]}>
+                    <Text style={st.tableCellTxt} numberOfLines={1}>{row.current_task || '—'}</Text>
+                  </View>
+                  <View style={[st.tableCell, { flex: 0.9 }]}>
+                    <Text style={st.tableCellTxt} numberOfLines={1}>{fD(row.end_date)}</Text>
+                  </View>
+                </View>
+              ))
+            )}
+          </View>
+        </ScrollView>
+      )}
+    </View>
+  );
+}
+
+// ============================================================
+// REPORT CARD (coming soon)
+// ============================================================
 function ReportCard({ C, st, icon, title, description }) {
   return (
     <TouchableOpacity style={st.card} activeOpacity={0.7}>
@@ -86,77 +307,92 @@ function ReportCard({ C, st, icon, title, description }) {
   );
 }
 
+// ============================================================
+// STYLES — main reports list
+// ============================================================
 const getStyles = (C) => StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: C.bg,
-  },
+  container: { flex: 1, backgroundColor: C.bg },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: C.bd,
-    backgroundColor: C.headerBg,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 16, paddingVertical: 12,
+    borderBottomWidth: 1, borderBottomColor: C.bd, backgroundColor: C.headerBg,
   },
-  backBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    width: 80,
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: C.chromeTxt,
-  },
-  scrollContent: {
-    padding: 20,
-    paddingBottom: 40,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: C.textBold,
-    marginBottom: 16,
-  },
-  cardGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 14,
-  },
+  backBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, width: 80 },
+  headerTitle: { fontSize: 20, fontWeight: '700', color: C.chromeTxt },
+  scrollContent: { padding: 20, paddingBottom: 40 },
+  sectionTitle: { fontSize: 18, fontWeight: '700', color: C.textBold, marginBottom: 16 },
+  cardGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 14 },
   card: {
-    backgroundColor: C.cardBg || C.w04,
-    borderRadius: 12,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: C.bd,
-    width: 280,
-    gap: 8,
+    backgroundColor: C.cardBg || C.w04, borderRadius: 12, padding: 20,
+    borderWidth: 1, borderColor: C.bd, width: 280, gap: 8,
   },
-  cardTitle: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: C.textBold,
-  },
-  cardDesc: {
-    fontSize: 14,
-    color: C.dm,
-    lineHeight: 20,
-  },
+  cardTitle: { fontSize: 17, fontWeight: '700', color: C.textBold },
+  cardDesc: { fontSize: 14, color: C.dm, lineHeight: 20 },
   cardBadge: {
-    alignSelf: 'flex-start',
-    backgroundColor: C.gd + '20',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 6,
-    marginTop: 4,
+    alignSelf: 'flex-start', backgroundColor: C.gd + '20',
+    paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6, marginTop: 4,
   },
-  cardBadgeTxt: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: C.gd,
+  cardBadgeTxt: { fontSize: 12, fontWeight: '700', color: C.gd },
+});
+
+// ============================================================
+// STYLES — spec report
+// ============================================================
+const getSpecStyles = (C, isWide) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: C.bg },
+  header: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 16, paddingVertical: 12,
+    borderBottomWidth: 1, borderBottomColor: C.bd, backgroundColor: C.headerBg,
   },
+  backBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, width: 80 },
+  headerTitle: { fontSize: 20, fontWeight: '700', color: C.chromeTxt },
+
+  // Filters
+  filterBar: {
+    flexDirection: 'row', flexWrap: 'wrap', gap: 16, marginBottom: 18,
+    zIndex: 20,
+  },
+  filterLabel: { fontSize: 13, fontWeight: '700', color: C.dm, marginBottom: 4, letterSpacing: 0.5 },
+  filterBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    backgroundColor: C.cardBg || C.w04, borderWidth: 1, borderColor: C.bd,
+    borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10,
+    minWidth: 160, gap: 8,
+  },
+  filterBtnTxt: { fontSize: 15, color: C.text, fontWeight: '500' },
+  dropdown: {
+    position: 'absolute', top: '100%', left: 0, right: 0,
+    backgroundColor: C.cardBg || C.bg, borderWidth: 1, borderColor: C.bd,
+    borderRadius: 8, marginTop: 4, zIndex: 100, minWidth: 160,
+    ...(Platform.OS === 'web' ? { boxShadow: '0 8px 24px rgba(0,0,0,0.35)' } : { elevation: 10 }),
+  },
+  dropItem: { paddingVertical: 10, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: C.w04 },
+  dropItemActive: { backgroundColor: C.gd + '18' },
+  dropItemTxt: { fontSize: 15, color: C.text },
+
+  // Table
+  table: {
+    borderWidth: 1, borderColor: C.bd, borderRadius: 10, overflow: 'hidden',
+  },
+  tableHeaderRow: {
+    flexDirection: 'row', backgroundColor: C.gd,
+  },
+  tableHeaderCell: {
+    paddingVertical: 12, paddingHorizontal: isWide ? 14 : 8,
+  },
+  tableHeaderTxt: {
+    fontSize: isWide ? 15 : 13, fontWeight: '700', color: '#fff',
+    ...(Platform.OS === 'web' ? { userSelect: 'none', cursor: 'pointer' } : {}),
+  },
+  tableRow: {
+    flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: C.w04,
+  },
+  tableRowAlt: {
+    backgroundColor: C.mode === 'light' ? '#f9f7f3' : C.w02,
+  },
+  tableCell: {
+    paddingVertical: 12, paddingHorizontal: isWide ? 14 : 8, justifyContent: 'center',
+  },
+  tableCellTxt: { fontSize: isWide ? 15 : 13, color: C.text },
 });
