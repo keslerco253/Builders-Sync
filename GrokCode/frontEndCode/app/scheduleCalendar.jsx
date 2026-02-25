@@ -673,7 +673,7 @@ export default function ScheduleCalendar({ schedule, onUpdateTask, onEditTask, o
                           onDayPress(`${day.getFullYear()}-${String(day.getMonth()+1).padStart(2,'0')}-${String(day.getDate()).padStart(2,'0')}`);
                         }
                       }}
-                      style={[st.dayCell, di < 6 && st.dayCellBorder, (di===0||di===6) && st.weekendCell]}
+                      style={[st.dayCell, { minHeight: rowMinH }, di < 6 && st.dayCellBorder, (di===0||di===6) && st.weekendCell]}
                     >
                       <View style={[st.dayNumber, isToday && st.todayNumber]}>
                         <Text style={[st.dayNumberTxt, !isCurMonth && st.otherMonthTxt, isToday && st.todayNumberTxt]}>
