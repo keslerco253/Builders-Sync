@@ -1526,34 +1526,36 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
             <Text style={{ fontSize: 17, color: C.dm }}>{project?.address || '—'}</Text>
           </Card>
 
-          {/* Confirmed selections by category */}
+          {/* Confirmed selections by category — two sections per row */}
           {specCategories.length > 0 ? (
-            specCategories.map(([cat, sels]) => (
-              <View key={cat} style={{ marginBottom: 20 }}>
-                {/* Section header */}
-                <View style={{ backgroundColor: C.gd + '18', paddingHorizontal: 14, paddingVertical: 10, borderRadius: 8, marginBottom: 8 }}>
-                  <Text style={{ fontSize: 20, fontWeight: '700', color: C.gd }}>{cat}</Text>
-                </View>
-                {/* Items in this category — two columns */}
-                {sels.map(sel => {
-                  const selectedArr = Array.isArray(sel.selected) ? sel.selected : (sel.selected ? [sel.selected] : []);
-                  return (
-                    <View key={sel.project_selection_id || sel.id}
-                      style={{ flexDirection: 'row', paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: C.w06 }}>
-                      <Text style={{ fontSize: 17, fontWeight: '600', color: C.text, flex: 1 }}>{sel.item}</Text>
-                      <View style={{ flex: 1, alignItems: 'flex-end' }}>
-                        <Text style={{ fontSize: 17, color: C.gd, fontWeight: '600', textAlign: 'right' }}>
-                          {selectedArr.join(', ') || '—'}
-                        </Text>
-                        {sel.customer_comment ? (
-                          <Text style={{ fontSize: 14, color: C.dm, fontStyle: 'italic', marginTop: 3, textAlign: 'right' }}>{sel.customer_comment}</Text>
-                        ) : null}
-                      </View>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
+              {specCategories.map(([cat, sels]) => (
+                <View key={cat} style={{ width: '48%', minWidth: 260, flexGrow: 1, marginBottom: 8 }}>
+                  <Card style={{ flex: 1 }}>
+                    {/* Section header */}
+                    <View style={{ backgroundColor: C.gd + '18', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 6, marginBottom: 10 }}>
+                      <Text style={{ fontSize: 18, fontWeight: '700', color: C.gd }}>{cat}</Text>
                     </View>
-                  );
-                })}
-              </View>
-            ))
+                    {/* Items in this category */}
+                    {sels.map((sel, si) => {
+                      const selectedArr = Array.isArray(sel.selected) ? sel.selected : (sel.selected ? [sel.selected] : []);
+                      return (
+                        <View key={sel.project_selection_id || sel.id}
+                          style={si > 0 ? { marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: C.w06 } : undefined}>
+                          <Text style={{ fontSize: 16, fontWeight: '600', color: C.text }}>{sel.item}</Text>
+                          <Text style={{ fontSize: 15, color: C.gd, fontWeight: '600', marginTop: 3 }}>
+                            {selectedArr.join(', ') || '—'}
+                          </Text>
+                          {sel.customer_comment ? (
+                            <Text style={{ fontSize: 14, color: C.dm, fontStyle: 'italic', marginTop: 3 }}>{sel.customer_comment}</Text>
+                          ) : null}
+                        </View>
+                      );
+                    })}
+                  </Card>
+                </View>
+              ))}
+            </View>
           ) : (
             <View style={{ alignItems: 'center', padding: 40 }}>
               <Text style={{ fontSize: 48, marginBottom: 16 }}>📐</Text>
