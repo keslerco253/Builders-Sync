@@ -302,6 +302,7 @@ const InviteUserModal = ({ onClose, onInvited }) => {
 
 // Reset Password Modal
 const ResetPasswordModal = ({ user: targetUser, onClose, onReset }) => {
+  const C = React.useContext(ThemeContext);
   const [pw, setPw] = useState('');
   const [loading, setLoading] = useState(false);
 
