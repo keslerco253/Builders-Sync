@@ -230,6 +230,7 @@ class Projects(db.Model):
     hold_start_date = db.Column(db.String(20), default='')
     hold_reason = db.Column(db.String(500), default='')
     permit_number = db.Column(db.String(100), default='')
+    plan_name = db.Column(db.String(200), default='')
     subdivision_id = db.Column(db.Integer, db.ForeignKey('subdivision.id'), nullable=True)
     company_id = db.Column(db.Integer, db.ForeignKey('company.id'), nullable=True)
     date = db.Column(db.DateTime, default=datetime.utcnow)
@@ -270,6 +271,7 @@ class Projects(db.Model):
             'hold_start_date': self.hold_start_date or '',
             'hold_reason': self.hold_reason or '',
             'permit_number': self.permit_number or '',
+            'plan_name': self.plan_name or '',
             'subdivision_id': self.subdivision_id,
             'company_id': self.company_id,
             'date': self.date.isoformat() if self.date else None,
@@ -519,6 +521,15 @@ class HomeTemplate(db.Model):
             'id': self.id, 'name': self.name, 'sqft': self.sqft,
             'stories': self.stories, 'bedrooms': self.bedrooms, 'bathrooms': self.bathrooms,
         }
+
+
+class FloorPlan(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(200), default='')
+    company_id = db.Column(db.Integer, db.ForeignKey('company.id'), nullable=True)
+
+    def to_dict(self):
+        return {'id': self.id, 'name': self.name}
 
 
 class DailyLogs(db.Model):
@@ -1657,7 +1668,7 @@ def update_project(project_id):
                  'start_date', 'est_completion', 'progress', 'original_price',
                  'contract_price', 'sqft', 'bedrooms', 'bathrooms', 'garage',
                  'lot_size', 'style', 'stories', 'email', 'reconciliation', 'dates_from_schedule', 'go_live', 'subdivision_id',
-                 'permit_number'):
+                 'permit_number', 'plan_name'):
         if key in data:
             # Prevent un-toggling go_live once it's been set
             if key == 'go_live' and p.go_live and not data[key]:
@@ -2761,6 +2772,48 @@ def update_home_template(tid):
 def delete_home_template(tid):
     t = HomeTemplate.query.get_or_404(tid)
     db.session.delete(t)
+    db.session.commit()
+    return jsonify({'deleted': True})
+
+
+# ── Floor Plans ──────────────────────────────────────────────
+@app.route('/floor-plans', methods=['GET'])
+def get_floor_plans():
+    company_id = request.args.get('company_id', type=int)
+    q = FloorPlan.query.order_by(FloorPlan.name)
+    if company_id:
+        q = q.filter_by(company_id=company_id)
+    return jsonify([fp.to_dict() for fp in q.all()])
+
+
+@app.route('/floor-plans', methods=['POST'])
+def create_floor_plan():
+    data = request.get_json()
+    fp = FloorPlan(name=data.get('name', ''))
+    user_id = data.get('user_id')
+    if user_id:
+        creator = LoginInfo.query.get(user_id)
+        if creator and creator.company_id:
+            fp.company_id = creator.company_id
+    db.session.add(fp)
+    db.session.commit()
+    return jsonify(fp.to_dict()), 201
+
+
+@app.route('/floor-plans/<int:fid>', methods=['PUT'])
+def update_floor_plan(fid):
+    fp = FloorPlan.query.get_or_404(fid)
+    data = request.get_json()
+    if 'name' in data:
+        fp.name = data['name']
+    db.session.commit()
+    return jsonify(fp.to_dict())
+
+
+@app.route('/floor-plans/<int:fid>', methods=['DELETE'])
+def delete_floor_plan(fid):
+    fp = FloorPlan.query.get_or_404(fid)
+    db.session.delete(fp)
     db.session.commit()
     return jsonify({'deleted': True})
 
