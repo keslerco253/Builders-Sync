@@ -1541,6 +1541,53 @@ def get_projects():
     return jsonify(result)
 
 
+@app.route('/reports/spec', methods=['GET'])
+def spec_report():
+    """Return spec projects (no customer name) with current task and end date."""
+    company_id = request.args.get('company_id', type=int)
+    q = Projects.query
+    if company_id:
+        q = q.filter_by(company_id=company_id)
+    projects = q.all()
+
+    rows = []
+    for p in projects:
+        # Spec = no customer first+last name
+        name = f'{p.customer_first_name or ""} {p.customer_last_name or ""}'.strip()
+        if name:
+            continue
+
+        # Look up subdivision name
+        sub_name = ''
+        if p.subdivision_id:
+            sd = Subdivision.query.get(p.subdivision_id)
+            if sd:
+                sub_name = sd.name
+
+        # Get schedule tasks for current task and end date
+        tasks = Schedule.query.filter_by(job_id=p.id).order_by(Schedule.start_date).all()
+        current_task = ''
+        job_end_date = ''
+        for t in tasks:
+            if t.end_date and t.end_date > job_end_date:
+                job_end_date = t.end_date
+            if t.progress < 100 and not current_task:
+                current_task = t.task
+
+        address = p.street_address or p.address or ''
+
+        rows.append({
+            'id': p.id,
+            'subdivision': sub_name,
+            'address': address,
+            'plan_name': p.plan_name or '',
+            'current_task': current_task,
+            'end_date': job_end_date,
+        })
+
+    return jsonify(rows)
+
+
 @app.route('/projects', methods=['POST'])
 def add_project():
     try:
