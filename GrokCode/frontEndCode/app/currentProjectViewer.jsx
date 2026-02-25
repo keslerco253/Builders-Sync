@@ -2421,6 +2421,11 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
         return Object.entries(grouped);
       };
 
+      const saveComment = async (psId, comment) => {
+        setSelections(prev => prev.map(sel => sel.project_selection_id === psId ? { ...sel, customer_comment: comment } : sel));
+        api(`/project-selections/${psId}`, { method: 'PUT', body: { customer_comment: comment } });
+      };
+
       const renderSelectionCard = (sel) => {
         const isConfirmed = sel.status === 'confirmed';
         const allowMulti = !!sel.allow_multiple;
@@ -2429,6 +2434,10 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
         const needsConfirm = hasSelection && !isConfirmed;
         // Check if any selected option has price_tbd
         const hasTbd = (sel.options || []).some(o => typeof o === 'object' && o.price_tbd && selectedArr.includes(o.name));
+        // Get descriptions for selected options
+        const selectedDescriptions = (sel.options || [])
+          .filter(o => typeof o === 'object' && selectedArr.includes(o.name) && o.description)
+          .map(o => ({ name: o.name, description: o.description }));
         return (
           <Card key={sel.project_selection_id || sel.id} style={{ marginBottom: 14 }}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
@@ -2493,6 +2502,17 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
                 );
               })}
             </View>
+            {/* Show descriptions for selected options */}
+            {selectedDescriptions.length > 0 && (
+              <View style={{ marginTop: 12, padding: 12, backgroundColor: C.mode === 'dark' ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)', borderRadius: 8, borderWidth: 1, borderColor: C.w08 }}>
+                {selectedDescriptions.map((d, i) => (
+                  <View key={i} style={i > 0 ? { marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: C.w08 } : undefined}>
+                    <Text style={{ fontSize: 16, fontWeight: '700', color: C.gd, marginBottom: 3 }}>{d.name}</Text>
+                    <Text style={{ fontSize: 17, color: C.mt, lineHeight: 24 }}>{d.description}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
             {/* Builder price override for TBD selections */}
             {hasTbd && isB && isConfirmed && (
               <View style={{ marginTop: 12, padding: 12, backgroundColor: C.mode === 'dark' ? 'rgba(245,158,11,0.08)' : 'rgba(245,158,11,0.06)', borderRadius: 8, borderWidth: 1, borderColor: 'rgba(245,158,11,0.25)' }}>
@@ -2511,6 +2531,33 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
                 {sel.price_override != null && (
                   <Text style={{ fontSize: 16, color: C.gn, marginTop: 6 }}>Price set: {f$(sel.price_override)}</Text>
                 )}
+              </View>
+            )}
+            {/* Customer comment — editable by customer, visible to builder */}
+            {hasSelection && (
+              <View style={{ marginTop: 12 }}>
+                {isC ? (
+                  <View>
+                    <Text style={{ fontSize: 14, fontWeight: '700', color: C.dm, letterSpacing: 0.8, marginBottom: 6 }}>ADD A COMMENT</Text>
+                    <TextInput
+                      style={{
+                        fontSize: 18, color: C.text, borderWidth: 1, borderColor: C.w12, borderRadius: 8,
+                        padding: 12, minHeight: 60, textAlignVertical: 'top',
+                        backgroundColor: C.mode === 'dark' ? 'rgba(255,255,255,0.03)' : '#fff',
+                      }}
+                      multiline
+                      placeholder="Add a note for your builder..."
+                      placeholderTextColor={C.ph}
+                      defaultValue={sel.customer_comment || ''}
+                      onEndEditing={(e) => saveComment(sel.project_selection_id, e.nativeEvent.text)}
+                    />
+                  </View>
+                ) : sel.customer_comment ? (
+                  <View style={{ padding: 12, backgroundColor: C.mode === 'dark' ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)', borderRadius: 8, borderWidth: 1, borderColor: C.w08 }}>
+                    <Text style={{ fontSize: 14, fontWeight: '700', color: C.dm, letterSpacing: 0.8, marginBottom: 4 }}>CUSTOMER COMMENT</Text>
+                    <Text style={{ fontSize: 18, color: C.text, lineHeight: 26 }}>{sel.customer_comment}</Text>
+                  </View>
+                ) : null}
               </View>
             )}
             {needsConfirm && canPick && (

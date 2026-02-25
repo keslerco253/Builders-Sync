@@ -377,6 +377,7 @@ class ProjectSelection(db.Model):
     selected = db.Column(db.Text, nullable=True)  # single option name OR JSON array for multi-select
     status = db.Column(db.String(30), default='pending')  # pending | confirmed
     price_override = db.Column(db.Float, nullable=True)  # builder sets this for Price TBD options
+    customer_comment = db.Column(db.Text, nullable=True)  # customer note visible to builder
 
     def to_dict(self):
         item = SelectionItem.query.get(self.selection_item_id)
@@ -394,6 +395,7 @@ class ProjectSelection(db.Model):
         d['status'] = self.status
         d['selection_item_id'] = self.selection_item_id
         d['price_override'] = self.price_override
+        d['customer_comment'] = self.customer_comment
         return d
 
 
@@ -2416,6 +2418,8 @@ def update_project_selection(psid):
             ps.status = 'selected' if ps.selected else 'pending'
     if 'price_override' in data:
         ps.price_override = float(data['price_override']) if data['price_override'] is not None else None
+    if 'customer_comment' in data:
+        ps.customer_comment = data['customer_comment'] or None
     if data.get('confirm'):
         ps.status = 'confirmed'
     db.session.commit()
