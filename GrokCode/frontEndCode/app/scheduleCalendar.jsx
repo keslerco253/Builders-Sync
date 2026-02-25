@@ -643,7 +643,7 @@ export default function ScheduleCalendar({ schedule, onUpdateTask, onEditTask, o
           </View>
 
           {weeks.map((week, wi) => {
-            const weekTasks = getWeekTasks(week);
+            const weekTasks = getWeekTasks(week).slice().sort((a, b) => a.startCol - b.startCol);
             // Build lanes for current tasks
             const lanes = [];
             weekTasks.forEach(task => {
@@ -658,10 +658,12 @@ export default function ScheduleCalendar({ schedule, onUpdateTask, onEditTask, o
             });
 
             const laneH = 32;
-            const rowMinH = Math.max(125, 38 + lanes.length * laneH);
+            // 48px top offset + lanes * 32px each + 33px bar height + 8px bottom padding
+            const rowH = lanes.length > 0 ? 48 + lanes.length * laneH + 9 : 125;
+            const rowMinH = Math.max(125, rowH);
 
             return (
-              <View key={wi} style={[st.weekRow, { minHeight: rowMinH }]}>
+              <View key={wi} style={[st.weekRow, { height: rowMinH }]}>
                 {week.map((day, di) => {
                   const isToday = isSameDay(day, today);
                   const isCurMonth = day.getMonth() === month;
@@ -673,7 +675,7 @@ export default function ScheduleCalendar({ schedule, onUpdateTask, onEditTask, o
                           onDayPress(`${day.getFullYear()}-${String(day.getMonth()+1).padStart(2,'0')}-${String(day.getDate()).padStart(2,'0')}`);
                         }
                       }}
-                      style={[st.dayCell, { minHeight: rowMinH }, di < 6 && st.dayCellBorder, (di===0||di===6) && st.weekendCell]}
+                      style={[st.dayCell, di < 6 && st.dayCellBorder, (di===0||di===6) && st.weekendCell]}
                     >
                       <View style={[st.dayNumber, isToday && st.todayNumber]}>
                         <Text style={[st.dayNumberTxt, !isCurMonth && st.otherMonthTxt, isToday && st.todayNumberTxt]}>
@@ -984,7 +986,7 @@ const getStyles = (C) => StyleSheet.create({
   },
   arrowTxt: { fontSize: 30, color: C.mode === 'light' ? C.text : C.mt, fontWeight: '300', marginTop: -2 },
   monthLabel: { fontSize: 24, fontWeight: '700', color: C.mode === 'light' ? C.text : C.textBold, minWidth: 160, textAlign: 'center' },
-  grid: { flex: 1 },
+  grid: { flexGrow: 1, flexShrink: 0 },
   dayHeader: {
     flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: C.mode === 'light' ? 'rgba(0,0,0,0.08)' : C.bd,
     backgroundColor: C.mode === 'light' ? '#f5f0e8' : C.w02,
@@ -992,7 +994,7 @@ const getStyles = (C) => StyleSheet.create({
   dayHeaderCell: { flex: 1, paddingVertical: 8, alignItems: 'center' },
   dayHeaderTxt: { fontSize: 16, fontWeight: '600', color: C.dm, textTransform: 'uppercase', letterSpacing: 0.5 },
   weekRow: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: C.mode === 'light' ? 'rgba(0,0,0,0.06)' : C.bd, position: 'relative' },
-  dayCell: { flex: 1, paddingTop: 4, paddingLeft: 6, minHeight: 125, backgroundColor: C.mode === 'light' ? '#ffffff' : 'transparent' },
+  dayCell: { flex: 1, paddingTop: 4, paddingLeft: 6, backgroundColor: C.mode === 'light' ? '#ffffff' : 'transparent' },
   dayCellBorder: { borderRightWidth: 1, borderRightColor: C.mode === 'light' ? 'rgba(0,0,0,0.06)' : C.w03 },
   weekendCell: { backgroundColor: C.mode === 'light' ? '#faf7f1' : C.w02 },
   dayNumber: { width: 39, height: 39, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
