@@ -514,6 +514,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
   const [changeOrders, setChangeOrders] = useState([]);
   const [selections, setSelections] = useState([]);
   const [expandedSelTrades, setExpandedSelTrades] = useState({});
+  const [expandedSelItems, setExpandedSelItems] = useState({});
   const [documents, setDocuments] = useState([]);
   const [docTemplates, setDocTemplates] = useState([]);
   const [docEditMode, setDocEditMode] = useState(false);
@@ -2432,16 +2433,21 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
         const selectedArr = Array.isArray(sel.selected) ? sel.selected : (sel.selected ? [sel.selected] : []);
         const hasSelection = selectedArr.length > 0;
         const needsConfirm = hasSelection && !isConfirmed;
-        // Check if any selected option has price_tbd
         const hasTbd = (sel.options || []).some(o => typeof o === 'object' && o.price_tbd && selectedArr.includes(o.name));
-        // Get descriptions for selected options
         const selectedDescriptions = (sel.options || [])
           .filter(o => typeof o === 'object' && selectedArr.includes(o.name) && o.description)
           .map(o => ({ name: o.name, description: o.description }));
+        const itemKey = sel.project_selection_id || sel.id;
+        const isExpanded = !!expandedSelItems[itemKey];
         return (
-          <Card key={sel.project_selection_id || sel.id} style={{ marginBottom: 14 }}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+          <Card key={itemKey} style={{ marginBottom: 14 }}>
+            {/* Collapsible header */}
+            <TouchableOpacity
+              onPress={() => setExpandedSelItems(prev => ({ ...prev, [itemKey]: !prev[itemKey] }))}
+              activeOpacity={0.7}
+              style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
               <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Text style={{ fontSize: 18, color: C.dm }}>{isExpanded ? '▼' : '▶'}</Text>
                 <Text style={{ fontSize: 24, fontWeight: '600', color: C.text }}>{sel.item}</Text>
                 {allowMulti && (
                   <View style={{ backgroundColor: C.bH12, paddingHorizontal: 7, paddingVertical: 2, borderRadius: 5 }}>
@@ -2449,125 +2455,135 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
                   </View>
                 )}
               </View>
-              {isConfirmed ? (
-                <View style={{ backgroundColor: 'rgba(34,197,94,0.12)', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 }}>
-                  <Text style={{ fontSize: 16, fontWeight: '700', color: C.gn }}>✓ Confirmed</Text>
-                </View>
-              ) : hasSelection ? (
-                <View style={{ backgroundColor: C.bH12, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 }}>
-                  <Text style={{ fontSize: 16, fontWeight: '700', color: C.gd }}>Selected</Text>
-                </View>
-              ) : (
-                <Badge status="pending" />
-              )}
-            </View>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
-              {(sel.options || []).map((opt, i) => {
-                const isObj = typeof opt === 'object';
-                const optName = isObj ? opt.name : opt;
-                const imgPath = isObj ? opt.image_path : null;
-                const price = isObj ? opt.price : null;
-                const standard = isObj ? opt.comes_standard : false;
-                const priceTbd = isObj ? opt.price_tbd : false;
-                const active = selectedArr.includes(optName);
-                return (
-                  <TouchableOpacity key={i}
-                    onPress={() => canPick && !isConfirmed && sel.project_selection_id && pick(sel.project_selection_id, optName, sel.status, allowMulti)}
-                    activeOpacity={canPick && !isConfirmed ? 0.7 : 1}
-                    style={{
-                      width: 150, borderRadius: 10, overflow: 'hidden',
-                      borderWidth: active ? 2 : 1,
-                      borderColor: active ? (isConfirmed ? C.gn : C.gd) : C.w12,
-                      backgroundColor: active ? (C.mode === 'dark' ? C.bH08 : C.bH05) : C.w03,
-                      opacity: isConfirmed && !active ? 0.5 : 1,
-                    }}>
-                    {imgPath ? (
-                      <Image source={{ uri: `${API_BASE}${imgPath}` }} style={{ width: '100%', height: 100 }} resizeMode="cover" />
-                    ) : (
-                      <View style={{ width: '100%', height: 100, backgroundColor: C.w06, alignItems: 'center', justifyContent: 'center' }}>
-                        <Text style={{ fontSize: 42, opacity: 0.4 }}>📷</Text>
-                      </View>
-                    )}
-                    <View style={{ padding: 10 }}>
-                      <Text style={{ fontSize: 20, fontWeight: '600', color: active ? C.gd : C.text }} numberOfLines={2}>{active ? '✓ ' : ''}{optName}</Text>
-                      {standard ? (
-                        <Text style={{ fontSize: 18, color: C.gn, fontWeight: '600', marginTop: 4 }}>Standard</Text>
-                      ) : priceTbd ? (
-                        <Text style={{ fontSize: 18, color: '#f59e0b', fontWeight: '600', marginTop: 4 }}>Price TBD</Text>
-                      ) : price != null && price > 0 ? (
-                        <Text style={{ fontSize: 18, color: C.mt, marginTop: 4 }}>+{f$(price)}</Text>
-                      ) : null}
-                    </View>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-            {/* Show descriptions for selected options */}
-            {selectedDescriptions.length > 0 && (
-              <View style={{ marginTop: 12, padding: 12, backgroundColor: C.mode === 'dark' ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)', borderRadius: 8, borderWidth: 1, borderColor: C.w08 }}>
-                {selectedDescriptions.map((d, i) => (
-                  <View key={i} style={i > 0 ? { marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: C.w08 } : undefined}>
-                    <Text style={{ fontSize: 16, fontWeight: '700', color: C.gd, marginBottom: 3 }}>{d.name}</Text>
-                    <Text style={{ fontSize: 17, color: C.mt, lineHeight: 24 }}>{d.description}</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                {hasSelection && !isConfirmed && (
+                  <Text style={{ fontSize: 15, color: C.dm }}>{selectedArr.join(', ')}</Text>
+                )}
+                {isConfirmed ? (
+                  <View style={{ backgroundColor: 'rgba(34,197,94,0.12)', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 }}>
+                    <Text style={{ fontSize: 16, fontWeight: '700', color: C.gn }}>✓ Confirmed</Text>
                   </View>
-                ))}
-              </View>
-            )}
-            {/* Builder price override for TBD selections */}
-            {hasTbd && isB && isConfirmed && (
-              <View style={{ marginTop: 12, padding: 12, backgroundColor: C.mode === 'dark' ? 'rgba(245,158,11,0.08)' : 'rgba(245,158,11,0.06)', borderRadius: 8, borderWidth: 1, borderColor: 'rgba(245,158,11,0.25)' }}>
-                <Text style={{ fontSize: 16, fontWeight: '700', color: '#f59e0b', marginBottom: 8 }}>SET TBD PRICE</Text>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                  <Text style={{ fontSize: 18, color: C.mt }}>$</Text>
-                  <TextInput
-                    style={{ flex: 1, fontSize: 20, color: C.text, borderBottomWidth: 1, borderBottomColor: C.w15, paddingVertical: 6 }}
-                    keyboardType="numeric"
-                    placeholder={sel.price_override != null ? String(sel.price_override) : '0'}
-                    placeholderTextColor={C.ph}
-                    defaultValue={sel.price_override != null ? String(sel.price_override) : ''}
-                    onEndEditing={(e) => savePriceOverride(sel.project_selection_id, e.nativeEvent.text)}
-                  />
-                </View>
-                {sel.price_override != null && (
-                  <Text style={{ fontSize: 16, color: C.gn, marginTop: 6 }}>Price set: {f$(sel.price_override)}</Text>
+                ) : hasSelection ? (
+                  <View style={{ backgroundColor: C.bH12, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 }}>
+                    <Text style={{ fontSize: 16, fontWeight: '700', color: C.gd }}>Selected</Text>
+                  </View>
+                ) : (
+                  <Badge status="pending" />
                 )}
               </View>
-            )}
-            {/* Customer comment — editable by customer, visible to builder */}
-            {hasSelection && (
-              <View style={{ marginTop: 12 }}>
-                {isC ? (
-                  <View>
-                    <Text style={{ fontSize: 14, fontWeight: '700', color: C.dm, letterSpacing: 0.8, marginBottom: 6 }}>ADD A COMMENT</Text>
-                    <TextInput
-                      style={{
-                        fontSize: 18, color: C.text, borderWidth: 1, borderColor: C.w12, borderRadius: 8,
-                        padding: 12, minHeight: 60, textAlignVertical: 'top',
-                        backgroundColor: C.mode === 'dark' ? 'rgba(255,255,255,0.03)' : '#fff',
-                      }}
-                      multiline
-                      placeholder="Add a note for your builder..."
-                      placeholderTextColor={C.ph}
-                      defaultValue={sel.customer_comment || ''}
-                      onEndEditing={(e) => saveComment(sel.project_selection_id, e.nativeEvent.text)}
-                    />
+            </TouchableOpacity>
+            {/* Expandable content */}
+            {isExpanded && (
+              <View style={{ marginTop: 14 }}>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
+                  {(sel.options || []).map((opt, i) => {
+                    const isObj = typeof opt === 'object';
+                    const optName = isObj ? opt.name : opt;
+                    const imgPath = isObj ? opt.image_path : null;
+                    const price = isObj ? opt.price : null;
+                    const standard = isObj ? opt.comes_standard : false;
+                    const priceTbd = isObj ? opt.price_tbd : false;
+                    const active = selectedArr.includes(optName);
+                    return (
+                      <TouchableOpacity key={i}
+                        onPress={() => canPick && !isConfirmed && sel.project_selection_id && pick(sel.project_selection_id, optName, sel.status, allowMulti)}
+                        activeOpacity={canPick && !isConfirmed ? 0.7 : 1}
+                        style={{
+                          width: 172, borderRadius: 10, overflow: 'hidden',
+                          borderWidth: active ? 2 : 1,
+                          borderColor: active ? (isConfirmed ? C.gn : C.gd) : C.w12,
+                          backgroundColor: active ? (C.mode === 'dark' ? C.bH08 : C.bH05) : C.w03,
+                          opacity: isConfirmed && !active ? 0.5 : 1,
+                        }}>
+                        {imgPath ? (
+                          <Image source={{ uri: `${API_BASE}${imgPath}` }} style={{ width: '100%', height: 115 }} resizeMode="cover" />
+                        ) : (
+                          <View style={{ width: '100%', height: 115, backgroundColor: C.w06, alignItems: 'center', justifyContent: 'center' }}>
+                            <Text style={{ fontSize: 42, opacity: 0.4 }}>📷</Text>
+                          </View>
+                        )}
+                        <View style={{ padding: 11 }}>
+                          <Text style={{ fontSize: 20, fontWeight: '600', color: active ? C.gd : C.text }} numberOfLines={2}>{active ? '✓ ' : ''}{optName}</Text>
+                          {standard ? (
+                            <Text style={{ fontSize: 18, color: C.gn, fontWeight: '600', marginTop: 4 }}>Standard</Text>
+                          ) : priceTbd ? (
+                            <Text style={{ fontSize: 18, color: '#f59e0b', fontWeight: '600', marginTop: 4 }}>Price TBD</Text>
+                          ) : price != null && price > 0 ? (
+                            <Text style={{ fontSize: 18, color: C.mt, marginTop: 4 }}>+{f$(price)}</Text>
+                          ) : null}
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+                {/* Show descriptions for selected options */}
+                {selectedDescriptions.length > 0 && (
+                  <View style={{ marginTop: 12, padding: 12, backgroundColor: C.mode === 'dark' ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)', borderRadius: 8, borderWidth: 1, borderColor: C.w08 }}>
+                    {selectedDescriptions.map((d, i) => (
+                      <View key={i} style={i > 0 ? { marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: C.w08 } : undefined}>
+                        <Text style={{ fontSize: 16, fontWeight: '700', color: C.gd, marginBottom: 3 }}>{d.name}</Text>
+                        <Text style={{ fontSize: 17, color: C.mt, lineHeight: 24 }}>{d.description}</Text>
+                      </View>
+                    ))}
                   </View>
-                ) : sel.customer_comment ? (
-                  <View style={{ padding: 12, backgroundColor: C.mode === 'dark' ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)', borderRadius: 8, borderWidth: 1, borderColor: C.w08 }}>
-                    <Text style={{ fontSize: 14, fontWeight: '700', color: C.dm, letterSpacing: 0.8, marginBottom: 4 }}>CUSTOMER COMMENT</Text>
-                    <Text style={{ fontSize: 18, color: C.text, lineHeight: 26 }}>{sel.customer_comment}</Text>
+                )}
+                {/* Builder price override for TBD selections */}
+                {hasTbd && isB && isConfirmed && (
+                  <View style={{ marginTop: 12, padding: 12, backgroundColor: C.mode === 'dark' ? 'rgba(245,158,11,0.08)' : 'rgba(245,158,11,0.06)', borderRadius: 8, borderWidth: 1, borderColor: 'rgba(245,158,11,0.25)' }}>
+                    <Text style={{ fontSize: 16, fontWeight: '700', color: '#f59e0b', marginBottom: 8 }}>SET TBD PRICE</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                      <Text style={{ fontSize: 18, color: C.mt }}>$</Text>
+                      <TextInput
+                        style={{ flex: 1, fontSize: 20, color: C.text, borderBottomWidth: 1, borderBottomColor: C.w15, paddingVertical: 6 }}
+                        keyboardType="numeric"
+                        placeholder={sel.price_override != null ? String(sel.price_override) : '0'}
+                        placeholderTextColor={C.ph}
+                        defaultValue={sel.price_override != null ? String(sel.price_override) : ''}
+                        onEndEditing={(e) => savePriceOverride(sel.project_selection_id, e.nativeEvent.text)}
+                      />
+                    </View>
+                    {sel.price_override != null && (
+                      <Text style={{ fontSize: 16, color: C.gn, marginTop: 6 }}>Price set: {f$(sel.price_override)}</Text>
+                    )}
                   </View>
-                ) : null}
+                )}
+                {/* Customer comment — editable by customer, visible to builder */}
+                {hasSelection && (
+                  <View style={{ marginTop: 12 }}>
+                    {isC ? (
+                      <View>
+                        <Text style={{ fontSize: 14, fontWeight: '700', color: C.dm, letterSpacing: 0.8, marginBottom: 6 }}>ADD A COMMENT</Text>
+                        <TextInput
+                          style={{
+                            fontSize: 18, color: C.text, borderWidth: 1, borderColor: C.w12, borderRadius: 8,
+                            padding: 12, minHeight: 60, textAlignVertical: 'top',
+                            backgroundColor: C.mode === 'dark' ? 'rgba(255,255,255,0.03)' : '#fff',
+                          }}
+                          multiline
+                          placeholder="Add a note for your builder..."
+                          placeholderTextColor={C.ph}
+                          defaultValue={sel.customer_comment || ''}
+                          onEndEditing={(e) => saveComment(sel.project_selection_id, e.nativeEvent.text)}
+                        />
+                      </View>
+                    ) : sel.customer_comment ? (
+                      <View style={{ padding: 12, backgroundColor: C.mode === 'dark' ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)', borderRadius: 8, borderWidth: 1, borderColor: C.w08 }}>
+                        <Text style={{ fontSize: 14, fontWeight: '700', color: C.dm, letterSpacing: 0.8, marginBottom: 4 }}>CUSTOMER COMMENT</Text>
+                        <Text style={{ fontSize: 18, color: C.text, lineHeight: 26 }}>{sel.customer_comment}</Text>
+                      </View>
+                    ) : null}
+                  </View>
+                )}
+                {needsConfirm && canPick && (
+                  <TouchableOpacity
+                    onPress={() => setModal({ type: 'confirmsel', psId: sel.project_selection_id, item: sel.item, selected: allowMulti ? selectedArr.join(', ') : sel.selected })}
+                    style={{ backgroundColor: C.gd, paddingVertical: 12, borderRadius: 8, marginTop: 14, alignItems: 'center' }}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={{ fontSize: 21, fontWeight: '700', color: C.textBold }}>Confirm Selection{allowMulti && selectedArr.length > 1 ? 's' : ''}</Text>
+                  </TouchableOpacity>
+                )}
               </View>
-            )}
-            {needsConfirm && canPick && (
-              <TouchableOpacity
-                onPress={() => setModal({ type: 'confirmsel', psId: sel.project_selection_id, item: sel.item, selected: allowMulti ? selectedArr.join(', ') : sel.selected })}
-                style={{ backgroundColor: C.gd, paddingVertical: 12, borderRadius: 8, marginTop: 14, alignItems: 'center' }}
-                activeOpacity={0.8}
-              >
-                <Text style={{ fontSize: 21, fontWeight: '700', color: C.textBold }}>Confirm Selection{allowMulti && selectedArr.length > 1 ? 's' : ''}</Text>
-              </TouchableOpacity>
             )}
           </Card>
         );
