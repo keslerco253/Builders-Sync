@@ -1404,12 +1404,39 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
         if (b === 'Unassigned Trade') return -1;
         return a.localeCompare(b);
       });
-      const assignedTrades = allTrades.filter(t => tradeMap[t].some(task => task.contractor));
-      const unassignedTrades = allTrades.filter(t => !tradeMap[t].some(task => task.contractor));
+
+      // Build a lookup: contractor display name → role (builder/contractor)
+      const nameRoleMap = {};
+      subsList.forEach(u => {
+        const first = u.first_name || u.firstName || '';
+        const last = u.last_name || u.lastName || '';
+        const name = `${first} ${last}`.trim();
+        const company = u.company_name || u.companyName || '';
+        const display = company ? `${company} (${name})` : name;
+        const isBuilder = u.role === 'builder' || u.role === 'company_admin';
+        nameRoleMap[display] = isBuilder ? 'builder' : 'contractor';
+        nameRoleMap[name] = isBuilder ? 'builder' : 'contractor';
+        if (company) nameRoleMap[company] = isBuilder ? 'builder' : 'contractor';
+      });
+
+      // Categorize trades into three buckets
+      const subTrades = []; // at least one contractor-role assignee
+      const builderTrades = []; // assigned but only builder-role assignees
+      const unassignedTrades = [];
+      allTrades.forEach(t => {
+        const tasks = tradeMap[t];
+        const assignedNames = [...new Set(tasks.map(tk => tk.contractor).filter(Boolean))];
+        if (assignedNames.length === 0) {
+          unassignedTrades.push(t);
+        } else {
+          const hasSub = assignedNames.some(n => nameRoleMap[n] === 'contractor');
+          if (hasSub) subTrades.push(t);
+          else builderTrades.push(t);
+        }
+      });
 
       const renderTradeCard = (trade) => {
         const tasks = tradeMap[trade];
-        // Get unique contractors for this trade
         const contractors = [...new Set(tasks.map(t => t.contractor).filter(Boolean))];
         const hasAssignment = contractors.length > 0;
         const unassignedCount = tasks.filter(t => !t.contractor).length;
@@ -1455,7 +1482,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
                 </View>
               ) : (
                 <View style={{ marginTop: 8, paddingVertical: 6, paddingHorizontal: 10, backgroundColor: C.w04, borderRadius: 6 }}>
-                  <Text style={{ fontSize: 14, color: C.dm, fontStyle: 'italic' }}>No subcontractor assigned</Text>
+                  <Text style={{ fontSize: 14, color: C.dm, fontStyle: 'italic' }}>No contractor assigned</Text>
                 </View>
               )}
             </View>
@@ -1464,7 +1491,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
       };
 
       return (
-        <ScrollView style={{ flex: 1 }} contentContainerStyle={[s.scroll, { maxWidth: 900 }]}>
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={[s.scroll, { maxWidth: 1200 }]}>
           {schedule.length === 0 ? (
             <View style={{ alignItems: 'center', paddingVertical: 40 }}>
               <Text style={{ fontSize: 40, marginBottom: 10 }}>📋</Text>
@@ -1475,18 +1502,27 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
             </View>
           ) : (
             <View style={{ flexDirection: 'row', gap: 16 }}>
-              {/* Left column — Assigned */}
+              {/* Column 1 — Subcontractors Assigned */}
               <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 18, fontWeight: '700', color: C.textBold, marginBottom: 12 }}>Assigned</Text>
-                {assignedTrades.length === 0 ? (
-                  <Text style={{ fontSize: 15, color: C.dm, fontStyle: 'italic' }}>No trades assigned yet</Text>
+                <Text style={{ fontSize: 18, fontWeight: '700', color: C.textBold, marginBottom: 12 }}>Subcontractors Assigned</Text>
+                {subTrades.length === 0 ? (
+                  <Text style={{ fontSize: 15, color: C.dm, fontStyle: 'italic' }}>No subcontractors assigned yet</Text>
                 ) : (
-                  assignedTrades.map(t => renderTradeCard(t))
+                  subTrades.map(t => renderTradeCard(t))
                 )}
               </View>
-              {/* Right column — Unassigned */}
+              {/* Column 2 — Contractors (Builders) Assigned */}
               <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 18, fontWeight: '700', color: C.textBold, marginBottom: 12 }}>Needs Assignment</Text>
+                <Text style={{ fontSize: 18, fontWeight: '700', color: C.textBold, marginBottom: 12 }}>Contractors (Builders) Assigned</Text>
+                {builderTrades.length === 0 ? (
+                  <Text style={{ fontSize: 15, color: C.dm, fontStyle: 'italic' }}>No builders assigned yet</Text>
+                ) : (
+                  builderTrades.map(t => renderTradeCard(t))
+                )}
+              </View>
+              {/* Column 3 — Unassigned */}
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 18, fontWeight: '700', color: C.textBold, marginBottom: 12 }}>Unassigned</Text>
                 {unassignedTrades.length === 0 ? (
                   <Text style={{ fontSize: 15, color: C.gd, fontStyle: 'italic' }}>All trades assigned!</Text>
                 ) : (
