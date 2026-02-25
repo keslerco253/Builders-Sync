@@ -1534,49 +1534,21 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
                 <View style={{ backgroundColor: C.gd + '18', paddingHorizontal: 14, paddingVertical: 10, borderRadius: 8, marginBottom: 8 }}>
                   <Text style={{ fontSize: 20, fontWeight: '700', color: C.gd }}>{cat}</Text>
                 </View>
-                {/* Items in this category */}
+                {/* Items in this category — two columns */}
                 {sels.map(sel => {
                   const selectedArr = Array.isArray(sel.selected) ? sel.selected : (sel.selected ? [sel.selected] : []);
-                  const selectedOptions = (sel.options || []).filter(o => {
-                    const name = typeof o === 'object' ? o.name : o;
-                    return selectedArr.includes(name);
-                  });
                   return (
                     <View key={sel.project_selection_id || sel.id}
-                      style={{ paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: C.w06 }}>
-                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                        <Text style={{ fontSize: 17, fontWeight: '600', color: C.text, flex: 1 }}>{sel.item}</Text>
-                        <Text style={{ fontSize: 17, color: C.gd, fontWeight: '600', flexShrink: 0, marginLeft: 12 }}>
+                      style={{ flexDirection: 'row', paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: C.w06 }}>
+                      <Text style={{ fontSize: 17, fontWeight: '600', color: C.text, flex: 1 }}>{sel.item}</Text>
+                      <View style={{ flex: 1, alignItems: 'flex-end' }}>
+                        <Text style={{ fontSize: 17, color: C.gd, fontWeight: '600', textAlign: 'right' }}>
                           {selectedArr.join(', ') || '—'}
                         </Text>
+                        {sel.customer_comment ? (
+                          <Text style={{ fontSize: 14, color: C.dm, fontStyle: 'italic', marginTop: 3, textAlign: 'right' }}>{sel.customer_comment}</Text>
+                        ) : null}
                       </View>
-                      {/* Show price info for selected options */}
-                      {selectedOptions.map((opt, oi) => {
-                        const isObj = typeof opt === 'object';
-                        const price = isObj ? opt.price : null;
-                        const standard = isObj ? opt.comes_standard : false;
-                        const priceTbd = isObj ? opt.price_tbd : false;
-                        const desc = isObj ? opt.description : null;
-                        return (
-                          <View key={oi}>
-                            {standard ? (
-                              <Text style={{ fontSize: 15, color: C.gn, marginTop: 2 }}>Standard</Text>
-                            ) : priceTbd ? (
-                              <Text style={{ fontSize: 15, color: '#f59e0b', marginTop: 2 }}>
-                                Price TBD{sel.price_override != null ? ` — Set: ${f$(sel.price_override)}` : ''}
-                              </Text>
-                            ) : price != null && price > 0 ? (
-                              <Text style={{ fontSize: 15, color: C.mt, marginTop: 2 }}>+{f$(price)}</Text>
-                            ) : null}
-                            {desc ? (
-                              <Text style={{ fontSize: 14, color: C.dm, marginTop: 2 }}>{desc}</Text>
-                            ) : null}
-                          </View>
-                        );
-                      })}
-                      {sel.customer_comment ? (
-                        <Text style={{ fontSize: 14, color: C.dm, fontStyle: 'italic', marginTop: 4 }}>Note: {sel.customer_comment}</Text>
-                      ) : null}
                     </View>
                   );
                 })}
