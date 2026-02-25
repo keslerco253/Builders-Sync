@@ -1491,7 +1491,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
       };
 
       return (
-        <ScrollView style={{ flex: 1 }} contentContainerStyle={[s.scroll, { maxWidth: 1200 }]}>
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={[s.scroll, { maxWidth: windowWidth * 0.9 }]}>
           {schedule.length === 0 ? (
             <View style={{ alignItems: 'center', paddingVertical: 40 }}>
               <Text style={{ fontSize: 40, marginBottom: 10 }}>📋</Text>
