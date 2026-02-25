@@ -6063,7 +6063,8 @@ const SelectionManagerModal = ({ onClose, builderTrades = [] }) => {
   // Create form state
   const [trade, setTrade] = useState('');
   const [itemName, setItemName] = useState('');
-  const [options, setOptions] = useState([{ name: '', image_b64: '', image_path: '', price: '', comes_standard: false }]);
+  const [allowMultiple, setAllowMultiple] = useState(false);
+  const [options, setOptions] = useState([{ name: '', image_b64: '', image_path: '', price: '', comes_standard: false, price_tbd: false }]);
   const [saving, setSaving] = useState(false);
   const [editingId, setEditingId] = useState(null);
 
@@ -6111,20 +6112,21 @@ const SelectionManagerModal = ({ onClose, builderTrades = [] }) => {
     return '';
   };
 
-  const addOption = () => setOptions(prev => [...prev, { name: '', image_b64: '', image_path: '', price: '', comes_standard: false }]);
+  const addOption = () => setOptions(prev => [...prev, { name: '', image_b64: '', image_path: '', price: '', comes_standard: false, price_tbd: false }]);
   const removeOption = (idx) => setOptions(prev => prev.filter((_, i) => i !== idx));
   const updateOption = (idx, field, val) => {
     setOptions(prev => prev.map((o, i) => {
       if (i !== idx) return o;
       const updated = { ...o, [field]: val };
-      if (field === 'comes_standard' && val) updated.price = '0';
+      if (field === 'comes_standard' && val) { updated.price = '0'; updated.price_tbd = false; }
+      if (field === 'price_tbd' && val) { updated.price = '0'; updated.comes_standard = false; }
       return updated;
     }));
   };
 
   const resetForm = () => {
-    setTrade(''); setItemName('');
-    setOptions([{ name: '', image_b64: '', image_path: '', price: '', comes_standard: false }]);
+    setTrade(''); setItemName(''); setAllowMultiple(false);
+    setOptions([{ name: '', image_b64: '', image_path: '', price: '', comes_standard: false, price_tbd: false }]);
     setEditingId(null);
   };
 
@@ -6143,11 +6145,12 @@ const SelectionManagerModal = ({ onClose, builderTrades = [] }) => {
         }
         cleanOptions.push({
           name: o.name, image_path: imgPath,
-          price: o.comes_standard ? 0 : parseFloat(o.price) || 0,
+          price: (o.comes_standard || o.price_tbd) ? 0 : parseFloat(o.price) || 0,
           comes_standard: !!o.comes_standard,
+          price_tbd: !!o.price_tbd,
         });
       }
-      const body = { category: trade, item: itemName, options: cleanOptions, user_id: user.id };
+      const body = { category: trade, item: itemName, options: cleanOptions, user_id: user.id, allow_multiple: allowMultiple };
       const path = editingId ? `/selection-items/${editingId}` : `/selection-items`;
       const method = editingId ? 'PUT' : 'POST';
       const res = await apiFetch(path, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
@@ -6174,9 +6177,10 @@ const SelectionManagerModal = ({ onClose, builderTrades = [] }) => {
     setEditingId(item.id);
     setTrade(item.category || '');
     setItemName(item.item);
+    setAllowMultiple(!!item.allow_multiple);
     setOptions((item.options || []).map(o => ({
       name: o.name || '', image_b64: '', image_path: o.image_path || '',
-      price: String(o.price || ''), comes_standard: !!o.comes_standard,
+      price: String(o.price || ''), comes_standard: !!o.comes_standard, price_tbd: !!o.price_tbd,
     })));
     setView('create');
   };
@@ -6228,7 +6232,14 @@ const SelectionManagerModal = ({ onClose, builderTrades = [] }) => {
                         }}>
                           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                             <View style={{ flex: 1 }}>
-                              <Text style={{ fontSize: 22, fontWeight: '600', color: C.text }}>{item.item}</Text>
+                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                                <Text style={{ fontSize: 22, fontWeight: '600', color: C.text }}>{item.item}</Text>
+                                {item.allow_multiple && (
+                                  <View style={{ backgroundColor: C.bH12, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 5 }}>
+                                    <Text style={{ fontSize: 13, fontWeight: '700', color: C.gd }}>MULTI</Text>
+                                  </View>
+                                )}
+                              </View>
                               <Text style={{ fontSize: 18, color: C.dm, marginTop: 2 }}>{(item.options || []).length} option{(item.options || []).length !== 1 ? 's' : ''}</Text>
                             </View>
                             <View style={{ flexDirection: 'row', gap: 10 }}>
@@ -6282,7 +6293,23 @@ const SelectionManagerModal = ({ onClose, builderTrades = [] }) => {
                 )}
               </View>
 
-              <Inp2 label="ITEM NAME" value={itemName} onChange={setItemName} placeholder="e.g., Master Bath Countertop" />
+              <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 14, marginBottom: 4 }}>
+                <View style={{ flex: 1 }}>
+                  <Inp2 label="ITEM NAME" value={itemName} onChange={setItemName} placeholder="e.g., Master Bath Countertop" />
+                </View>
+                <TouchableOpacity onPress={() => setAllowMultiple(!allowMultiple)}
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingBottom: 12 }} activeOpacity={0.7}>
+                  <View style={{
+                    width: 28, height: 28, borderRadius: 7, borderWidth: 2,
+                    borderColor: allowMultiple ? C.gd : C.w15,
+                    backgroundColor: allowMultiple ? C.gd : 'transparent',
+                    alignItems: 'center', justifyContent: 'center',
+                  }}>
+                    {allowMultiple && <Text style={{ color: '#fff', fontSize: 16, fontWeight: '700' }}>✓</Text>}
+                  </View>
+                  <Text style={{ fontSize: 18, color: C.text }}>Select Multiple?</Text>
+                </TouchableOpacity>
+              </View>
 
               {/* Options */}
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
@@ -6343,7 +6370,23 @@ const SelectionManagerModal = ({ onClose, builderTrades = [] }) => {
                     <Text style={{ fontSize: 21, color: C.text }}>Comes Standard</Text>
                   </TouchableOpacity>
 
+                  {/* Price TBD checkbox */}
                   {!opt.comes_standard && (
+                    <TouchableOpacity onPress={() => updateOption(idx, 'price_tbd', !opt.price_tbd)}
+                      style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 }} activeOpacity={0.7}>
+                      <View style={{
+                        width: 33, height: 33, borderRadius: 9, borderWidth: 2,
+                        borderColor: opt.price_tbd ? '#f59e0b' : C.w15,
+                        backgroundColor: opt.price_tbd ? '#f59e0b' : 'transparent',
+                        alignItems: 'center', justifyContent: 'center',
+                      }}>
+                        {opt.price_tbd && <Text style={{ color: '#fff', fontSize: 20, fontWeight: '700' }}>✓</Text>}
+                      </View>
+                      <Text style={{ fontSize: 21, color: C.text }}>Price TBD</Text>
+                    </TouchableOpacity>
+                  )}
+
+                  {!opt.comes_standard && !opt.price_tbd && (
                     <Inp2 label="UPGRADE PRICE ($)" value={opt.price} onChange={v => updateOption(idx, 'price', v)} type="number" placeholder="0" />
                   )}
                 </View>
