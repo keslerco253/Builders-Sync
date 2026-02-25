@@ -318,9 +318,6 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
   useEffect(() => {
     if (project) setGoLive(!!project.go_live);
   }, [project?.id, project?.go_live]);
-  useEffect(() => {
-    if (project?.id && tab === 'info' && sub === 'jobinfo') fetchGoLiveSteps();
-  }, [project?.id, tab, sub]);
 
   const fetchGoLiveSteps = async () => {
     if (!project?.id) return;
@@ -470,6 +467,10 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
   const sub = _sub === 'list' ? 'calendar' : _sub;
   const _doTabChange = (v) => { if (onTabChange) onTabChange(v); else setLocalTab(v); };
   const _doSubChange = (v) => { if (onSubChange) onSubChange(v); else setLocalSub(v); };
+
+  useEffect(() => {
+    if (project?.id && tab === 'info' && sub === 'jobinfo') fetchGoLiveSteps();
+  }, [project?.id, tab, sub]);
 
   const checkUnsaved = (callback) => {
     if (!infoDirty || tab !== 'info' || _sub !== 'jobinfo') {
