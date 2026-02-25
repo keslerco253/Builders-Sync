@@ -229,6 +229,7 @@ class Projects(db.Model):
     on_hold = db.Column(db.Boolean, default=False)
     hold_start_date = db.Column(db.String(20), default='')
     hold_reason = db.Column(db.String(500), default='')
+    permit_number = db.Column(db.String(100), default='')
     subdivision_id = db.Column(db.Integer, db.ForeignKey('subdivision.id'), nullable=True)
     company_id = db.Column(db.Integer, db.ForeignKey('company.id'), nullable=True)
     date = db.Column(db.DateTime, default=datetime.utcnow)
@@ -268,6 +269,7 @@ class Projects(db.Model):
             'on_hold': bool(self.on_hold) if self.on_hold else False,
             'hold_start_date': self.hold_start_date or '',
             'hold_reason': self.hold_reason or '',
+            'permit_number': self.permit_number or '',
             'subdivision_id': self.subdivision_id,
             'company_id': self.company_id,
             'date': self.date.isoformat() if self.date else None,
@@ -1576,7 +1578,8 @@ def add_project():
                      'status', 'phase',
                      'start_date', 'est_completion', 'progress', 'original_price',
                      'contract_price', 'sqft', 'bedrooms', 'bathrooms', 'garage',
-                     'lot_size', 'style', 'stories', 'email', 'dates_from_schedule', 'go_live', 'subdivision_id'):
+                     'lot_size', 'style', 'stories', 'email', 'dates_from_schedule', 'go_live', 'subdivision_id',
+                     'permit_number'):
             if key in data:
                 setattr(p, key, data[key])
 
@@ -1653,7 +1656,8 @@ def update_project(project_id):
                  'status', 'phase', 'customer_id', 'customer_first_name', 'customer_last_name',
                  'start_date', 'est_completion', 'progress', 'original_price',
                  'contract_price', 'sqft', 'bedrooms', 'bathrooms', 'garage',
-                 'lot_size', 'style', 'stories', 'email', 'reconciliation', 'dates_from_schedule', 'go_live', 'subdivision_id'):
+                 'lot_size', 'style', 'stories', 'email', 'reconciliation', 'dates_from_schedule', 'go_live', 'subdivision_id',
+                 'permit_number'):
         if key in data:
             # Prevent un-toggling go_live once it's been set
             if key == 'go_live' and p.go_live and not data[key]:

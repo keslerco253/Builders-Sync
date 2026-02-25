@@ -303,7 +303,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
     customer_phone: '', email: '',
     start_date: '', sqft: '', bedrooms: '', bathrooms: '',
     garage: '', garage_sqft: '', lot_size: '', stories: '', story_details: [], original_price: '0', reconciliation: '0',
-    subdivision_id: null,
+    subdivision_id: null, permit_number: '',
   };
   const [editInfo, setEditInfo] = useState(INFO_DEFAULTS);
   const [infoDirty, setInfoDirty] = useState(false);
@@ -402,6 +402,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
         original_price: String(project.original_price || 0),
         reconciliation: String(project.reconciliation || 0),
         subdivision_id: project.subdivision_id || null,
+        permit_number: project.permit_number || '',
       });
       setInfoDirty(false);
     }
@@ -443,6 +444,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
         original_price: parseFloat(editInfo.original_price) || 0,
         reconciliation: parseFloat(editInfo.reconciliation) || 0,
         subdivision_id: editInfo.subdivision_id || null,
+        permit_number: editInfo.permit_number.trim(),
       };
       const res = await apiFetch(`/projects/${project.id}`, {
         method: 'PUT',
@@ -1110,6 +1112,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
                   </View>
                   <View style={{ flex: 1 }}>{infoField("ZIP", "zip_code", "numeric", "83616")}</View>
                 </View>
+                {infoField("PERMIT #", "permit_number", undefined, "BLD-2026-001234")}
               </Card>
             );
 
@@ -1498,14 +1501,96 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
 
     // --- INFO: JOB SPECIFICATIONS ---
     if (tab === 'info' && sub === 'specifications') {
+      const confirmedSpecs = selections.filter(sel => sel.status === 'confirmed');
+      const specsByCategory = {};
+      confirmedSpecs.forEach(sel => {
+        const cat = sel.category || 'Uncategorized';
+        if (!specsByCategory[cat]) specsByCategory[cat] = [];
+        specsByCategory[cat].push(sel);
+      });
+      const specCategories = Object.entries(specsByCategory);
+
       return (
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 40 }}>
-          <Text style={{ fontSize: 48, marginBottom: 16 }}>📐</Text>
-          <Text style={{ fontSize: 22, fontWeight: '700', color: C.textBold, marginBottom: 8 }}>Job Specifications</Text>
-          <Text style={{ fontSize: 16, color: C.dm, textAlign: 'center', maxWidth: 340 }}>
-            Job specifications for this project will appear here. This feature is coming soon.
-          </Text>
-        </View>
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
+          {/* Permit # header */}
+          <Card style={{ marginBottom: 18 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+              <Text style={{ fontSize: 15, fontWeight: '700', color: C.dm, letterSpacing: 0.8 }}>PERMIT #</Text>
+              <Text style={{ fontSize: 22, fontWeight: '600', color: C.text }}>{project?.permit_number || editInfo.permit_number || '—'}</Text>
+            </View>
+          </Card>
+
+          {/* Project info summary */}
+          <Card style={{ marginBottom: 18 }}>
+            <Text style={{ fontSize: 24, fontWeight: '700', color: C.textBold, marginBottom: 8 }}>{project?.name}</Text>
+            <Text style={{ fontSize: 17, color: C.dm }}>{project?.address || '—'}</Text>
+          </Card>
+
+          {/* Confirmed selections by category */}
+          {specCategories.length > 0 ? (
+            specCategories.map(([cat, sels]) => (
+              <View key={cat} style={{ marginBottom: 20 }}>
+                {/* Section header */}
+                <View style={{ backgroundColor: C.gd + '18', paddingHorizontal: 14, paddingVertical: 10, borderRadius: 8, marginBottom: 8 }}>
+                  <Text style={{ fontSize: 20, fontWeight: '700', color: C.gd }}>{cat}</Text>
+                </View>
+                {/* Items in this category */}
+                {sels.map(sel => {
+                  const selectedArr = Array.isArray(sel.selected) ? sel.selected : (sel.selected ? [sel.selected] : []);
+                  const selectedOptions = (sel.options || []).filter(o => {
+                    const name = typeof o === 'object' ? o.name : o;
+                    return selectedArr.includes(name);
+                  });
+                  return (
+                    <View key={sel.project_selection_id || sel.id}
+                      style={{ paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: C.w06 }}>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                        <Text style={{ fontSize: 17, fontWeight: '600', color: C.text, flex: 1 }}>{sel.item}</Text>
+                        <Text style={{ fontSize: 17, color: C.gd, fontWeight: '600', flexShrink: 0, marginLeft: 12 }}>
+                          {selectedArr.join(', ') || '—'}
+                        </Text>
+                      </View>
+                      {/* Show price info for selected options */}
+                      {selectedOptions.map((opt, oi) => {
+                        const isObj = typeof opt === 'object';
+                        const price = isObj ? opt.price : null;
+                        const standard = isObj ? opt.comes_standard : false;
+                        const priceTbd = isObj ? opt.price_tbd : false;
+                        const desc = isObj ? opt.description : null;
+                        return (
+                          <View key={oi}>
+                            {standard ? (
+                              <Text style={{ fontSize: 15, color: C.gn, marginTop: 2 }}>Standard</Text>
+                            ) : priceTbd ? (
+                              <Text style={{ fontSize: 15, color: '#f59e0b', marginTop: 2 }}>
+                                Price TBD{sel.price_override != null ? ` — Set: ${f$(sel.price_override)}` : ''}
+                              </Text>
+                            ) : price != null && price > 0 ? (
+                              <Text style={{ fontSize: 15, color: C.mt, marginTop: 2 }}>+{f$(price)}</Text>
+                            ) : null}
+                            {desc ? (
+                              <Text style={{ fontSize: 14, color: C.dm, marginTop: 2 }}>{desc}</Text>
+                            ) : null}
+                          </View>
+                        );
+                      })}
+                      {sel.customer_comment ? (
+                        <Text style={{ fontSize: 14, color: C.dm, fontStyle: 'italic', marginTop: 4 }}>Note: {sel.customer_comment}</Text>
+                      ) : null}
+                    </View>
+                  );
+                })}
+              </View>
+            ))
+          ) : (
+            <View style={{ alignItems: 'center', padding: 40 }}>
+              <Text style={{ fontSize: 48, marginBottom: 16 }}>📐</Text>
+              <Text style={{ fontSize: 18, color: C.dm, textAlign: 'center' }}>
+                No confirmed selections yet. Confirmed selections will appear here grouped by category.
+              </Text>
+            </View>
+          )}
+        </ScrollView>
       );
     }
 
