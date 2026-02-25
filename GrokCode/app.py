@@ -83,7 +83,7 @@ class LoginInfo(db.Model):
     password = db.Column(db.String(255), nullable=False)
     role = db.Column(db.String(20), nullable=False, default='builder')  # admin | company_admin | builder | contractor | customer
     phone = db.Column(db.String(30), default='')
-    trades = db.Column(db.String(255), default='')
+    trades = db.Column(db.Text, default='')
     street_address = db.Column(db.String(200), default='')
     city = db.Column(db.String(100), default='')
     state = db.Column(db.String(2), default='')
@@ -3255,6 +3255,14 @@ def auto_migrate():
         db.session.execute(text("ALTER TABLE documents MODIFY COLUMN job_id INTEGER NULL"))
         db.session.commit()
         changes.append("MODIFY documents.job_id to NULLABLE")
+    except Exception:
+        db.session.rollback()
+
+    # Widen trades column from VARCHAR(255) to TEXT for long trade lists
+    try:
+        db.session.execute(text("ALTER TABLE login_info MODIFY COLUMN trades TEXT"))
+        db.session.commit()
+        changes.append("WIDEN login_info.trades to TEXT")
     except Exception:
         db.session.rollback()
 
