@@ -2941,8 +2941,15 @@ def edit_schedule_with_reason(item_id):
         )
         db.session.add(log)
 
-    # Cascade dependents: recalculate all tasks that depend on this one
-    all_items = Schedule.query.filter_by(job_id=item.job_id).all()
+    # Propagate contractor change to all tasks with the same trade in this project
+    contractor_changed = any(c['field'] == 'contractor' for c in changes)
+    if contractor_changed and item.trade:
+        all_items = Schedule.query.filter_by(job_id=item.job_id).all()
+        for t in all_items:
+            if t.id != item.id and t.trade == item.trade and t.contractor != item.contractor:
+                t.contractor = item.contractor
+    else:
+        all_items = Schedule.query.filter_by(job_id=item.job_id).all()
     by_id = {t.id: t for t in all_items}
     # Iteratively resolve
     for _ in range(len(all_items) + 1):
