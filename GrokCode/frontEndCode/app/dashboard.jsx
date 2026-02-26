@@ -455,6 +455,7 @@ export default function Dashboard() {
   useFocusEffect(useCallback(() => {
     if (isContractor) {
       fetchOwnSubProfile();
+      fetchSubdivisions();
       if (user?.id) {
         apiFetch(`/users/${user.id}/change-orders`)
           .then(r => r.json())
@@ -918,7 +919,7 @@ export default function Dashboard() {
   const renderSubdivisionDetail = () => {
     if (!selectedSubdivision) return null;
     const sdProjects = projects.filter(p => p.subdivision_id === selectedSubdivision.id);
-    const tabs = [['subs', 'Subcontractors'], ['docs', 'Docs']];
+    const tabs = isContractor ? [['docs', 'Docs']] : [['subs', 'Subcontractors'], ['docs', 'Docs']];
 
     return (
       <View style={{ flex: 1, backgroundColor: C.bg }}>
@@ -2996,10 +2997,17 @@ export default function Dashboard() {
                       <Text style={{ fontSize: 18, fontWeight: '600', color: C.text }}>Make a Change Order</Text>
                       <Text style={{ marginLeft: 'auto', fontSize: 18, color: C.dm }}>›</Text>
                     </TouchableOpacity>
-                    {!isContractor && taskActionPopup.project.subdivision_id && (
+                    {taskActionPopup.project.subdivision_id && (
                       <TouchableOpacity onPress={() => {
                         const sd = subdivisions.find(s => s.id === taskActionPopup.project.subdivision_id);
-                        if (sd) { closeTaskActionPopup(); setDashView('projects'); setSelectedProject(null); selectSubdivision(sd); setSubdivTab('docs'); }
+                        if (sd) {
+                          closeTaskActionPopup();
+                          if (isContractor) { setContractorProject(null); }
+                          setDashView('projects');
+                          setSelectedProject(null);
+                          selectSubdivision(sd);
+                          setSubdivTab('docs');
+                        }
                       }}
                         style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, paddingHorizontal: 16 }} activeOpacity={0.7}>
                         <Feather name="folder" size={20} color={C.text} />
@@ -4539,6 +4547,17 @@ export default function Dashboard() {
               calMonth={globalCalMonth.getMonth()}
               onMonthChange={(y, m) => setGlobalCalMonth(new Date(y, m, 1))}
             />
+          </View>
+        ) : selectedSubdivision ? (
+          <View style={{ flex: 1, minHeight: 0 }}>
+            <TouchableOpacity
+              onPress={() => setSelectedSubdivision(null)}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 6, padding: 12, borderBottomWidth: 1, borderBottomColor: C.bd }}
+            >
+              <Text style={{ fontSize: 27, color: C.gd }}>‹</Text>
+              <Text style={{ fontSize: 20, color: C.gd, fontWeight: '600' }}>Back to My Dashboard</Text>
+            </TouchableOpacity>
+            {renderSubdivisionDetail()}
           </View>
         ) : (
           loading ? (
