@@ -3,6 +3,7 @@ import {
   View, Text, TextInput, TouchableOpacity, Alert,
   StyleSheet, ScrollView, KeyboardAvoidingView, Platform, StatusBar,
 } from 'react-native';
+import Feather from '@expo/vector-icons/Feather';
 import { AuthContext, ThemeContext, API_BASE, setAuthToken } from './context';
 
 export const LoginScreen = ({ navigation }) => {
@@ -60,7 +61,7 @@ export const LoginScreen = ({ navigation }) => {
         {/* Logo & Branding */}
         <View style={styles.brandContainer}>
           <View style={styles.logoBox}>
-            <Text style={styles.logoIcon}>⬡</Text>
+            <Feather name="hexagon" size={26} color={styles.logoIcon.color} />
           </View>
           <Text style={styles.brandName}>BuilderSync</Text>
           <Text style={styles.brandTagline}>Construction Project Management</Text>
@@ -106,7 +107,7 @@ export const LoginScreen = ({ navigation }) => {
                 style={styles.eyeButton}
                 onPress={() => setShowPassword(!showPassword)}
               >
-                <Text style={styles.eyeText}>{showPassword ? '◉' : '◎'}</Text>
+                <Feather name={showPassword ? 'eye' : 'eye-off'} size={18} color={styles.eyeText.color} />
               </TouchableOpacity>
             </View>
           </View>
@@ -131,7 +132,7 @@ export const LoginScreen = ({ navigation }) => {
 
         {/* Security badge */}
         <View style={styles.securityRow}>
-          <Text style={styles.lockIcon}>🔒</Text>
+          <Feather name="lock" size={12} color={styles.securityText.color} />
           <Text style={styles.securityText}>256-bit SSL Encrypted · SOC 2 Compliant</Text>
         </View>
 

@@ -2,6 +2,7 @@ import React, { useState, useMemo, useRef } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, Modal,
 } from 'react-native';
+import Feather from '@expo/vector-icons/Feather';
 import { ThemeContext } from './context';
 
 const DAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
@@ -89,7 +90,7 @@ export default function DatePicker({ value, onChange, label, placeholder, style:
 
       {/* Trigger button */}
       <TouchableOpacity onPress={handleOpen} style={st.trigger} activeOpacity={0.7}>
-        <Text style={st.calIcon}>📅</Text>
+        <Feather name="calendar" size={16} color={C.gd} />
         <Text style={[st.triggerTxt, !value && st.placeholderTxt]}>
           {value ? displayDate(value) : (placeholder || 'Select date')}
         </Text>

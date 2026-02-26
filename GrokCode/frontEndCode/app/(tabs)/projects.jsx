@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import {useNavigation} from '@react-navigation/native';
+import Feather from '@expo/vector-icons/Feather';
 
 const ProjectsListScreen = () => {
   const navigation = useNavigation();
@@ -93,7 +94,7 @@ const ProjectsListScreen = () => {
   if (error) {
     return (
       <View style={styles.center}>
-        <Text style={styles.errorIcon}>⚠</Text>
+        <Feather name="alert-triangle" size={32} color="#ef4444" />
         <Text style={styles.errorText}>{error}</Text>
         <TouchableOpacity style={styles.retryButton} onPress={fetchProjects} activeOpacity={0.8}>
           <Text style={styles.retryButtonText}>Retry</Text>
@@ -115,7 +116,7 @@ const ProjectsListScreen = () => {
         renderSectionHeader={renderSectionHeader}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
-            <Text style={styles.emptyIcon}>📋</Text>
+            <Feather name="clipboard" size={48} color="#888" />
             <Text style={styles.emptyText}>No projects found</Text>
             <Text style={styles.emptySubtext}>Create a new project to get started</Text>
           </View>
