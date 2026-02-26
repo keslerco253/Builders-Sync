@@ -302,10 +302,12 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
   const INFO_DEFAULTS = {
     name: '', number: '', street_address: '', city: '', addr_state: '', zip_code: '',
     customer_phone: '', email: '',
+    homeowner2_first_name: '', homeowner2_last_name: '', homeowner2_phone: '', homeowner2_email: '',
     start_date: '', sqft: '', bedrooms: '', bathrooms: '',
     garage: '', garage_sqft: '', lot_size: '', stories: '', story_details: [], original_price: '0', reconciliation: '0',
     subdivision_id: null, permit_number: '', plan_name: '',
   };
+  const [showHomeowner2, setShowHomeowner2] = useState(false);
   const [editInfo, setEditInfo] = useState(INFO_DEFAULTS);
   const [infoDirty, setInfoDirty] = useState(false);
   const [infoSaving, setInfoSaving] = useState(false);  const [showAddrState, setShowAddrState] = useState(false);
@@ -403,6 +405,10 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
         customer_first_name: project.customer_first_name || '',
         customer_last_name: project.customer_last_name || '',
         customer_phone: project.customer_phone || '',
+        homeowner2_first_name: project.homeowner2_first_name || '',
+        homeowner2_last_name: project.homeowner2_last_name || '',
+        homeowner2_phone: project.homeowner2_phone || '',
+        homeowner2_email: project.homeowner2_email || '',
         start_date: project.start_date || '',
         sqft: String(project.sqft || ''),
         bedrooms: String(project.bedrooms || ''),
@@ -419,6 +425,9 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
         plan_name: project.plan_name || '',
       });
       setInfoDirty(false);
+      if (project.homeowner2_first_name || project.homeowner2_last_name || project.homeowner2_phone || project.homeowner2_email) {
+        setShowHomeowner2(true);
+      }
     }
   }, [project?.id]);
 
@@ -439,6 +448,10 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
         zip_code: editInfo.zip_code.trim(),
         email: editInfo.email.trim(),
         customer_phone: editInfo.customer_phone.trim(),
+        homeowner2_first_name: editInfo.homeowner2_first_name.trim(),
+        homeowner2_last_name: editInfo.homeowner2_last_name.trim(),
+        homeowner2_phone: editInfo.homeowner2_phone.trim(),
+        homeowner2_email: editInfo.homeowner2_email.trim(),
         start_date: editInfo.start_date,
         est_completion: (() => {
           if (!editInfo.start_date) return '';
@@ -1097,6 +1110,36 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
                 </View>
                 {infoField("PHONE", "customer_phone", "phone-pad", "(208) 555-1234")}
                 {infoField("EMAIL", "email", "email-address", "client@email.com")}
+                {showHomeowner2 ? (
+                  <View style={{ marginBottom: 14, padding: 14, backgroundColor: C.w04, borderRadius: 10, borderWidth: 1, borderColor: C.w08 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                      <Text style={{ fontSize: 15, fontWeight: '700', color: C.textBold }}>Additional Homeowner</Text>
+                      {isB && (
+                        <TouchableOpacity onPress={() => {
+                          setShowHomeowner2(false);
+                          setField('homeowner2_first_name', '');
+                          setField('homeowner2_last_name', '');
+                          setField('homeowner2_phone', '');
+                          setField('homeowner2_email', '');
+                        }} activeOpacity={0.7}>
+                          <Feather name="x" size={18} color={C.dm} />
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                    <View style={{ flexDirection: 'row', gap: 12 }}>
+                      <View style={{ flex: 1 }}>{infoField("FIRST NAME", "homeowner2_first_name", undefined, "Jane")}</View>
+                      <View style={{ flex: 1 }}>{infoField("LAST NAME", "homeowner2_last_name", undefined, "Parker")}</View>
+                    </View>
+                    {infoField("PHONE", "homeowner2_phone", "phone-pad", "(208) 555-5678")}
+                    {infoField("EMAIL", "homeowner2_email", "email-address", "homeowner2@email.com")}
+                  </View>
+                ) : isB ? (
+                  <TouchableOpacity onPress={() => setShowHomeowner2(true)} activeOpacity={0.7}
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 14, paddingVertical: 8 }}>
+                    <Feather name="plus-circle" size={18} color={C.gd} />
+                    <Text style={{ fontSize: 16, fontWeight: '600', color: C.gd }}>Add Homeowner</Text>
+                  </TouchableOpacity>
+                ) : null}
                 {infoField("STREET ADDRESS", "street_address", undefined, "1245 Oakwood Dr")}
                 <View style={{ flexDirection: 'row', gap: 12, zIndex: 10 }}>
                   <View style={{ flex: 2 }}>{infoField("CITY", "city", undefined, "Eagle")}</View>
