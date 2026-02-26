@@ -5647,7 +5647,7 @@ const NewProjectModal = ({ onClose, onCreated, subdivisions = [], builderTrades 
                                   style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 11, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: C.w04,
                                     ...(isActive ? { backgroundColor: 'rgba(59,130,246,0.12)' } : {}) }} activeOpacity={0.7}>
                                   <Text style={{ fontSize: 17, color: isActive ? C.bl : C.text, fontWeight: isActive ? '600' : '400' }}>{trade}</Text>
-                                  {isActive && <Text style={{ fontSize: 19, color: C.bl }}>✓</Text>}
+                                  {isActive && <Feather name="check" size={19} color={C.bl} />}
                                 </TouchableOpacity>
                               );
                             })}
@@ -5777,11 +5777,14 @@ const NewSubModal = ({ onClose, onCreated, tradesList }) => {
           {/* Header */}
           <View style={st.exHeader}>
             <View>
-              <Text style={st.exTitle}>👷 Add Subcontractor</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Feather name="user" size={20} color={C.textBold} />
+                <Text style={st.exTitle}>Add Subcontractor</Text>
+              </View>
               <Text style={st.exSubtitle}>Account created with default password: Liberty1</Text>
             </View>
             <TouchableOpacity onPress={onClose} style={st.exCloseBtn}>
-              <Text style={st.exCloseTxt}>✕</Text>
+              <Feather name="x" size={21} color={C.mt} />
             </TouchableOpacity>
           </View>
 
@@ -5884,7 +5887,7 @@ const NewSubModal = ({ onClose, onCreated, tradesList }) => {
                       style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(59,130,246,0.12)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 }}
                       activeOpacity={0.7}>
                       <Text style={{ fontSize: 14, color: C.bl, fontWeight: '600' }}>{trade}</Text>
-                      <Text style={{ fontSize: 13, color: C.bl }}>✕</Text>
+                      <Feather name="x" size={13} color={C.bl} />
                     </TouchableOpacity>
                   ))}
                 </View>
@@ -5938,7 +5941,7 @@ const NewSubModal = ({ onClose, onCreated, tradesList }) => {
                         backgroundColor: on ? 'rgba(59,130,246,0.12)' : 'transparent' }}
                       activeOpacity={0.7}>
                       <Text style={{ fontSize: 17, color: on ? C.bl : C.text, fontWeight: on ? '600' : '400' }}>{trade}</Text>
-                      {on && <Text style={{ fontSize: 19, color: C.bl }}>✓</Text>}
+                      {on && <Feather name="check" size={19} color={C.bl} />}
                     </TouchableOpacity>
                   );
                 })}
@@ -6039,9 +6042,12 @@ const DocumentManagerModal = ({ onClose }) => {
       <View style={st.exOverlay}>
         <View style={[st.exBox, { maxWidth: 560, maxHeight: '94%' }]}>
           <View style={st.exHeader}>
-            <Text style={st.exTitle}>📄 Manage Documents</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Feather name="file-text" size={20} color={C.textBold} />
+              <Text style={st.exTitle}>Manage Documents</Text>
+            </View>
             <TouchableOpacity onPress={onClose} style={st.exCloseBtn}>
-              <Text style={st.exCloseTxt}>✕</Text>
+              <Feather name="x" size={21} color={C.mt} />
             </TouchableOpacity>
           </View>
 
@@ -6062,7 +6068,7 @@ const DocumentManagerModal = ({ onClose }) => {
                       ? { borderColor: C.gd, backgroundColor: C.bH12 }
                       : { borderColor: C.w08 }
                   ]} activeOpacity={0.7}>
-                  <Text style={{ fontSize: 20, marginBottom: 2 }}>{t === 'file' ? '📄' : '📁'}</Text>
+                  <Feather name={t === 'file' ? 'file-text' : 'folder'} size={20} color={docType === t ? C.gd : C.mt} style={{ marginBottom: 2 }} />
                   <Text style={{ fontSize: 16, fontWeight: '600', color: docType === t ? C.gd : C.mt }}>
                     {t === 'file' ? 'File' : 'Folder'}
                   </Text>
@@ -6096,7 +6102,7 @@ const DocumentManagerModal = ({ onClose }) => {
               <ActivityIndicator color={C.gd} style={{ marginTop: 30 }} />
             ) : templates.length === 0 ? (
               <View style={{ alignItems: 'center', paddingVertical: 40 }}>
-                <Text style={{ fontSize: 42, marginBottom: 8 }}>📋</Text>
+                <Feather name="clipboard" size={42} color={C.dm} style={{ marginBottom: 8 }} />
                 <Text style={{ fontSize: 20, fontWeight: '600', color: C.textBold }}>No document templates</Text>
                 <Text style={{ fontSize: 16, color: C.dm, marginTop: 4, textAlign: 'center' }}>
                   Add required documents above. Choose where they apply — projects, subdivisions, or both.
@@ -6108,7 +6114,7 @@ const DocumentManagerModal = ({ onClose }) => {
                   flexDirection: 'row', alignItems: 'center', gap: 12,
                   backgroundColor: C.w06, borderRadius: 10, padding: 14, marginBottom: 8,
                 }}>
-                  <Text style={{ fontSize: 22 }}>{t.doc_type === 'folder' ? '📁' : '📄'}</Text>
+                  <Feather name={t.doc_type === 'folder' ? 'folder' : 'file-text'} size={22} color={C.dm} />
                   <View style={{ flex: 1 }}>
                     <Text style={{ fontSize: 18, fontWeight: '600', color: C.text }}>{t.name}</Text>
                     <Text style={{ fontSize: 14, color: C.dm, marginTop: 2 }}>
@@ -6117,7 +6123,7 @@ const DocumentManagerModal = ({ onClose }) => {
                   </View>
                   <TouchableOpacity onPress={() => deleteTemplate(t.id)}
                     style={{ padding: 6 }} activeOpacity={0.6}>
-                    <Text style={{ fontSize: 18, color: C.rd }}>🗑</Text>
+                    <Feather name="trash-2" size={18} color={C.rd} />
                   </TouchableOpacity>
                 </View>
               ))
@@ -6197,7 +6203,7 @@ const SubdivisionUploadModal = ({ subdivision, user, templateId, templateName, o
           <View style={st.exHeader}>
             <Text style={st.exTitle}>{templateName ? `Upload: ${templateName}` : 'Upload Document'}</Text>
             <TouchableOpacity onPress={onClose} style={st.exCloseBtn}>
-              <Text style={st.exCloseTxt}>✕</Text>
+              <Feather name="x" size={21} color={C.mt} />
             </TouchableOpacity>
           </View>
           <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16 }}>
@@ -6209,7 +6215,7 @@ const SubdivisionUploadModal = ({ subdivision, user, templateId, templateName, o
               }}>
               {fileData ? (
                 <View style={{ alignItems: 'center' }}>
-                  <Text style={{ fontSize: 36, marginBottom: 6, color: C.gn }}>✓</Text>
+                  <Feather name="check" size={36} color={C.gn} style={{ marginBottom: 6 }} />
                   <Text style={{ color: C.gn, fontSize: 18, fontWeight: '600' }}>{fileData.originalName}</Text>
                   <Text style={{ color: C.dm, fontSize: 15, marginTop: 2 }}>
                     {fileData.size < 1024 * 1024 ? `${(fileData.size / 1024).toFixed(1)} KB` : `${(fileData.size / (1024 * 1024)).toFixed(1)} MB`}
@@ -6410,9 +6416,12 @@ const SelectionManagerModal = ({ onClose, builderTrades = [] }) => {
       <View style={st.exOverlay}>
         <View style={[st.exBox, { maxWidth: 640, maxHeight: '94%' }]}>
           <View style={st.exHeader}>
-            <Text style={st.exTitle}>🎨 {view === 'list' ? 'Manage Selections' : (editingId ? 'Edit Selection' : 'New Selection')}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Feather name="sliders" size={20} color={C.textBold} />
+              <Text style={st.exTitle}>{view === 'list' ? 'Manage Selections' : (editingId ? 'Edit Selection' : 'New Selection')}</Text>
+            </View>
             <TouchableOpacity onPress={() => { if (view === 'create') { resetForm(); setView('list'); } else onClose(); }} style={st.exCloseBtn}>
-              <Text style={st.exCloseTxt}>{view === 'create' ? '‹' : '✕'}</Text>
+              <Feather name={view === 'create' ? 'chevron-left' : 'x'} size={21} color={C.mt} />
             </TouchableOpacity>
           </View>
 
@@ -6429,7 +6438,7 @@ const SelectionManagerModal = ({ onClose, builderTrades = [] }) => {
                   <ActivityIndicator color={C.gd} style={{ marginTop: 40 }} />
                 ) : items.length === 0 ? (
                   <View style={{ alignItems: 'center', paddingVertical: 50 }}>
-                    <Text style={{ fontSize: 42, marginBottom: 8 }}>🎨</Text>
+                    <Feather name="sliders" size={42} color={C.dm} style={{ marginBottom: 8 }} />
                     <Text style={{ color: C.mt, fontSize: 21, fontWeight: '600' }}>No selections yet</Text>
                     <Text style={{ color: C.dm, fontSize: 18, marginTop: 4 }}>Create selections for customers to choose from</Text>
                   </View>
@@ -6471,7 +6480,7 @@ const SelectionManagerModal = ({ onClose, builderTrades = [] }) => {
                                   <Image source={{ uri: `${API_BASE}${opt.image_path}` }} style={{ width: 105, height: 75, borderRadius: 9 }} resizeMode="cover" />
                                 ) : (
                                   <View style={{ width: 105, height: 75, borderRadius: 9, backgroundColor: C.w06, alignItems: 'center', justifyContent: 'center' }}>
-                                    <Text style={{ fontSize: 24, opacity: 0.3 }}>📷</Text>
+                                    <Feather name="camera" size={24} color={C.dm} style={{ opacity: 0.3 }} />
                                   </View>
                                 )}
                                 <Text style={{ fontSize: 15, color: C.mt, marginTop: 3, textAlign: 'center' }} numberOfLines={1}>{opt.name}</Text>
@@ -6517,7 +6526,7 @@ const SelectionManagerModal = ({ onClose, builderTrades = [] }) => {
                     backgroundColor: allowMultiple ? C.gd : 'transparent',
                     alignItems: 'center', justifyContent: 'center',
                   }}>
-                    {allowMultiple && <Text style={{ color: '#fff', fontSize: 16, fontWeight: '700' }}>✓</Text>}
+                    {allowMultiple && <Feather name="check" size={16} color="#fff" />}
                   </View>
                   <Text style={{ fontSize: 18, color: C.text }}>Select Multiple?</Text>
                 </TouchableOpacity>
@@ -6578,7 +6587,7 @@ const SelectionManagerModal = ({ onClose, builderTrades = [] }) => {
                       backgroundColor: opt.comes_standard ? C.gd : 'transparent',
                       alignItems: 'center', justifyContent: 'center',
                     }}>
-                      {opt.comes_standard && <Text style={{ color: '#fff', fontSize: 20, fontWeight: '700' }}>✓</Text>}
+                      {opt.comes_standard && <Feather name="check" size={20} color="#fff" />}
                     </View>
                     <Text style={{ fontSize: 21, color: C.text }}>Comes Standard</Text>
                   </TouchableOpacity>
@@ -6593,7 +6602,7 @@ const SelectionManagerModal = ({ onClose, builderTrades = [] }) => {
                         backgroundColor: opt.price_tbd ? '#f59e0b' : 'transparent',
                         alignItems: 'center', justifyContent: 'center',
                       }}>
-                        {opt.price_tbd && <Text style={{ color: '#fff', fontSize: 20, fontWeight: '700' }}>✓</Text>}
+                        {opt.price_tbd && <Feather name="check" size={20} color="#fff" />}
                       </View>
                       <Text style={{ fontSize: 21, color: C.text }}>Price TBD</Text>
                     </TouchableOpacity>
@@ -6691,11 +6700,14 @@ const WorkdayExemptionsModal = ({ onClose }) => {
           {/* Header */}
           <View style={st.exHeader}>
             <View>
-              <Text style={st.exTitle}>🗓️ Workday Exemptions</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Feather name="calendar" size={20} color={C.textBold} />
+                <Text style={st.exTitle}>Workday Exemptions</Text>
+              </View>
               <Text style={st.exSubtitle}>Days excluded from schedule calculations</Text>
             </View>
             <TouchableOpacity onPress={onClose} style={st.exCloseBtn}>
-              <Text style={st.exCloseTxt}>✕</Text>
+              <Feather name="x" size={21} color={C.mt} />
             </TouchableOpacity>
           </View>
 
@@ -6727,7 +6739,7 @@ const WorkdayExemptionsModal = ({ onClose }) => {
                 activeOpacity={0.7}
               >
                 <View style={[st.exCheckbox, newRecurring && st.exCheckboxOn]}>
-                  {newRecurring && <Text style={st.exCheckmark}>✓</Text>}
+                  {newRecurring && <Feather name="check" size={18} color={C.textBold} />}
                 </View>
                 <Text style={st.exRecurLabel}>Annual</Text>
               </TouchableOpacity>
@@ -6749,7 +6761,7 @@ const WorkdayExemptionsModal = ({ onClose }) => {
               </View>
             ) : exemptions.length === 0 ? (
               <View style={{ paddingVertical: 40, alignItems: 'center' }}>
-                <Text style={{ fontSize: 48, marginBottom: 8 }}>📅</Text>
+                <Feather name="calendar" size={48} color={C.dm} style={{ marginBottom: 8 }} />
                 <Text style={{ fontSize: 22, fontWeight: '600', color: C.text }}>No exemptions yet</Text>
                 <Text style={{ fontSize: 18, color: C.dm, marginTop: 4 }}>Add holidays or non-work days above</Text>
               </View>
@@ -6772,13 +6784,16 @@ const WorkdayExemptionsModal = ({ onClose }) => {
                             <Text style={st.exDescTxt}>{ex.description || 'No description'}</Text>
                             {ex.recurring && (
                               <View style={st.exRecurBadge}>
-                                <Text style={st.exRecurBadgeTxt}>🔄 Annual</Text>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                                  <Feather name="refresh-cw" size={12} color={C.gd} />
+                                  <Text style={st.exRecurBadgeTxt}>Annual</Text>
+                                </View>
                               </View>
                             )}
                           </View>
                         </View>
                         <TouchableOpacity onPress={() => deleteExemption(ex.id)} style={st.exDelBtn}>
-                          <Text style={st.exDelTxt}>✕</Text>
+                          <Feather name="x" size={18} color={C.rd} />
                         </TouchableOpacity>
                       </View>
                     );
