@@ -256,6 +256,7 @@ export default function Dashboard() {
   const [showDeleteSub, setShowDeleteSub] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [subPreviewMap, setSubPreviewMap] = useState(null);
+  const [showSubCalLegend, setShowSubCalLegend] = useState(true);
   const subCalRef = React.useRef(null);
   const subCellWidth = React.useRef(0);
   const subGridOrigin = React.useRef({ x: 0, y: 0 });
@@ -634,7 +635,7 @@ export default function Dashboard() {
       const data = await res.json();
       if (Array.isArray(data)) {
         const contractors = data.filter(u => u.role === 'contractor' && u.active !== false)
-          .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+          .sort((a, b) => (a.company_name || a.name || '').localeCompare(b.company_name || b.name || ''));
         setSubs(contractors);
         if (!selectedSub && contractors.length > 0 && isWide) {
           selectSub(contractors[0]);
@@ -2675,6 +2676,11 @@ export default function Dashboard() {
                 <TouchableOpacity onPress={goToday} style={st.subCalTodayBtn} activeOpacity={0.7}>
                   <Text style={st.subCalTodayTxt}>Today</Text>
                 </TouchableOpacity>
+                {Object.keys(projectColors).length > 0 && (
+                  <TouchableOpacity onPress={() => setShowSubCalLegend(v => !v)} style={[st.subCalTodayBtn, showSubCalLegend && { backgroundColor: C.bl + '18', borderColor: C.bl + '40' }]} activeOpacity={0.7}>
+                    <Text style={[st.subCalTodayTxt, showSubCalLegend && { color: C.bl }]}>Key</Text>
+                  </TouchableOpacity>
+                )}
               </View>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
                 <TouchableOpacity onPress={prevMonth} style={st.subCalNavBtn}><Text style={st.subCalNavArrow}>‹</Text></TouchableOpacity>
@@ -2683,7 +2689,7 @@ export default function Dashboard() {
               </View>
               <View style={{ width: 60 }} />
             </View>
-            {Object.keys(projectColors).length > 0 && (
+            {showSubCalLegend && Object.keys(projectColors).length > 0 && (
               <View style={st.subCalLegend}>
                 {Object.entries(projectColors).map(([name, color]) => (
                   <View key={name} style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
@@ -4048,6 +4054,11 @@ export default function Dashboard() {
                         <TouchableOpacity onPress={bcToday} style={st.subCalTodayBtn} activeOpacity={0.7}>
                           <Text style={st.subCalTodayTxt}>Today</Text>
                         </TouchableOpacity>
+                        {Object.keys(projectColors).length > 0 && (
+                          <TouchableOpacity onPress={() => setShowSubCalLegend(v => !v)} style={[st.subCalTodayBtn, showSubCalLegend && { backgroundColor: C.bl + '18', borderColor: C.bl + '40' }]} activeOpacity={0.7}>
+                            <Text style={[st.subCalTodayTxt, showSubCalLegend && { color: C.bl }]}>Key</Text>
+                          </TouchableOpacity>
+                        )}
                       </View>
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
                         <TouchableOpacity onPress={bcPrev} style={st.subCalNavBtn}><Text style={st.subCalNavArrow}>‹</Text></TouchableOpacity>
@@ -4058,7 +4069,7 @@ export default function Dashboard() {
                     </View>
 
                     {/* Legend */}
-                    {Object.keys(projectColors).length > 0 && (
+                    {showSubCalLegend && Object.keys(projectColors).length > 0 && (
                       <View style={st.subCalLegend}>
                         {Object.entries(projectColors).map(([name, color]) => (
                           <View key={name} style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
@@ -4332,7 +4343,7 @@ export default function Dashboard() {
           onClose={() => setModal(null)}
           tradesList={builderTrades}
           onCreated={(newSub) => {
-            setSubs(prev => [...prev, newSub].sort((a, b) => (a.name || '').localeCompare(b.name || '')));
+            setSubs(prev => [...prev, newSub].sort((a, b) => (a.company_name || a.name || '').localeCompare(b.company_name || b.name || '')));
             setSelectedSub(newSub);
             selectSub(newSub);
             setModal(null);
