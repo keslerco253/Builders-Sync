@@ -2275,8 +2275,30 @@ export default function Dashboard() {
         ) : subTab === 'info' ? (
           /* ---- INFO TAB ---- */
           <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20 }}>
+            {/* Stats row */}
+            <View style={{ flexDirection: 'row', gap: 10, marginBottom: 16 }}>
+              <View style={st.subStatCard}>
+                <Text style={st.subStatNum}>{subProjects.length}</Text>
+                <Text style={st.subStatLbl}>Projects</Text>
+              </View>
+              <View style={st.subStatCard}>
+                <Text style={st.subStatNum}>{totalTasks}</Text>
+                <Text style={st.subStatLbl}>Tasks</Text>
+              </View>
+              <View style={st.subStatCard}>
+                <Text style={[st.subStatNum, { color: C.gn }]}>{completeTasks}</Text>
+                <Text style={st.subStatLbl}>Complete</Text>
+              </View>
+              <View style={st.subStatCard}>
+                <Text style={[st.subStatNum, { color: totalTasks - completeTasks > 0 ? C.yl : C.gn }]}>{totalTasks - completeTasks}</Text>
+                <Text style={st.subStatLbl}>Active</Text>
+              </View>
+            </View>
+
+            {/* Two-column layout: Info card + Assigned Projects */}
+            <View style={isWide ? { flexDirection: 'row', gap: 16, alignItems: 'flex-start' } : {}}>
             {/* Sub header card */}
-            <View style={st.subDetailCard}>
+            <View style={[st.subDetailCard, isWide && { flex: 1 }]}>
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14, flex: 1 }}>
                   <View style={st.subAvatar}>
@@ -2464,28 +2486,8 @@ export default function Dashboard() {
               )}
             </View>
 
-            {/* Stats row */}
-            <View style={{ flexDirection: 'row', gap: 10, marginBottom: 16 }}>
-              <View style={st.subStatCard}>
-                <Text style={st.subStatNum}>{subProjects.length}</Text>
-                <Text style={st.subStatLbl}>Projects</Text>
-              </View>
-              <View style={st.subStatCard}>
-                <Text style={st.subStatNum}>{totalTasks}</Text>
-                <Text style={st.subStatLbl}>Tasks</Text>
-              </View>
-              <View style={st.subStatCard}>
-                <Text style={[st.subStatNum, { color: C.gn }]}>{completeTasks}</Text>
-                <Text style={st.subStatLbl}>Complete</Text>
-              </View>
-              <View style={st.subStatCard}>
-                <Text style={[st.subStatNum, { color: totalTasks - completeTasks > 0 ? C.yl : C.gn }]}>{totalTasks - completeTasks}</Text>
-                <Text style={st.subStatLbl}>Active</Text>
-              </View>
-            </View>
-
             {/* Assigned Projects */}
-            <View style={st.subDetailCard}>
+            <View style={[st.subDetailCard, isWide && { flex: 1 }]}>
               <Text style={st.subCardTitle}>Assigned Projects</Text>
               {subProjects.length === 0 ? (
                 <Text style={{ color: C.dm, fontSize: 20, paddingVertical: 12 }}>No projects assigned</Text>
@@ -2503,6 +2505,8 @@ export default function Dashboard() {
                       const proj = projects.find(pr => pr.id === p.id) || p;
                       if (isContractor) {
                         setContractorProject(proj);
+                        setActiveTab('info');
+                        setActiveSub('specifications');
                       } else {
                         setDashView('projects');
                         setSelectedProject(proj);
@@ -2520,6 +2524,7 @@ export default function Dashboard() {
                 ))
               )}
             </View>
+            </View>{/* end two-column */}
 
             {/* Assigned Tasks — builder only */}
             {isBuilder && (
