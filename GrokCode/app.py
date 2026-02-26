@@ -2080,10 +2080,15 @@ def get_user_projects(uid):
     u = LoginInfo.query.get(uid)
     if u:
         contractor_name = f'{u.firstName} {u.lastName}'
+        display_with_company = f'{u.companyName} ({contractor_name})' if u.companyName else ''
         from sqlalchemy import or_
-        tasks = Schedule.query.filter(
-            or_(Schedule.contractor == contractor_name, Schedule.contractor == u.companyName)
-        ).all()
+        match_clauses = [
+            Schedule.contractor == contractor_name,
+            Schedule.contractor == u.companyName,
+        ]
+        if display_with_company:
+            match_clauses.append(Schedule.contractor == display_with_company)
+        tasks = Schedule.query.filter(or_(*match_clauses)).all()
         for t in tasks:
             job_ids.add(t.job_id)
     projects = Projects.query.filter(Projects.id.in_(job_ids)).all() if job_ids else []
@@ -2099,10 +2104,16 @@ def get_user_tasks(uid):
     u = LoginInfo.query.get_or_404(uid)
     viewer_role = request.args.get('viewer_role', '')
     contractor_name = f'{u.firstName} {u.lastName}'
+    # Build all possible display formats the frontend may have saved
+    display_with_company = f'{u.companyName} ({contractor_name})' if u.companyName else ''
     from sqlalchemy import or_
-    tasks = Schedule.query.filter(
-        or_(Schedule.contractor == contractor_name, Schedule.contractor == u.companyName)
-    ).all()
+    match_clauses = [
+        Schedule.contractor == contractor_name,
+        Schedule.contractor == u.companyName,
+    ]
+    if display_with_company:
+        match_clauses.append(Schedule.contractor == display_with_company)
+    tasks = Schedule.query.filter(or_(*match_clauses)).all()
     result = []
     # Cache project lookups and group on-hold tasks by project for preview
     proj_cache = {}
