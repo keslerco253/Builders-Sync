@@ -564,7 +564,7 @@ export default function ScheduleCalendar({ schedule, onUpdateTask, onEditTask, o
   return (
     <View style={st.container}>
       {headerContent && (
-        <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 6, paddingVertical: 8, paddingRight: 40, borderBottomWidth: 1, borderBottomColor: C.bd }}>
+        <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 6, paddingVertical: 8, paddingRight: 40 }}>
           {headerContent}
         </View>
       )}
@@ -966,7 +966,6 @@ const getStyles = (C) => StyleSheet.create({
   navBar: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: 16, paddingVertical: 10,
-    borderBottomWidth: 1, borderBottomColor: C.mode === 'light' ? 'rgba(0,0,0,0.08)' : C.bd,
   },
   navLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   navCenter: { flexDirection: 'row', alignItems: 'center', gap: 12 },
@@ -1020,7 +1019,7 @@ const getStyles = (C) => StyleSheet.create({
   baselineToggleRow: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: 16, paddingVertical: 6,
-    borderBottomWidth: 1, borderBottomColor: C.mode === 'light' ? 'rgba(0,0,0,0.06)' : C.bd, backgroundColor: C.mode === 'light' ? '#ffffff' : C.w02,
+    backgroundColor: C.mode === 'light' ? '#ffffff' : C.w02,
   },
   baselineToggle: {
     flexDirection: 'row', alignItems: 'center', gap: 8,

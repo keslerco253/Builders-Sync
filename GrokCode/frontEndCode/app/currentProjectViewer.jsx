@@ -1853,7 +1853,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
 
               {calView === 'list' && (
                 <>
-                <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 6, paddingVertical: 8, paddingRight: 40, borderBottomWidth: 1, borderBottomColor: C.bd }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 6, paddingVertical: 8, paddingRight: 40 }}>
                   {viewToggle}
                 </View>
                 <ScrollView style={{ flex: 1 }} contentContainerStyle={[s.scroll, { maxWidth: windowWidth * 0.9 }]}>
