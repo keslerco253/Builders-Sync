@@ -2490,7 +2490,11 @@ export default function Dashboard() {
               {subProjects.length === 0 ? (
                 <Text style={{ color: C.dm, fontSize: 20, paddingVertical: 12 }}>No projects assigned</Text>
               ) : (
-                subProjects.map(p => (
+                [...subProjects].sort((a, b) => {
+                  const da = a.date ? new Date(a.date) : new Date(0);
+                  const db = b.date ? new Date(b.date) : new Date(0);
+                  return db - da;
+                }).map(p => (
                   <TouchableOpacity
                     key={p.id}
                     style={st.subProjectRow}
@@ -2517,7 +2521,8 @@ export default function Dashboard() {
               )}
             </View>
 
-            {/* Assigned Tasks */}
+            {/* Assigned Tasks — builder only */}
+            {isBuilder && (
             <View style={[st.subDetailCard, { marginTop: 14 }]}>
               <Text style={st.subCardTitle}>Assigned Tasks</Text>
               {subTasks.length === 0 ? (
@@ -2543,8 +2548,10 @@ export default function Dashboard() {
                 })
               )}
             </View>
+            )}
 
-            {/* Employees */}
+            {/* Employees — builder only */}
+            {isBuilder && (
             <View style={[st.subDetailCard, { marginTop: 14, marginBottom: 20 }]}>
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
                 <Text style={st.subCardTitle}>Employees</Text>
@@ -2581,6 +2588,7 @@ export default function Dashboard() {
                 ))
               )}
             </View>
+            )}
           </ScrollView>
         ) : (
           /* ---- CALENDAR TAB ---- */
@@ -2963,18 +2971,22 @@ export default function Dashboard() {
                   </View>
                   {/* Navigation options */}
                   <View style={{ borderBottomWidth: taskActionPopup.project.go_live ? 0 : 1, borderBottomColor: C.w06 }}>
-                    <TouchableOpacity onPress={() => taskActionNav(taskActionPopup.project, 'schedule', 'calendar')}
-                      style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: C.w06 }} activeOpacity={0.7}>
-                      <Feather name="calendar" size={20} color={C.text} />
-                      <Text style={{ fontSize: 18, fontWeight: '600', color: C.text }}>Job Schedule</Text>
-                      <Text style={{ marginLeft: 'auto', fontSize: 18, color: C.dm }}>›</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity onPress={() => taskActionNav(taskActionPopup.project, 'schedule', 'list')}
-                      style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: C.w06 }} activeOpacity={0.7}>
-                      <Feather name="list" size={20} color={C.text} />
-                      <Text style={{ fontSize: 18, fontWeight: '600', color: C.text }}>Job Schedule Report</Text>
-                      <Text style={{ marginLeft: 'auto', fontSize: 18, color: C.dm }}>›</Text>
-                    </TouchableOpacity>
+                    {!isContractor && (
+                      <TouchableOpacity onPress={() => taskActionNav(taskActionPopup.project, 'schedule', 'calendar')}
+                        style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: C.w06 }} activeOpacity={0.7}>
+                        <Feather name="calendar" size={20} color={C.text} />
+                        <Text style={{ fontSize: 18, fontWeight: '600', color: C.text }}>Job Schedule</Text>
+                        <Text style={{ marginLeft: 'auto', fontSize: 18, color: C.dm }}>›</Text>
+                      </TouchableOpacity>
+                    )}
+                    {!isContractor && (
+                      <TouchableOpacity onPress={() => taskActionNav(taskActionPopup.project, 'schedule', 'list')}
+                        style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: C.w06 }} activeOpacity={0.7}>
+                        <Feather name="list" size={20} color={C.text} />
+                        <Text style={{ fontSize: 18, fontWeight: '600', color: C.text }}>Job Schedule Report</Text>
+                        <Text style={{ marginLeft: 'auto', fontSize: 18, color: C.dm }}>›</Text>
+                      </TouchableOpacity>
+                    )}
                     <TouchableOpacity onPress={() => taskActionNav(taskActionPopup.project, 'info', 'specifications')}
                       style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: C.w06 }} activeOpacity={0.7}>
                       <Feather name="clipboard" size={20} color={C.text} />

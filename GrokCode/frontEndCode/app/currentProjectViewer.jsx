@@ -671,9 +671,8 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
       ]
     : isCon
     ? [
-        { id: 'schedule', label: 'Schedule', subs: ['calendar'] },
         { id: 'changeorders', label: 'Change Orders' },
-        { id: 'info', label: 'Info', subs: ['jobinfo', 'specifications'] },
+        { id: 'info', label: 'Info', subs: ['specifications'] },
         { id: 'docs', label: 'Docs', subs: ['documents', 'photos', 'videos'] },
       ]
     : [
