@@ -5630,7 +5630,19 @@ const NewProjectModal = ({ onClose, onCreated, subdivisions = [], builderTrades 
   const [reviewTmplInfo, setReviewTmplInfo] = useState(null);
   const [appliedTemplate, setAppliedTemplate] = useState(null);
   const [showSubdivPicker, setShowSubdivPicker] = useState(false);
+  const [selectionTemplates, setSelectionTemplates] = useState([]);
+  const [selectedSelTmplId, setSelectedSelTmplId] = useState(null);
+  const [showSelTmplPicker, setShowSelTmplPicker] = useState(false);
   const set = (key, val) => sF(prev => ({ ...prev, [key]: val }));
+
+  React.useEffect(() => {
+    (async () => {
+      try {
+        const res = await apiFetch(`/selection-templates${user.company_id ? `?company_id=${user.company_id}` : ''}`);
+        if (res.ok) setSelectionTemplates(await res.json());
+      } catch (e) { console.warn(e); }
+    })();
+  }, []);
 
   const create = async () => {
     if (!f.name.trim()) return Alert.alert('Error', 'Project name is required');
@@ -5647,6 +5659,7 @@ const NewProjectModal = ({ onClose, onCreated, subdivisions = [], builderTrades 
         original_price: parseFloat(f.original_price) || 0,
         progress: 0,
         subdivision_id: f.subdivision_id || null,
+        selection_template_id: selectedSelTmplId || null,
         created_by: user.id,
       };
       const res = await apiFetch(`/projects`, {
@@ -5655,6 +5668,16 @@ const NewProjectModal = ({ onClose, onCreated, subdivisions = [], builderTrades 
       });
       if (!res.ok) { const err = await res.json(); Alert.alert('Error', err.error || 'Failed'); setLoading(false); return; }
       const newProject = await res.json();
+
+      // Apply selection template if one was selected
+      if (selectedSelTmplId) {
+        try {
+          await apiFetch(`/projects/${newProject.id}/apply-selection-template`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ template_id: selectedSelTmplId }),
+          });
+        } catch (e) { console.warn('Apply selection template failed:', e); }
+      }
 
       // Batch-create schedule items with baseline dates and predecessor info
       console.log('[SCHEDULE DEBUG] Raw scheduleTasks:', scheduleTasks.map((t, i) => ({
@@ -5776,6 +5799,37 @@ const NewProjectModal = ({ onClose, onCreated, subdivisions = [], builderTrades 
               </View>
               <View style={st.divider} />
               <Inp2 label="CONTRACT PRICE ($)" value={f.original_price} onChange={v => set('original_price', v)} type="number" placeholder="485000" />
+
+              {/* Selection Template picker */}
+              {selectionTemplates.length > 0 && (
+                <View style={{ marginTop: 4, marginBottom: 16 }}>
+                  <Text style={st.formLbl}>SELECTION TEMPLATE</Text>
+                  <TouchableOpacity onPress={() => setShowSelTmplPicker(p => !p)}
+                    style={{ backgroundColor: C.inputBg, borderWidth: 1, borderColor: C.w10, borderRadius: 8, padding: 12, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Text style={{ fontSize: 21, color: selectedSelTmplId ? C.text : C.ph }}>
+                      {selectedSelTmplId ? (selectionTemplates.find(t => t.id === selectedSelTmplId)?.name || 'Unknown') : 'All selections (no template)'}
+                    </Text>
+                    <Text style={{ fontSize: 15, color: C.dm }}>▼</Text>
+                  </TouchableOpacity>
+                  {showSelTmplPicker && (
+                    <View style={{ backgroundColor: C.cardBg || C.card, borderWidth: 1, borderColor: C.w10, borderRadius: 8, marginTop: 4, overflow: 'hidden', maxHeight: 200 }}>
+                      <ScrollView nestedScrollEnabled keyboardShouldPersistTaps="handled">
+                        <TouchableOpacity onPress={() => { setSelectedSelTmplId(null); setShowSelTmplPicker(false); }}
+                          style={{ paddingVertical: 10, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: C.w06, backgroundColor: !selectedSelTmplId ? C.gd + '22' : 'transparent' }}>
+                          <Text style={{ fontSize: 19, color: !selectedSelTmplId ? C.gd : C.dm, fontStyle: 'italic' }}>All selections (no template)</Text>
+                        </TouchableOpacity>
+                        {selectionTemplates.map(tmpl => (
+                          <TouchableOpacity key={tmpl.id} onPress={() => { setSelectedSelTmplId(tmpl.id); setShowSelTmplPicker(false); }}
+                            style={{ paddingVertical: 10, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: C.w06, backgroundColor: selectedSelTmplId === tmpl.id ? C.gd + '22' : 'transparent' }}>
+                            <Text style={{ fontSize: 19, color: selectedSelTmplId === tmpl.id ? C.gd : C.text }}>{tmpl.name}</Text>
+                            <Text style={{ fontSize: 16, color: C.dm }}>{(tmpl.item_ids || []).length} selection{(tmpl.item_ids || []).length !== 1 ? 's' : ''}</Text>
+                          </TouchableOpacity>
+                        ))}
+                      </ScrollView>
+                    </View>
+                  )}
+                </View>
+              )}
 
               <View style={st.divider} />
               <ScheduleBuilder
@@ -6666,6 +6720,7 @@ const SelectionManagerModal = ({ onClose, builderTrades = [] }) => {
   const C = React.useContext(ThemeContext);
   const { user } = React.useContext(AuthContext);
   const st = React.useMemo(() => getStyles(C), [C]);
+  const [topTab, setTopTab] = useState('items'); // items | templates
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState('list'); // list | create
@@ -6677,6 +6732,15 @@ const SelectionManagerModal = ({ onClose, builderTrades = [] }) => {
   const [saving, setSaving] = useState(false);
   const [editingId, setEditingId] = useState(null);
 
+  // Template state
+  const [templates, setTemplates] = useState([]);
+  const [tmplLoading, setTmplLoading] = useState(true);
+  const [tmplView, setTmplView] = useState('list'); // list | create
+  const [tmplName, setTmplName] = useState('');
+  const [tmplSelectedIds, setTmplSelectedIds] = useState([]);
+  const [tmplSaving, setTmplSaving] = useState(false);
+  const [tmplEditingId, setTmplEditingId] = useState(null);
+
   const fetchItems = async () => {
     setLoading(true);
     try {
@@ -6686,7 +6750,49 @@ const SelectionManagerModal = ({ onClose, builderTrades = [] }) => {
     setLoading(false);
   };
 
-  React.useEffect(() => { fetchItems(); }, []);
+  const fetchTemplates = async () => {
+    setTmplLoading(true);
+    try {
+      const res = await apiFetch(`/selection-templates${user.company_id ? `?company_id=${user.company_id}` : ''}`);
+      if (res.ok) setTemplates(await res.json());
+    } catch (e) { console.warn(e); }
+    setTmplLoading(false);
+  };
+
+  React.useEffect(() => { fetchItems(); fetchTemplates(); }, []);
+
+  const resetTmplForm = () => { setTmplName(''); setTmplSelectedIds([]); setTmplEditingId(null); };
+
+  const saveTmpl = async () => {
+    if (!tmplName.trim()) return Alert.alert('Error', 'Template name required');
+    if (tmplSelectedIds.length === 0) return Alert.alert('Error', 'Select at least one item');
+    setTmplSaving(true);
+    try {
+      const body = { name: tmplName.trim(), item_ids: tmplSelectedIds, user_id: user.id };
+      const path = tmplEditingId ? `/selection-templates/${tmplEditingId}` : `/selection-templates`;
+      const method = tmplEditingId ? 'PUT' : 'POST';
+      const res = await apiFetch(path, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      if (res.ok) { await fetchTemplates(); resetTmplForm(); setTmplView('list'); }
+    } catch (e) { Alert.alert('Error', e.message); }
+    setTmplSaving(false);
+  };
+
+  const deleteTmpl = async (id) => {
+    Alert.alert('Delete Template', 'Projects using this template will show all selections. Continue?', [
+      { text: 'Cancel' },
+      { text: 'Delete', style: 'destructive', onPress: async () => {
+        await apiFetch(`/selection-templates/${id}`, { method: 'DELETE' });
+        fetchTemplates();
+      }},
+    ]);
+  };
+
+  const editTmpl = (tmpl) => {
+    setTmplEditingId(tmpl.id);
+    setTmplName(tmpl.name);
+    setTmplSelectedIds(tmpl.item_ids || []);
+    setTmplView('create');
+  };
 
   const pickImage = (idx) => {
     if (Platform.OS !== 'web') return;
@@ -6803,6 +6909,20 @@ const SelectionManagerModal = ({ onClose, builderTrades = [] }) => {
     grouped[cat].push(item);
   });
 
+  // Group items by category for template create view
+  const tmplGrouped = {};
+  items.forEach(item => {
+    const cat = item.category || 'Uncategorized';
+    if (!tmplGrouped[cat]) tmplGrouped[cat] = [];
+    tmplGrouped[cat].push(item);
+  });
+
+  const isItemsTab = topTab === 'items';
+  const headerTitle = isItemsTab
+    ? (view === 'list' ? 'Manage Selections' : (editingId ? 'Edit Selection' : 'New Selection'))
+    : (tmplView === 'list' ? 'Selection Templates' : (tmplEditingId ? 'Edit Template' : 'New Template'));
+  const showBack = isItemsTab ? view === 'create' : tmplView === 'create';
+
   return (
     <Modal visible animationType="slide" transparent>
       <View style={st.exOverlay}>
@@ -6810,14 +6930,31 @@ const SelectionManagerModal = ({ onClose, builderTrades = [] }) => {
           <View style={st.exHeader}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
               <Feather name="sliders" size={20} color={C.textBold} />
-              <Text style={st.exTitle}>{view === 'list' ? 'Manage Selections' : (editingId ? 'Edit Selection' : 'New Selection')}</Text>
+              <Text style={st.exTitle}>{headerTitle}</Text>
             </View>
-            <TouchableOpacity onPress={() => { if (view === 'create') { resetForm(); setView('list'); } else onClose(); }} style={st.exCloseBtn}>
-              <Feather name={view === 'create' ? 'chevron-left' : 'x'} size={21} color={C.mt} />
+            <TouchableOpacity onPress={() => {
+              if (showBack) { if (isItemsTab) { resetForm(); setView('list'); } else { resetTmplForm(); setTmplView('list'); } }
+              else onClose();
+            }} style={st.exCloseBtn}>
+              <Feather name={showBack ? 'chevron-left' : 'x'} size={21} color={C.mt} />
             </TouchableOpacity>
           </View>
 
-          {view === 'list' ? (
+          {/* Tab bar */}
+          {!showBack && (
+            <View style={{ flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: C.sw06 }}>
+              {[{ id: 'items', label: 'Items' }, { id: 'templates', label: 'Templates' }].map(t => (
+                <TouchableOpacity key={t.id} onPress={() => setTopTab(t.id)}
+                  style={{ flex: 1, paddingVertical: 12, alignItems: 'center', borderBottomWidth: 2, borderBottomColor: topTab === t.id ? C.gd : 'transparent' }}
+                  activeOpacity={0.7}>
+                  <Text style={{ fontSize: 19, fontWeight: topTab === t.id ? '700' : '500', color: topTab === t.id ? C.gd : C.dm }}>{t.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+
+          {/* ITEMS TAB */}
+          {isItemsTab && view === 'list' ? (
             <View style={{ flex: 1 }}>
               <View style={{ flexDirection: 'row', justifyContent: 'flex-end', padding: 14, borderBottomWidth: 1, borderBottomColor: C.sw06 }}>
                 <TouchableOpacity onPress={() => { resetForm(); setView('create'); }}
@@ -6886,7 +7023,7 @@ const SelectionManagerModal = ({ onClose, builderTrades = [] }) => {
                 )}
               </ScrollView>
             </View>
-          ) : (
+          ) : isItemsTab ? (
             /* CREATE / EDIT VIEW */
             <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 18 }} keyboardShouldPersistTaps="handled">
               {/* Trade */}
@@ -7010,6 +7147,122 @@ const SelectionManagerModal = ({ onClose, builderTrades = [] }) => {
                 style={[st.submitBtn, (saving || !trade || !itemName || !options[0]?.name) && { backgroundColor: C.dm }]} activeOpacity={0.8}>
                 <Text style={{ color: C.textBold, fontSize: 22, fontWeight: '700', textAlign: 'center' }}>
                   {saving ? 'Saving...' : (editingId ? 'Update Selection' : 'Create Selection')}
+                </Text>
+              </TouchableOpacity>
+            </ScrollView>
+          ) : tmplView === 'list' ? (
+            /* TEMPLATES LIST VIEW */
+            <View style={{ flex: 1 }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'flex-end', padding: 14, borderBottomWidth: 1, borderBottomColor: C.sw06 }}>
+                <TouchableOpacity onPress={() => { resetTmplForm(); setTmplView('create'); }}
+                  style={{ backgroundColor: C.gd, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8 }} activeOpacity={0.8}>
+                  <Text style={{ fontSize: 20, fontWeight: '700', color: C.textBold }}>+ New Template</Text>
+                </TouchableOpacity>
+              </View>
+              <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 14 }}>
+                {tmplLoading ? (
+                  <ActivityIndicator color={C.gd} style={{ marginTop: 40 }} />
+                ) : templates.length === 0 ? (
+                  <View style={{ alignItems: 'center', paddingVertical: 50 }}>
+                    <Feather name="layers" size={42} color={C.dm} style={{ marginBottom: 8 }} />
+                    <Text style={{ color: C.mt, fontSize: 21, fontWeight: '600' }}>No templates yet</Text>
+                    <Text style={{ color: C.dm, fontSize: 18, marginTop: 4 }}>Create templates to control which selections apply to each project</Text>
+                  </View>
+                ) : (
+                  templates.map(tmpl => {
+                    const count = (tmpl.item_ids || []).length;
+                    return (
+                      <View key={tmpl.id} style={{
+                        backgroundColor: C.w03, borderWidth: 1, borderColor: C.w08, borderRadius: 10,
+                        padding: 14, marginBottom: 8,
+                      }}>
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <View style={{ flex: 1 }}>
+                            <Text style={{ fontSize: 22, fontWeight: '600', color: C.text }}>{tmpl.name}</Text>
+                            <Text style={{ fontSize: 18, color: C.dm, marginTop: 2 }}>{count} selection{count !== 1 ? 's' : ''}</Text>
+                          </View>
+                          <View style={{ flexDirection: 'row', gap: 10 }}>
+                            <TouchableOpacity onPress={() => editTmpl(tmpl)}>
+                              <Text style={{ fontSize: 20, color: C.bl, fontWeight: '600' }}>Edit</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity onPress={() => deleteTmpl(tmpl.id)}>
+                              <Text style={{ fontSize: 20, color: C.rd, fontWeight: '600' }}>Delete</Text>
+                            </TouchableOpacity>
+                          </View>
+                        </View>
+                      </View>
+                    );
+                  })
+                )}
+              </ScrollView>
+            </View>
+          ) : (
+            /* TEMPLATES CREATE / EDIT VIEW */
+            <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 18 }} keyboardShouldPersistTaps="handled">
+              <Inp2 label="TEMPLATE NAME" value={tmplName} onChange={setTmplName} placeholder="e.g., Standard Home Selections" />
+              <Text style={{ fontSize: 18, color: C.dm, marginTop: -8, marginBottom: 16 }}>
+                {tmplSelectedIds.length} selection{tmplSelectedIds.length !== 1 ? 's' : ''} included
+              </Text>
+
+              <Text style={st.formLbl}>SELECT ITEMS TO INCLUDE</Text>
+              {items.length === 0 ? (
+                <Text style={{ fontSize: 18, color: C.dm, marginBottom: 20 }}>No selection items yet. Create items first in the Items tab.</Text>
+              ) : (
+                Object.entries(tmplGrouped).map(([cat, catItems]) => (
+                  <View key={cat} style={{ marginBottom: 14 }}>
+                    <TouchableOpacity
+                      onPress={() => {
+                        const catIds = catItems.map(i => i.id);
+                        const allSelected = catIds.every(id => tmplSelectedIds.includes(id));
+                        if (allSelected) {
+                          setTmplSelectedIds(prev => prev.filter(id => !catIds.includes(id)));
+                        } else {
+                          setTmplSelectedIds(prev => [...new Set([...prev, ...catIds])]);
+                        }
+                      }}
+                      style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}
+                      activeOpacity={0.7}>
+                      <View style={{
+                        width: 24, height: 24, borderRadius: 6, borderWidth: 2,
+                        borderColor: catItems.every(i => tmplSelectedIds.includes(i.id)) ? C.gd : C.w15,
+                        backgroundColor: catItems.every(i => tmplSelectedIds.includes(i.id)) ? C.gd : 'transparent',
+                        alignItems: 'center', justifyContent: 'center',
+                      }}>
+                        {catItems.every(i => tmplSelectedIds.includes(i.id)) && <Feather name="check" size={14} color="#fff" />}
+                      </View>
+                      <Text style={{ fontSize: 18, fontWeight: '700', color: C.gd, letterSpacing: 1 }}>{cat.toUpperCase()}</Text>
+                    </TouchableOpacity>
+                    {catItems.map(item => {
+                      const selected = tmplSelectedIds.includes(item.id);
+                      return (
+                        <TouchableOpacity key={item.id} onPress={() => {
+                          setTmplSelectedIds(prev => selected ? prev.filter(id => id !== item.id) : [...prev, item.id]);
+                        }}
+                          style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8, paddingLeft: 10 }}
+                          activeOpacity={0.7}>
+                          <View style={{
+                            width: 28, height: 28, borderRadius: 7, borderWidth: 2,
+                            borderColor: selected ? C.gd : C.w15,
+                            backgroundColor: selected ? C.gd : 'transparent',
+                            alignItems: 'center', justifyContent: 'center',
+                          }}>
+                            {selected && <Feather name="check" size={16} color="#fff" />}
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <Text style={{ fontSize: 20, color: selected ? C.text : C.mt }}>{item.item}</Text>
+                            <Text style={{ fontSize: 16, color: C.dm }}>{(item.options || []).length} option{(item.options || []).length !== 1 ? 's' : ''}</Text>
+                          </View>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                ))
+              )}
+
+              <TouchableOpacity onPress={saveTmpl} disabled={tmplSaving || !tmplName.trim() || tmplSelectedIds.length === 0}
+                style={[st.submitBtn, (tmplSaving || !tmplName.trim() || tmplSelectedIds.length === 0) && { backgroundColor: C.dm }]} activeOpacity={0.8}>
+                <Text style={{ color: C.textBold, fontSize: 22, fontWeight: '700', textAlign: 'center' }}>
+                  {tmplSaving ? 'Saving...' : (tmplEditingId ? 'Update Template' : 'Create Template')}
                 </Text>
               </TouchableOpacity>
             </ScrollView>

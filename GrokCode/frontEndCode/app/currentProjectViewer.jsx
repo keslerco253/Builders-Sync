@@ -305,7 +305,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
     homeowner2_first_name: '', homeowner2_last_name: '', homeowner2_phone: '', homeowner2_email: '',
     start_date: '', sqft: '', bedrooms: '', bathrooms: '',
     garage: '', garage_sqft: '', lot_size: '', stories: '', story_details: [], original_price: '0', reconciliation: '0',
-    subdivision_id: null, permit_number: '', plan_name: '',
+    subdivision_id: null, permit_number: '', plan_name: '', selection_template_id: null,
   };
   const [showHomeowner2, setShowHomeowner2] = useState(false);
   const [editInfo, setEditInfo] = useState(INFO_DEFAULTS);
@@ -313,6 +313,8 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
   const [infoSaving, setInfoSaving] = useState(false);  const [showAddrState, setShowAddrState] = useState(false);
   const [showPlanPicker, setShowPlanPicker] = useState(false);
   const [showSubdivPicker, setShowSubdivPicker] = useState(false);
+  const [selectionTemplates, setSelectionTemplates] = useState([]);
+  const [showSelTmplPicker, setShowSelTmplPicker] = useState(false);
 
   // Company logo for printable Job Spec
   const [companyLogo, setCompanyLogo] = useState(null);
@@ -437,6 +439,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
         subdivision_id: project.subdivision_id || null,
         permit_number: project.permit_number || '',
         plan_name: project.plan_name || '',
+        selection_template_id: project.selection_template_id || null,
       });
       setInfoDirty(false);
       if (project.homeowner2_first_name || project.homeowner2_last_name || project.homeowner2_phone || project.homeowner2_email) {
@@ -487,6 +490,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
         subdivision_id: editInfo.subdivision_id || null,
         permit_number: editInfo.permit_number.trim(),
         plan_name: editInfo.plan_name || '',
+        selection_template_id: editInfo.selection_template_id || null,
       };
       const res = await apiFetch(`/projects/${project.id}`, {
         method: 'PUT',
@@ -500,6 +504,20 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
       }
     } catch (e) { Alert.alert('Error', 'Failed to save'); }
     setInfoSaving(false);
+  };
+
+  const applySelectionTemplate = async (templateId) => {
+    setEditInfo(prev => ({ ...prev, selection_template_id: templateId }));
+    setInfoDirty(true);
+    try {
+      await apiFetch(`/projects/${project.id}/apply-selection-template`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ template_id: templateId }),
+      });
+      // Refresh selections if on selections tab
+      const res = await api(`/projects/${project.id}/selections`);
+      if (res) setSelections(res);
+    } catch (e) { console.warn('Apply selection template failed:', e); }
   };
 
   // Tabs — use lifted state if provided, otherwise local
@@ -790,6 +808,17 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
       if (sub === 'videos') api(`/projects/${pid}/documents?type=video`).then(d => d && setVideos(d));
     }
   }, [tab, sub, project]);
+
+  // Fetch selection templates for the job info picker
+  useEffect(() => {
+    if (!isB || !user?.company_id) return;
+    (async () => {
+      try {
+        const res = await apiFetch(`/selection-templates?company_id=${user.company_id}`);
+        if (res.ok) setSelectionTemplates(await res.json());
+      } catch (e) { console.warn(e); }
+    })();
+  }, [user?.company_id, isB]);
 
   // Re-fetch schedule when sub calendar makes changes (scheduleVersion bumps)
   const schedVerRef = React.useRef(scheduleVersion);
@@ -1237,6 +1266,51 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
                     <Text style={s.infoVal}>{editInfo.plan_name || '—'}</Text>
                   )}
                 </View>
+                {/* Selection Template picker */}
+                {selectionTemplates.length > 0 && (
+                  <View style={{ marginBottom: 14 }}>
+                    <Text style={s.infoLbl}>SELECTION TEMPLATE</Text>
+                    {isB ? (
+                      <>
+                        <TouchableOpacity onPress={() => setShowSelTmplPicker(p => !p)}
+                          style={{ backgroundColor: C.inputBg, borderWidth: 1, borderColor: C.w10, borderRadius: 8, padding: 10, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <Text style={{ fontSize: 22, color: editInfo.selection_template_id ? C.text : C.ph }}>
+                            {editInfo.selection_template_id ? (selectionTemplates.find(t => t.id === editInfo.selection_template_id)?.name || 'Unknown') : 'All selections (no template)'}
+                          </Text>
+                          <Text style={{ fontSize: 15, color: C.dm }}>▼</Text>
+                        </TouchableOpacity>
+                        <Modal visible={showSelTmplPicker} transparent animationType="fade">
+                          <TouchableOpacity style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', alignItems: 'center' }} activeOpacity={1} onPress={() => setShowSelTmplPicker(false)}>
+                            <TouchableOpacity activeOpacity={1} onPress={e => e.stopPropagation()}>
+                              <View style={{ width: 340, maxHeight: 400, backgroundColor: C.cardBg || C.card, borderRadius: 12, borderWidth: 1, borderColor: C.w10, overflow: 'hidden', ...(Platform.OS === 'web' ? { boxShadow: '0 10px 30px rgba(0,0,0,0.5)' } : { elevation: 20 }) }}>
+                                <View style={{ padding: 14, borderBottomWidth: 1, borderBottomColor: C.w06 }}>
+                                  <Text style={{ fontSize: 22, fontWeight: '700', color: C.textBold }}>Selection Template</Text>
+                                </View>
+                                <ScrollView style={{ maxHeight: 320 }} nestedScrollEnabled keyboardShouldPersistTaps="handled">
+                                  <TouchableOpacity onPress={() => { applySelectionTemplate(null); setShowSelTmplPicker(false); }}
+                                    style={{ paddingVertical: 10, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: C.w06, backgroundColor: !editInfo.selection_template_id ? C.gd + '22' : 'transparent' }}>
+                                    <Text style={{ fontSize: 21, color: !editInfo.selection_template_id ? C.gd : C.dm, fontStyle: 'italic' }}>All selections (no template)</Text>
+                                  </TouchableOpacity>
+                                  {selectionTemplates.map(tmpl => (
+                                    <TouchableOpacity key={tmpl.id} onPress={() => { applySelectionTemplate(tmpl.id); setShowSelTmplPicker(false); }}
+                                      style={{ paddingVertical: 10, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: C.w06, backgroundColor: editInfo.selection_template_id === tmpl.id ? C.gd + '22' : 'transparent' }}>
+                                      <Text style={{ fontSize: 21, color: editInfo.selection_template_id === tmpl.id ? C.gd : C.text }}>{tmpl.name}</Text>
+                                      <Text style={{ fontSize: 16, color: C.dm }}>{(tmpl.item_ids || []).length} selection{(tmpl.item_ids || []).length !== 1 ? 's' : ''}</Text>
+                                    </TouchableOpacity>
+                                  ))}
+                                </ScrollView>
+                              </View>
+                            </TouchableOpacity>
+                          </TouchableOpacity>
+                        </Modal>
+                      </>
+                    ) : (
+                      <Text style={s.infoVal}>
+                        {editInfo.selection_template_id ? (selectionTemplates.find(t => t.id === editInfo.selection_template_id)?.name || '—') : 'All selections'}
+                      </Text>
+                    )}
+                  </View>
+                )}
               </Card>
             );
 

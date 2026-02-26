@@ -236,6 +236,7 @@ class Projects(db.Model):
     hold_reason = db.Column(db.String(500), default='')
     permit_number = db.Column(db.String(100), default='')
     plan_name = db.Column(db.String(200), default='')
+    selection_template_id = db.Column(db.Integer, db.ForeignKey('selection_template.id'), nullable=True)
     subdivision_id = db.Column(db.Integer, db.ForeignKey('subdivision.id'), nullable=True)
     company_id = db.Column(db.Integer, db.ForeignKey('company.id'), nullable=True)
     date = db.Column(db.DateTime, default=datetime.utcnow)
@@ -282,6 +283,7 @@ class Projects(db.Model):
             'hold_reason': self.hold_reason or '',
             'permit_number': self.permit_number or '',
             'plan_name': self.plan_name or '',
+            'selection_template_id': self.selection_template_id,
             'subdivision_id': self.subdivision_id,
             'company_id': self.company_id,
             'date': self.date.isoformat() if self.date else None,
@@ -411,6 +413,24 @@ class ProjectSelection(db.Model):
         d['price_override'] = self.price_override
         d['customer_comment'] = self.customer_comment
         return d
+
+
+class SelectionTemplate(db.Model):
+    """Reusable template defining which selection items apply to a project"""
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(200), default='')
+    item_ids_json = db.Column(db.Text, default='[]')  # JSON array of SelectionItem IDs
+    company_id = db.Column(db.Integer, db.ForeignKey('company.id'), nullable=True)
+    created_by = db.Column(db.Integer, db.ForeignKey('login_info.id'), nullable=True)
+    created_at = db.Column(db.String(30), default='')
+
+    def to_dict(self):
+        return {
+            'id': self.id, 'name': self.name,
+            'item_ids': json.loads(self.item_ids_json) if self.item_ids_json else [],
+            'company_id': self.company_id,
+            'created_by': self.created_by, 'created_at': self.created_at,
+        }
 
 
 class Schedule(db.Model):
@@ -1670,7 +1690,7 @@ def add_project():
                      'start_date', 'est_completion', 'progress', 'original_price',
                      'contract_price', 'sqft', 'bedrooms', 'bathrooms', 'garage',
                      'lot_size', 'style', 'stories', 'email', 'dates_from_schedule', 'go_live', 'subdivision_id',
-                     'permit_number', 'customer_first_name', 'customer_last_name'):
+                     'permit_number', 'customer_first_name', 'customer_last_name', 'selection_template_id'):
             if key in data:
                 setattr(p, key, data[key])
 
@@ -1750,7 +1770,7 @@ def update_project(project_id):
                  'start_date', 'est_completion', 'progress', 'original_price',
                  'contract_price', 'sqft', 'bedrooms', 'bathrooms', 'garage',
                  'lot_size', 'style', 'stories', 'email', 'reconciliation', 'dates_from_schedule', 'go_live', 'subdivision_id',
-                 'permit_number', 'plan_name'):
+                 'permit_number', 'plan_name', 'selection_template_id'):
         if key in data:
             # Prevent un-toggling go_live once it's been set
             if key == 'go_live' and p.go_live and not data[key]:
@@ -2489,22 +2509,122 @@ def delete_selection_item(sid):
 
 
 # ============================================================
+# SELECTION TEMPLATES
+# ============================================================
+
+@app.route('/selection-templates', methods=['GET'])
+def get_selection_templates():
+    company_id = request.args.get('company_id', type=int)
+    q = SelectionTemplate.query.order_by(SelectionTemplate.name)
+    if company_id:
+        q = q.filter_by(company_id=company_id)
+    return jsonify([t.to_dict() for t in q.all()])
+
+
+@app.route('/selection-templates', methods=['POST'])
+def create_selection_template():
+    data = request.get_json()
+    t = SelectionTemplate(
+        name=data.get('name', ''),
+        item_ids_json=json.dumps(data.get('item_ids', [])),
+        created_at=datetime.utcnow().strftime('%Y-%m-%d'),
+    )
+    user_id = data.get('user_id')
+    if user_id:
+        t.created_by = user_id
+        creator = LoginInfo.query.get(user_id)
+        if creator and creator.company_id:
+            t.company_id = creator.company_id
+    db.session.add(t)
+    db.session.commit()
+    return jsonify(t.to_dict()), 201
+
+
+@app.route('/selection-templates/<int:tid>', methods=['PUT'])
+def update_selection_template(tid):
+    t = SelectionTemplate.query.get_or_404(tid)
+    data = request.get_json()
+    if 'name' in data:
+        t.name = data['name']
+    if 'item_ids' in data:
+        t.item_ids_json = json.dumps(data['item_ids'])
+    db.session.commit()
+    return jsonify(t.to_dict())
+
+
+@app.route('/selection-templates/<int:tid>', methods=['DELETE'])
+def delete_selection_template(tid):
+    t = SelectionTemplate.query.get_or_404(tid)
+    # Clear template reference from any projects using this template
+    Projects.query.filter_by(selection_template_id=tid).update({'selection_template_id': None})
+    db.session.delete(t)
+    db.session.commit()
+    return jsonify({'ok': True})
+
+
+@app.route('/projects/<int:pid>/apply-selection-template', methods=['POST'])
+def apply_selection_template(pid):
+    """Apply a selection template to a project: remove old selections, create new ones for template items only"""
+    project = Projects.query.get_or_404(pid)
+    data = request.get_json()
+    template_id = data.get('template_id')
+
+    # Delete existing project selections
+    ProjectSelection.query.filter_by(job_id=pid).delete()
+
+    if template_id:
+        template = SelectionTemplate.query.get_or_404(template_id)
+        project.selection_template_id = template_id
+        item_ids = json.loads(template.item_ids_json) if template.item_ids_json else []
+        for item_id in item_ids:
+            item = SelectionItem.query.get(item_id)
+            if item:
+                ps = ProjectSelection(job_id=pid, selection_item_id=item_id, status='pending')
+                db.session.add(ps)
+    else:
+        # Clearing template — re-create for all items
+        project.selection_template_id = None
+        all_items = SelectionItem.query.all()
+        for item in all_items:
+            ps = ProjectSelection(job_id=pid, selection_item_id=item.id, status='pending')
+            db.session.add(ps)
+
+    db.session.commit()
+    # Return updated selections
+    result = [ps.to_dict() for ps in ProjectSelection.query.filter_by(job_id=pid).all()]
+    return jsonify(result)
+
+
+# ============================================================
 # SELECTIONS - PER PROJECT
 # ============================================================
 
 @app.route('/projects/<int:pid>/selections', methods=['GET'])
 def get_project_selections(pid):
-    """Get all selections for a project - auto-creates ProjectSelection rows for any new catalog items"""
+    """Get all selections for a project - auto-creates ProjectSelection rows for applicable catalog items.
+    If the project has a selection template, only items in that template are included.
+    Otherwise, all catalog items are included."""
+    project = Projects.query.get_or_404(pid)
     all_items = SelectionItem.query.all()
+
+    # Determine which items apply based on template
+    template_item_ids = None
+    if project.selection_template_id:
+        template = SelectionTemplate.query.get(project.selection_template_id)
+        if template:
+            template_item_ids = set(json.loads(template.item_ids_json) if template.item_ids_json else [])
+
+    applicable_items = [i for i in all_items if template_item_ids is None or i.id in template_item_ids]
+
     existing = {ps.selection_item_id: ps for ps in ProjectSelection.query.filter_by(job_id=pid).all()}
     result = []
-    for item in all_items:
+    for item in applicable_items:
         if item.id not in existing:
             ps = ProjectSelection(job_id=pid, selection_item_id=item.id, status='pending')
             db.session.add(ps)
             existing[item.id] = ps
     db.session.commit()
-    for item in all_items:
+    for item in applicable_items:
         ps = existing.get(item.id)
         if ps:
             result.append(ps.to_dict())
