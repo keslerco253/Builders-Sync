@@ -47,6 +47,7 @@ export default function Dashboard() {
   const [sdDocsLoading, setSdDocsLoading] = useState(false);
   const [sdDocTemplates, setSdDocTemplates] = useState([]);
   const [sdDocModal, setSdDocModal] = useState(null);
+  const [sdDocEditMode, setSdDocEditMode] = useState(false);
   const [showAddMenu, setShowAddMenu] = useState(false);
   const [sidebarFilter, setSidebarFilter] = useState(null); // null = all, or subdivision id
   const [showSidebarFilter, setShowSidebarFilter] = useState(false);
@@ -1085,6 +1086,19 @@ export default function Dashboard() {
             if (Platform.OS === 'web') window.open(full, '_blank');
             else Linking.openURL(full);
           };
+          const downloadFile = (url, name) => {
+            const full = url.startsWith('http') ? url : `${API_BASE}${url}`;
+            if (Platform.OS === 'web') {
+              const a = document.createElement('a');
+              a.href = full;
+              a.download = name || 'download';
+              document.body.appendChild(a);
+              a.click();
+              document.body.removeChild(a);
+            } else {
+              Linking.openURL(full);
+            }
+          };
           const deleteDoc = async (docId) => {
             try {
               const res = await apiFetch(`/documents/${docId}`, { method: 'DELETE' });
@@ -1118,11 +1132,23 @@ export default function Dashboard() {
                 <>
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                     <Text style={{ fontSize: 22, fontWeight: '700', color: C.textBold }}>Documents</Text>
-                    {isBuilder && (
-                      <TouchableOpacity onPress={() => setSdDocModal('upload')} style={st.addBtn} activeOpacity={0.8}>
-                        <Text style={st.addBtnTxt}>+</Text>
-                      </TouchableOpacity>
-                    )}
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                      {isBuilder && (
+                        <TouchableOpacity onPress={() => setSdDocEditMode(p => !p)}
+                          style={{ width: 38, height: 38, borderRadius: 10, alignItems: 'center', justifyContent: 'center',
+                            backgroundColor: sdDocEditMode ? C.rd + '18' : C.w06,
+                            borderWidth: 1, borderColor: sdDocEditMode ? C.rd + '40' : 'transparent',
+                          }}
+                          activeOpacity={0.7}>
+                          <Feather name={sdDocEditMode ? "x" : "edit-2"} size={18} color={sdDocEditMode ? C.rd : C.dm} />
+                        </TouchableOpacity>
+                      )}
+                      {isBuilder && (
+                        <TouchableOpacity onPress={() => setSdDocModal('upload')} style={st.addBtn} activeOpacity={0.8}>
+                          <Text style={st.addBtnTxt}>+</Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
                   </View>
 
                   {sdDocTemplates.map(tmpl => {
@@ -1147,36 +1173,35 @@ export default function Dashboard() {
                           )}
                         </View>
                         {uploads.map(d => (
-                          <View key={d.id} style={{
-                            flexDirection: 'row', alignItems: 'center', gap: 10,
-                            paddingHorizontal: 14, paddingVertical: 10,
-                            borderTopWidth: 1, borderTopColor: C.w06,
-                            backgroundColor: C.w06 + '40',
-                          }}>
-                            <Feather name="paperclip" size={18} color={C.dm} />
+                          <TouchableOpacity key={d.id} onPress={() => d.file_url && openFile(d.file_url)} activeOpacity={0.7}
+                            style={{
+                              flexDirection: 'row', alignItems: 'center', gap: 10,
+                              paddingHorizontal: 14, paddingVertical: 10,
+                              borderTopWidth: 1, borderTopColor: C.w06,
+                              backgroundColor: C.w06 + '40',
+                            }}>
+                            {sdDocEditMode ? (
+                              <TouchableOpacity onPress={(e) => { e.stopPropagation(); deleteDoc(d.id); }}
+                                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} activeOpacity={0.6}>
+                                <Feather name="x" size={20} color={C.rd} />
+                              </TouchableOpacity>
+                            ) : (
+                              <Feather name="paperclip" size={18} color={C.dm} />
+                            )}
                             <View style={{ flex: 1 }}>
                               <Text style={{ fontSize: 17, fontWeight: '500', color: C.text }} numberOfLines={1}>{d.name}</Text>
                               <Text style={{ fontSize: 13, color: C.dm }}>
                                 {d.created_at}{d.uploaded_by ? ` · ${d.uploaded_by}` : ''}{d.file_size ? ` · ${formatSize(d.file_size)}` : ''}
                               </Text>
                             </View>
-                            {d.file_url ? (
-                              <View style={{ flexDirection: 'row', gap: 6 }}>
-                                <TouchableOpacity onPress={() => openFile(d.file_url)}
-                                  style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 6, backgroundColor: C.bl + '20' }}
-                                  activeOpacity={0.7}>
-                                  <Text style={{ fontSize: 14, fontWeight: '600', color: C.bl }}>View</Text>
-                                </TouchableOpacity>
-                                {isBuilder && (
-                                  <TouchableOpacity onPress={() => deleteDoc(d.id)}
-                                    style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 6, backgroundColor: C.rd + '15' }}
-                                    activeOpacity={0.7}>
-                                    <Text style={{ fontSize: 14, fontWeight: '600', color: C.rd }}>Delete</Text>
-                                  </TouchableOpacity>
-                                )}
-                              </View>
+                            {d.file_url && !sdDocEditMode ? (
+                              <TouchableOpacity onPress={(e) => { e.stopPropagation(); downloadFile(d.file_url, d.name); }}
+                                style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 6, backgroundColor: C.bl + '20' }}
+                                activeOpacity={0.7}>
+                                <Text style={{ fontSize: 16 }}>⬇</Text>
+                              </TouchableOpacity>
                             ) : null}
-                          </View>
+                          </TouchableOpacity>
                         ))}
                       </View>
                     );
@@ -1188,31 +1213,34 @@ export default function Dashboard() {
                         <Text style={{ fontSize: 18, fontWeight: '600', color: C.dm, marginTop: 16, marginBottom: 8 }}>Other Documents</Text>
                       )}
                       {unlinkedDocs.map(d => (
-                        <View key={d.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 8, backgroundColor: C.card, borderRadius: 12, borderWidth: 1, borderColor: C.w08, padding: 14 }}>
-                          <Feather name="file-text" size={24} color={C.dm} />
+                        <TouchableOpacity key={d.id} onPress={() => d.file_url && openFile(d.file_url)} activeOpacity={0.7}
+                          style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 8, backgroundColor: C.card, borderRadius: 12, borderWidth: 1, borderColor: C.w08, padding: 14 }}>
+                          {sdDocEditMode ? (
+                            <TouchableOpacity onPress={(e) => { e.stopPropagation(); deleteDoc(d.id); }}
+                              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} activeOpacity={0.6}>
+                              <View style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: C.rd + '15', alignItems: 'center', justifyContent: 'center' }}>
+                                <Feather name="x" size={22} color={C.rd} />
+                              </View>
+                            </TouchableOpacity>
+                          ) : (
+                            <View style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: C.w06, alignItems: 'center', justifyContent: 'center' }}>
+                              <Feather name="file-text" size={24} color={C.dm} />
+                            </View>
+                          )}
                           <View style={{ flex: 1 }}>
                             <Text style={{ fontSize: 20, fontWeight: '600', color: C.text }}>{d.name}</Text>
                             <Text style={{ fontSize: 15, color: C.dm, marginTop: 2 }}>
                               {d.category} · {d.created_at}{d.uploaded_by ? ` · ${d.uploaded_by}` : ''}{d.file_size ? ` · ${formatSize(d.file_size)}` : ''}
                             </Text>
                           </View>
-                          {d.file_url ? (
-                            <View style={{ flexDirection: 'row', gap: 6 }}>
-                              <TouchableOpacity onPress={() => openFile(d.file_url)}
-                                style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 6, backgroundColor: C.bl + '20' }}
-                                activeOpacity={0.7}>
-                                <Text style={{ fontSize: 14, fontWeight: '600', color: C.bl }}>View</Text>
-                              </TouchableOpacity>
-                              {isBuilder && (
-                                <TouchableOpacity onPress={() => deleteDoc(d.id)}
-                                  style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 6, backgroundColor: C.rd + '15' }}
-                                  activeOpacity={0.7}>
-                                  <Text style={{ fontSize: 14, fontWeight: '600', color: C.rd }}>Delete</Text>
-                                </TouchableOpacity>
-                              )}
-                            </View>
+                          {d.file_url && !sdDocEditMode ? (
+                            <TouchableOpacity onPress={(e) => { e.stopPropagation(); downloadFile(d.file_url, d.name); }}
+                              style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 6, backgroundColor: C.bl + '20' }}
+                              activeOpacity={0.7}>
+                              <Text style={{ fontSize: 16 }}>⬇</Text>
+                            </TouchableOpacity>
                           ) : null}
-                        </View>
+                        </TouchableOpacity>
                       ))}
                     </>
                   )}
