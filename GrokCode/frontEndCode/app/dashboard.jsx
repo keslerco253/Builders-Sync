@@ -264,6 +264,7 @@ export default function Dashboard() {
   subTasksRef.current = subTasks;
   const selectedSubRef = React.useRef(selectedSub);
   selectedSubRef.current = selectedSub;
+  const subLastTapRef = React.useRef({});
   const handleScheduleChange = useCallback(() => {
     if (selectedSub) {
       apiFetch(`/users/${selectedSub.id}/tasks?viewer_role=${user?.role || ''}`)
@@ -1283,7 +1284,36 @@ export default function Dashboard() {
               <TouchableOpacity
                 key={sub.id}
                 activeOpacity={0.7}
-                onPress={() => { setSubView(false); selectSub(sub); }}
+                onPress={() => {
+                  const now = Date.now();
+                  const last = subLastTapRef.current[sub.id] || 0;
+                  subLastTapRef.current[sub.id] = now;
+                  if (now - last < 400) {
+                    subLastTapRef.current[sub.id] = 0;
+                    setSubView(false);
+                    setSelectedSub(sub);
+                    setSubTab('info');
+                    setSubEditing(false);
+                    setShowDeleteSub(false);
+                    setSubTaskFilter(null);
+                    setSubTaskFilterOpen(false);
+                    // Fetch sub data
+                    Promise.all([
+                      apiFetch(`/users/${sub.id}/projects`),
+                      apiFetch(`/users/${sub.id}/tasks?viewer_role=${user?.role || ''}`),
+                      apiFetch(`/users/${sub.id}/employees`),
+                    ]).then(async ([projRes, taskRes, empRes]) => {
+                      const projData = await projRes.json();
+                      const taskData = await taskRes.json();
+                      const empData = await empRes.json();
+                      if (Array.isArray(projData)) setSubProjects(projData);
+                      if (Array.isArray(taskData)) setSubTasks(taskData);
+                      if (Array.isArray(empData)) setEmployees(empData);
+                    }).catch(() => {});
+                    return;
+                  }
+                  setSubView(false); selectSub(sub);
+                }}
                 style={[st.jobItem, active && st.jobItemActive]}
               >
                 <View style={[st.jobIndicator, active && st.jobIndicatorActive]} />
@@ -4682,7 +4712,35 @@ export default function Dashboard() {
                         <TouchableOpacity
                           key={sub.id}
                           activeOpacity={0.7}
-                          onPress={() => { setSubView(false); selectSub(sub); }}
+                          onPress={() => {
+                            const now = Date.now();
+                            const last = subLastTapRef.current[sub.id] || 0;
+                            subLastTapRef.current[sub.id] = now;
+                            if (now - last < 400) {
+                              subLastTapRef.current[sub.id] = 0;
+                              setSubView(false);
+                              setSelectedSub(sub);
+                              setSubTab('info');
+                              setSubEditing(false);
+                              setShowDeleteSub(false);
+                              setSubTaskFilter(null);
+                              setSubTaskFilterOpen(false);
+                              Promise.all([
+                                apiFetch(`/users/${sub.id}/projects`),
+                                apiFetch(`/users/${sub.id}/tasks?viewer_role=${user?.role || ''}`),
+                                apiFetch(`/users/${sub.id}/employees`),
+                              ]).then(async ([projRes, taskRes, empRes]) => {
+                                const projData = await projRes.json();
+                                const taskData = await taskRes.json();
+                                const empData = await empRes.json();
+                                if (Array.isArray(projData)) setSubProjects(projData);
+                                if (Array.isArray(taskData)) setSubTasks(taskData);
+                                if (Array.isArray(empData)) setEmployees(empData);
+                              }).catch(() => {});
+                              return;
+                            }
+                            setSubView(false); selectSub(sub);
+                          }}
                           style={[st.jobItem, active && st.jobItemActive]}
                         >
                           <View style={[st.jobIndicator, active && st.jobIndicatorActive]} />
