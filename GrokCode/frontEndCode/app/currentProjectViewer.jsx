@@ -1762,7 +1762,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
   .header-right { text-align: right; font-size: 9pt; color: #555; }
   .report-title { font-size: 16pt; font-weight: 700; margin-bottom: 4px; }
   .report-subtitle { font-size: 10pt; color: #444; margin-bottom: 16px; }
-  .spec-section { margin-bottom: 16px; break-inside: avoid; }
+  .spec-section { margin-bottom: 16px; }
   .section-header { font-size: 13pt; font-weight: 700; background: #f0f0f0; padding: 6px 10px; border-left: 4px solid #333; margin-bottom: 6px; }
   .spec-item { padding: 4px 0 4px 14px; font-size: 10.5pt; border-bottom: 1px solid #eee; }
   .item-name { font-weight: 600; }
@@ -1957,7 +1957,7 @@ ${sectionsHtml}
   .company-name { font-size: 22pt; font-weight: 700; }
   .header-right { text-align: right; font-size: 9pt; color: #555; }
   .report-title { font-size: 16pt; font-weight: 700; margin-bottom: 20px; }
-  .section { margin-bottom: 20px; break-inside: avoid; }
+  .section { margin-bottom: 20px; }
   .section-title { font-size: 12pt; font-weight: 700; background: #f0f0f0; padding: 6px 10px; border-left: 4px solid #333; margin-bottom: 2px; }
   table { width: 100%; border-collapse: collapse; }
   td { padding: 6px 10px; font-size: 10.5pt; border-bottom: 1px solid #eee; }
