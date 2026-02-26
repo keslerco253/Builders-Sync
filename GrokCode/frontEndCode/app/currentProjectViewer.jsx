@@ -669,7 +669,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
         { id: 'info', label: 'Info', subs: ['price'] },
         { id: 'changeorders', label: 'Change Orders' },
         { id: 'selections', label: 'Selections' },
-        { id: 'docs', label: 'Photos', subs: ['photos'] },
+        { id: 'docs', label: 'Docs', subs: ['documents', 'photos', 'videos'] },
       ]
     : isCon
     ? [
@@ -2893,6 +2893,36 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
 
     // --- DOCUMENTS ---
     if (tab === 'docs') {
+      const openFile = (url) => {
+        const full = url.startsWith('http') ? url : `${API_BASE}${url}`;
+        if (Platform.OS === 'web') {
+          window.open(full, '_blank');
+        } else {
+          Linking.openURL(full);
+        }
+      };
+
+      const downloadFile = (url, name) => {
+        const full = url.startsWith('http') ? url : `${API_BASE}${url}`;
+        if (Platform.OS === 'web') {
+          const a = document.createElement('a');
+          a.href = full;
+          a.download = name || 'download';
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+        } else {
+          Linking.openURL(full);
+        }
+      };
+
+      const formatSize = (bytes) => {
+        if (!bytes) return '';
+        if (bytes < 1024) return `${bytes} B`;
+        if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+        return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+      };
+
       if (sub === 'documents') {
         // Group uploaded docs by template_id
         const docsByTemplate = {};
@@ -2906,41 +2936,11 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
           }
         });
 
-        const openFile = (url) => {
-          const full = url.startsWith('http') ? url : `${API_BASE}${url}`;
-          if (Platform.OS === 'web') {
-            window.open(full, '_blank');
-          } else {
-            Linking.openURL(full);
-          }
-        };
-
-        const downloadFile = (url, name) => {
-          const full = url.startsWith('http') ? url : `${API_BASE}${url}`;
-          if (Platform.OS === 'web') {
-            const a = document.createElement('a');
-            a.href = full;
-            a.download = name || 'download';
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-          } else {
-            Linking.openURL(full);
-          }
-        };
-
         const deleteDoc = async (docId) => {
           try {
             const res = await apiFetch(`/documents/${docId}`, { method: 'DELETE' });
             if (res.ok) setDocuments(prev => prev.filter(d => d.id !== docId));
           } catch (e) { Alert.alert('Error', e.message); }
-        };
-
-        const formatSize = (bytes) => {
-          if (!bytes) return '';
-          if (bytes < 1024) return `${bytes} B`;
-          if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-          return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
         };
 
         return (
@@ -3092,20 +3092,35 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
           <ScrollView style={{ flex: 1 }} contentContainerStyle={s.scroll}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
               <Text style={s.sectionTitle}>Photos</Text>
-              {isB && <Btn onPress={() => setModal('uploadphoto')}><Text style={s.btnTxt}>⬆ Upload</Text></Btn>}
+              {isB && (
+                <TouchableOpacity onPress={() => setModal('uploadphoto')}
+                  style={{ width: 42, height: 42, borderRadius: 11, backgroundColor: C.gd, alignItems: 'center', justifyContent: 'center' }}
+                  activeOpacity={0.8}>
+                  <Text style={{ fontSize: 27, color: C.chromeTxt, fontWeight: '600', marginTop: -1 }}>+</Text>
+                </TouchableOpacity>
+              )}
             </View>
             {photos.length === 0 ? <Empty icon="camera" text="No photos uploaded" /> : (
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
                 {photos.map(p => (
-                  <View key={p.id} style={s.photoCard}>
+                  <TouchableOpacity key={p.id} style={s.photoCard} activeOpacity={0.7} onPress={() => p.file_url && openFile(p.file_url)}>
                     <View style={[s.photoThumb, { backgroundColor: `hsl(${(p.id * 47) % 360}, 30%, 22%)` }]}>
                       <Feather name="camera" size={42} color={C.dm} />
                     </View>
                     <View style={{ padding: 10 }}>
-                      <Text style={{ fontSize: 18, fontWeight: '600', color: C.text }} numberOfLines={1}>{p.name}</Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <Text style={{ fontSize: 18, fontWeight: '600', color: C.text, flex: 1 }} numberOfLines={1}>{p.name}</Text>
+                        {p.file_url ? (
+                          <TouchableOpacity onPress={(e) => { e.stopPropagation(); downloadFile(p.file_url, p.name); }}
+                            style={{ paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, backgroundColor: C.bl + '20', marginLeft: 6 }}
+                            activeOpacity={0.7}>
+                            <Text style={{ fontSize: 14 }}>⬇</Text>
+                          </TouchableOpacity>
+                        ) : null}
+                      </View>
                       <Text style={{ fontSize: 15, color: C.dm, marginTop: 2 }}>{p.category} · {sD(p.created_at)}</Text>
                     </View>
-                  </View>
+                  </TouchableOpacity>
                 ))}
               </View>
             )}
@@ -3117,20 +3132,35 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
           <ScrollView style={{ flex: 1 }} contentContainerStyle={s.scroll}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
               <Text style={s.sectionTitle}>Videos</Text>
-              {isB && <Btn onPress={() => setModal('uploadvideo')}><Text style={s.btnTxt}>⬆ Upload</Text></Btn>}
+              {isB && (
+                <TouchableOpacity onPress={() => setModal('uploadvideo')}
+                  style={{ width: 42, height: 42, borderRadius: 11, backgroundColor: C.gd, alignItems: 'center', justifyContent: 'center' }}
+                  activeOpacity={0.8}>
+                  <Text style={{ fontSize: 27, color: C.chromeTxt, fontWeight: '600', marginTop: -1 }}>+</Text>
+                </TouchableOpacity>
+              )}
             </View>
             {videos.length === 0 ? <Empty icon="film" text="No videos uploaded yet" /> : (
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
                 {videos.map(v => (
-                  <View key={v.id} style={s.photoCard}>
+                  <TouchableOpacity key={v.id} style={s.photoCard} activeOpacity={0.7} onPress={() => v.file_url && openFile(v.file_url)}>
                     <View style={[s.photoThumb, { backgroundColor: C.modalBg }]}>
                       <Feather name="film" size={42} color={C.dm} />
                     </View>
                     <View style={{ padding: 10 }}>
-                      <Text style={{ fontSize: 18, fontWeight: '600', color: C.text }} numberOfLines={1}>{v.name}</Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <Text style={{ fontSize: 18, fontWeight: '600', color: C.text, flex: 1 }} numberOfLines={1}>{v.name}</Text>
+                        {v.file_url ? (
+                          <TouchableOpacity onPress={(e) => { e.stopPropagation(); downloadFile(v.file_url, v.name); }}
+                            style={{ paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, backgroundColor: C.bl + '20', marginLeft: 6 }}
+                            activeOpacity={0.7}>
+                            <Text style={{ fontSize: 14 }}>⬇</Text>
+                          </TouchableOpacity>
+                        ) : null}
+                      </View>
                       <Text style={{ fontSize: 15, color: C.dm, marginTop: 2 }}>{sD(v.created_at)}</Text>
                     </View>
-                  </View>
+                  </TouchableOpacity>
                 ))}
               </View>
             )}
