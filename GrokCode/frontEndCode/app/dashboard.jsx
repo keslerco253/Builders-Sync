@@ -2996,7 +2996,7 @@ export default function Dashboard() {
                       <Text style={{ fontSize: 18, fontWeight: '600', color: C.text }}>Make a Change Order</Text>
                       <Text style={{ marginLeft: 'auto', fontSize: 18, color: C.dm }}>›</Text>
                     </TouchableOpacity>
-                    {taskActionPopup.project.subdivision_id && (
+                    {!isContractor && taskActionPopup.project.subdivision_id && (
                       <TouchableOpacity onPress={() => {
                         const sd = subdivisions.find(s => s.id === taskActionPopup.project.subdivision_id);
                         if (sd) { closeTaskActionPopup(); setDashView('projects'); setSelectedProject(null); selectSubdivision(sd); setSubdivTab('docs'); }

@@ -674,6 +674,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
         { id: 'schedule', label: 'Schedule', subs: ['calendar'] },
         { id: 'changeorders', label: 'Change Orders' },
         { id: 'info', label: 'Info', subs: ['jobinfo', 'specifications'] },
+        { id: 'docs', label: 'Docs', subs: ['documents', 'photos', 'videos'] },
       ]
     : [
         { id: 'schedule', label: 'Schedule', subs: ['calendar'] },
@@ -1586,7 +1587,15 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
 
     // --- INFO: JOB SPECIFICATIONS ---
     if (tab === 'info' && sub === 'specifications') {
-      const confirmedSpecs = selections.filter(sel => sel.status === 'confirmed');
+      const userTrades = isCon ? (user?.trades || '').split(',').map(t => t.trim().toLowerCase()).filter(Boolean) : [];
+      const confirmedSpecs = selections.filter(sel => {
+        if (sel.status !== 'confirmed') return false;
+        if (isCon && userTrades.length > 0) {
+          const cat = (sel.category || '').toLowerCase();
+          return userTrades.includes(cat);
+        }
+        return true;
+      });
       const specsByCategory = {};
       confirmedSpecs.forEach(sel => {
         const cat = sel.category || 'Uncategorized';
@@ -1651,7 +1660,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
             <View style={{ alignItems: 'center', padding: 40 }}>
               <Feather name="square" size={48} color={C.dm} style={{ marginBottom: 16 }} />
               <Text style={{ fontSize: 18, color: C.dm, textAlign: 'center' }}>
-                No confirmed selections yet. Confirmed selections will appear here grouped by category.
+                {isCon ? 'No confirmed selections matching your trades.' : 'No confirmed selections yet. Confirmed selections will appear here grouped by category.'}
               </Text>
             </View>
           )}
@@ -2924,7 +2933,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
               <Text style={s.sectionTitle}>Documents</Text>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                {(isB || isCon) && (
+                {isB && (
                   <TouchableOpacity onPress={() => setDocEditMode(p => !p)}
                     style={{ width: 38, height: 38, borderRadius: 10, alignItems: 'center', justifyContent: 'center',
                       backgroundColor: docEditMode ? C.rd + '18' : C.w06,
@@ -2934,7 +2943,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
                     <Feather name={docEditMode ? "x" : "edit-2"} size={18} color={docEditMode ? C.rd : C.dm} />
                   </TouchableOpacity>
                 )}
-                {(isB || isCon) && (
+                {isB && (
                   <TouchableOpacity onPress={() => setModal('uploaddoc')}
                     style={{ width: 42, height: 42, borderRadius: 11, backgroundColor: C.gd, alignItems: 'center', justifyContent: 'center' }}
                     activeOpacity={0.8}>
@@ -2958,7 +2967,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
                         {hasUpload ? `${uploads.length} file${uploads.length > 1 ? 's' : ''} uploaded` : 'Not yet uploaded'}
                       </Text>
                     </View>
-                    {(isB || isCon) && (
+                    {isB && (
                       <TouchableOpacity
                         onPress={() => setModal({ type: 'uploaddoc', templateId: tmpl.id, templateName: tmpl.name })}
                         style={{ width: 42, height: 42, borderRadius: 11, backgroundColor: C.gd, alignItems: 'center', justifyContent: 'center' }}
@@ -3043,7 +3052,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
           <ScrollView style={{ flex: 1 }} contentContainerStyle={s.scroll}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
               <Text style={s.sectionTitle}>Photos</Text>
-              {(isB || isCon) && <Btn onPress={() => setModal('uploadphoto')}><Text style={s.btnTxt}>⬆ Upload</Text></Btn>}
+              {isB && <Btn onPress={() => setModal('uploadphoto')}><Text style={s.btnTxt}>⬆ Upload</Text></Btn>}
             </View>
             {photos.length === 0 ? <Empty icon="camera" text="No photos uploaded" /> : (
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
@@ -3068,7 +3077,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
           <ScrollView style={{ flex: 1 }} contentContainerStyle={s.scroll}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
               <Text style={s.sectionTitle}>Videos</Text>
-              {(isB || isCon) && <Btn onPress={() => setModal('uploadvideo')}><Text style={s.btnTxt}>⬆ Upload</Text></Btn>}
+              {isB && <Btn onPress={() => setModal('uploadvideo')}><Text style={s.btnTxt}>⬆ Upload</Text></Btn>}
             </View>
             {videos.length === 0 ? <Empty icon="film" text="No videos uploaded yet" /> : (
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
