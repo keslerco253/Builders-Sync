@@ -465,7 +465,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
   };
 
   // Tabs — use lifted state if provided, otherwise local
-  const defaultTab = 'schedule';
+  const defaultTab = isCon ? 'info' : 'schedule';
   const [localTab, setLocalTab] = useState(activeTab || defaultTab);
   const [localSub, setLocalSub] = useState(activeSub || 'calendar');
   const tab = activeTab !== undefined ? activeTab : localTab;
@@ -671,9 +671,9 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
       ]
     : isCon
     ? [
-        { id: 'changeorders', label: 'Change Orders' },
         { id: 'info', label: 'Info', subs: ['specifications'] },
-        { id: 'docs', label: 'Docs', subs: ['documents', 'photos', 'videos'] },
+        { id: 'changeorders', label: 'Change Orders' },
+        { id: 'docs', label: 'Docs', subs: ['documents'] },
       ]
     : [
         { id: 'schedule', label: 'Schedule', subs: ['calendar'] },
