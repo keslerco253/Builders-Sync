@@ -5158,7 +5158,7 @@ const TemplateManagerModal = ({ onClose, builderTrades = [] }) => {
                         style={st.tmplDeleteBtn}
                         activeOpacity={0.7}
                       >
-                        <Text style={{ fontSize: 21, color: C.rd }}>🗑</Text>
+                        <Feather name="trash-2" size={21} color={C.rd} />
                       </TouchableOpacity>
                     </View>
                   ))
@@ -5173,14 +5173,14 @@ const TemplateManagerModal = ({ onClose, builderTrades = [] }) => {
                   <View>
                     <Text style={st.formLbl}>ICON</Text>
                     <TouchableOpacity onPress={() => setShowIcons(p => !p)} style={st.iconPicker}>
-                      <Text style={{ fontSize: 36 }}>{editIcon}</Text>
+                      <Feather name={editIcon} size={36} color={C.dm} />
                     </TouchableOpacity>
                     {showIcons && (
                       <View style={st.iconGrid}>
-                        {TEMPLATE_ICONS.map(ic => (
-                          <TouchableOpacity key={ic} onPress={() => { setEditIcon(ic); setShowIcons(false); }}
+                        {TEMPLATE_ICONS.map((ic, idx) => (
+                          <TouchableOpacity key={`${ic}-${idx}`} onPress={() => { setEditIcon(ic); setShowIcons(false); }}
                             style={[st.iconOption, ic === editIcon && st.iconOptionOn]}>
-                            <Text style={{ fontSize: 27 }}>{ic}</Text>
+                            <Feather name={ic} size={27} color={ic === editIcon ? C.gd : C.dm} />
                           </TouchableOpacity>
                         ))}
                       </View>
@@ -5345,7 +5345,10 @@ const NewProjectModal = ({ onClose, onCreated, subdivisions = [], builderTrades 
                         {subdivisions.map(sd => (
                           <TouchableOpacity key={sd.id} onPress={() => { set('subdivision_id', sd.id); setShowSubdivPicker(false); }}
                             style={{ paddingVertical: 10, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: C.w06, backgroundColor: f.subdivision_id === sd.id ? C.gd + '22' : 'transparent' }}>
-                            <Text style={{ fontSize: 19, color: f.subdivision_id === sd.id ? C.gd : C.text }}>📁 {sd.name}</Text>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                              <Feather name="folder" size={17} color={f.subdivision_id === sd.id ? C.gd : C.text} />
+                              <Text style={{ fontSize: 19, color: f.subdivision_id === sd.id ? C.gd : C.text }}>{sd.name}</Text>
+                            </View>
                           </TouchableOpacity>
                         ))}
                       </ScrollView>
@@ -5447,7 +5450,7 @@ const NewProjectModal = ({ onClose, onCreated, subdivisions = [], builderTrades 
                 {/* Header */}
                 <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 20, borderBottomWidth: 1, borderBottomColor: C.bd }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                    <Text style={{ fontSize: 28 }}>{reviewTmplInfo?.icon || '📋'}</Text>
+                    <Feather name={reviewTmplInfo?.icon || 'clipboard'} size={28} color={C.dm} />
                     <View>
                       <Text style={{ fontSize: 24, fontWeight: '700', color: C.textBold }}>Review Tasks</Text>
                       <Text style={{ fontSize: 16, color: C.dm }}>{reviewTmplInfo?.name} · {reviewTasks.length} tasks</Text>
