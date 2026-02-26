@@ -2500,7 +2500,8 @@ export default function Dashboard() {
               {subProjects.length === 0 ? (
                 <Text style={{ color: C.dm, fontSize: 20, paddingVertical: 12 }}>No projects assigned</Text>
               ) : (
-                [...subProjects].sort((a, b) => {
+                <ScrollView style={{ maxHeight: 600 }} nestedScrollEnabled>
+                {[...subProjects].sort((a, b) => {
                   const da = a.date ? new Date(a.date) : new Date(0);
                   const db = b.date ? new Date(b.date) : new Date(0);
                   return db - da;
@@ -2529,7 +2530,8 @@ export default function Dashboard() {
                     </View>
                     <Text style={{ fontSize: 21, color: C.mt }}>›</Text>
                   </TouchableOpacity>
-                ))
+                ))}
+                </ScrollView>
               )}
             </View>
             </View>{/* end two-column */}
