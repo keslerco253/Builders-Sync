@@ -1898,9 +1898,113 @@ ${sectionsHtml}
       const selectionTotal = selectionLines.reduce((sum, l) => sum + l.price, 0);
       const grandTotal = baseContract + coTotal + selectionTotal;
 
+      const printPriceSummary = () => {
+        if (Platform.OS !== 'web') return;
+        const esc = (str) => String(str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        const fmtMoney = (v) => { const n = Number(v || 0); const abs = Math.abs(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }); return n < 0 ? '-$' + abs : '$' + abs; };
+        const now = new Date();
+        const dateStr = now.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+        const timeStr = now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+        const address = esc(project?.address || project?.street_address || project?.name || '');
+        const coName = esc(user?.company_name || '');
+        const logoSrc = companyLogo || '';
+
+        // Contract Price section
+        let contractHtml = `<tr><td>Contract Price</td><td class="amt">${fmtMoney(origPrice)}</td></tr>`;
+        if (reconciliation !== 0) {
+          contractHtml += `<tr><td>Reconciliation After Drafting</td><td class="amt">${reconciliation > 0 ? '+' : ''}${fmtMoney(reconciliation)}</td></tr>`;
+          contractHtml += `<tr class="subtotal"><td>Base Contract</td><td class="amt">${fmtMoney(baseContract)}</td></tr>`;
+        }
+
+        // Selections section
+        let selectionsHtml = '';
+        if (selectionLines.length === 0) {
+          selectionsHtml = `<tr><td colspan="2" class="empty">No confirmed selections yet</td></tr>`;
+        } else {
+          selectionLines.forEach(line => {
+            const priceStr = line.tbd ? 'Price TBD' : line.price > 0 ? '+' + fmtMoney(line.price) : 'Standard';
+            selectionsHtml += `<tr><td>${esc(line.item)} — ${esc(line.selected)}</td><td class="amt">${priceStr}</td></tr>`;
+          });
+        }
+        selectionsHtml += `<tr class="subtotal"><td>Selections Total</td><td class="amt">${selectionTotal > 0 ? '+' : ''}${fmtMoney(selectionTotal)}</td></tr>`;
+
+        // Change Orders section
+        let coHtml = '';
+        if (approved.length === 0) {
+          coHtml = `<tr><td colspan="2" class="empty">No approved change orders yet</td></tr>`;
+        } else {
+          approved.forEach(co => {
+            coHtml += `<tr><td>${esc(co.title)}</td><td class="amt">${co.amount >= 0 ? '+' : ''}${fmtMoney(co.amount)}</td></tr>`;
+          });
+        }
+        coHtml += `<tr class="subtotal"><td>Change Orders Total</td><td class="amt">${coTotal > 0 ? '+' : ''}${fmtMoney(coTotal)}</td></tr>`;
+
+        // Totals section
+        let totalsHtml = `<tr><td>Base Contract</td><td class="amt">${fmtMoney(baseContract)}</td></tr>`;
+        totalsHtml += `<tr><td>Change Orders</td><td class="amt">${coTotal > 0 ? '+' : ''}${fmtMoney(coTotal)}</td></tr>`;
+        totalsHtml += `<tr><td>Selection Upgrades</td><td class="amt">${selectionTotal > 0 ? '+' : ''}${fmtMoney(selectionTotal)}</td></tr>`;
+        totalsHtml += `<tr class="grand-total"><td>Current Project Cost</td><td class="amt">${fmtMoney(grandTotal)}</td></tr>`;
+
+        const html = `<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Job Price Summary</title>
+<style>
+  @page { size: letter; margin: 0.75in; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: Arial, Helvetica, sans-serif; color: #222; font-size: 11pt; line-height: 1.4; }
+  .page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; border-bottom: 2px solid #222; padding-bottom: 12px; }
+  .header-left { display: flex; align-items: center; gap: 12px; }
+  .company-logo { width: 60px; height: 60px; object-fit: contain; border-radius: 6px; }
+  .company-name { font-size: 22pt; font-weight: 700; }
+  .header-right { text-align: right; font-size: 9pt; color: #555; }
+  .report-title { font-size: 16pt; font-weight: 700; margin-bottom: 20px; }
+  .section { margin-bottom: 20px; break-inside: avoid; }
+  .section-title { font-size: 12pt; font-weight: 700; background: #f0f0f0; padding: 6px 10px; border-left: 4px solid #333; margin-bottom: 2px; }
+  table { width: 100%; border-collapse: collapse; }
+  td { padding: 6px 10px; font-size: 10.5pt; border-bottom: 1px solid #eee; }
+  td.amt { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  td.empty { color: #888; font-style: italic; text-align: center; }
+  tr.subtotal td { border-top: 2px solid #ccc; font-weight: 700; font-size: 11pt; }
+  tr.grand-total td { border-top: 3px solid #222; font-weight: 700; font-size: 13pt; padding: 10px; }
+  @media print {
+    body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+</style></head><body>
+<div class="page-header">
+  <div class="header-left">
+    ${logoSrc ? `<img class="company-logo" src="${logoSrc.startsWith('data:') ? logoSrc : 'data:image/png;base64,' + logoSrc}" />` : ''}
+    <span class="company-name">${coName}</span>
+  </div>
+  <div class="header-right">${dateStr}<br/>${timeStr}</div>
+</div>
+<div class="report-title">Job Price Summary for ${address}</div>
+<div class="section"><div class="section-title">Contract Price</div><table>${contractHtml}</table></div>
+<div class="section"><div class="section-title">Selections</div><table>${selectionsHtml}</table></div>
+<div class="section"><div class="section-title">Change Orders</div><table>${coHtml}</table></div>
+<div class="section"><div class="section-title">Totals</div><table>${totalsHtml}</table></div>
+<script>window.onload=function(){window.print();}</script>
+</body></html>`;
+
+        const win = window.open('', '_blank');
+        if (win) { win.document.write(html); win.document.close(); }
+      };
+
       return (
         <ScrollView style={{ flex: 1 }} contentContainerStyle={[s.scroll, { maxWidth: windowWidth * 0.9 }]}>
-          <Text style={[s.sectionTitle, { textAlign: 'center' }]}>Job Price Summary</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+            <View style={{ flex: 1 }} />
+            <Text style={[s.sectionTitle, { textAlign: 'center', flex: 2 }]}>Job Price Summary</Text>
+            <View style={{ flex: 1, alignItems: 'flex-end' }}>
+              {Platform.OS === 'web' && (
+                <TouchableOpacity
+                  onPress={printPriceSummary}
+                  activeOpacity={0.7}
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: C.gd, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 8 }}>
+                  <Feather name="printer" size={18} color={C.textBold} />
+                  <Text style={{ fontSize: 16, fontWeight: '700', color: C.textBold }}>Print</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
           <Text style={{ color: C.mt, fontSize: 21, marginBottom: 20, textAlign: 'center' }}>{project.name}</Text>
 
           <View style={s.threeColRow}>

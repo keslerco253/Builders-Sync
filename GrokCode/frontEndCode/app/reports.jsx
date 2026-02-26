@@ -99,6 +99,21 @@ function SpecReport({ C, user, onBack, navigation }) {
   const [showSubdivDrop, setShowSubdivDrop] = useState(false);
   const [showPlanDrop, setShowPlanDrop] = useState(false);
 
+  // Company logo for print
+  const [companyLogo, setCompanyLogo] = useState(null);
+  useEffect(() => {
+    if (!user?.id) return;
+    const isBuilder = user.role === 'builder' || user.role === 'company_admin';
+    if (isBuilder) {
+      apiFetch(`/users/${user.id}/logo`).then(r => r.json()).then(data => {
+        if (data.logo) setCompanyLogo(data.logo);
+        else apiFetch(`/builder-logo`).then(r => r.json()).then(d => { if (d.logo) setCompanyLogo(d.logo); }).catch(() => {});
+      }).catch(() => {});
+    } else {
+      apiFetch(`/builder-logo`).then(r => r.json()).then(data => { if (data.logo) setCompanyLogo(data.logo); }).catch(() => {});
+    }
+  }, [user?.id]);
+
   // Fetch
   useEffect(() => {
     (async () => {
@@ -145,6 +160,64 @@ function SpecReport({ C, user, onBack, navigation }) {
 
   const arrow = (col) => sortCol === col ? (sortDir === 'asc' ? ' ▲' : ' ▼') : '';
 
+  const printSpecReport = () => {
+    if (Platform.OS !== 'web') return;
+    const esc = (str) => String(str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    const now = new Date();
+    const dateStr = now.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+    const timeStr = now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+    const coName = esc(user?.company_name || '');
+    const logoSrc = companyLogo || '';
+
+    let rowsHtml = '';
+    sorted.forEach((row, idx) => {
+      const cls = idx % 2 === 1 ? ' class="alt"' : '';
+      rowsHtml += `<tr${cls}><td>${esc(row.subdivision)}</td><td>${esc(row.address)}</td><td>${esc(row.plan_name)}</td><td>${esc(row.current_task)}</td><td>${fD(row.end_date)}</td></tr>`;
+    });
+
+    const filterDesc = [filterSubdiv ? 'Subdivision: ' + esc(filterSubdiv) : '', filterPlan ? 'Plan: ' + esc(filterPlan) : ''].filter(Boolean).join('  |  ');
+
+    const html = `<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Spec Report</title>
+<style>
+  @page { size: letter landscape; margin: 0.5in; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: Arial, Helvetica, sans-serif; color: #222; font-size: 10pt; line-height: 1.3; }
+  .page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; border-bottom: 2px solid #222; padding-bottom: 10px; }
+  .header-left { display: flex; align-items: center; gap: 12px; }
+  .company-logo { width: 50px; height: 50px; object-fit: contain; border-radius: 6px; }
+  .company-name { font-size: 20pt; font-weight: 700; }
+  .header-right { text-align: right; font-size: 9pt; color: #555; }
+  .report-title { font-size: 14pt; font-weight: 700; margin-bottom: 4px; }
+  .report-subtitle { font-size: 9pt; color: #444; margin-bottom: 14px; }
+  table { width: 100%; border-collapse: collapse; }
+  th { background: #f0f0f0; padding: 7px 8px; text-align: left; font-size: 9.5pt; font-weight: 700; border-bottom: 2px solid #ccc; }
+  td { padding: 6px 8px; font-size: 9.5pt; border-bottom: 1px solid #eee; }
+  tr.alt td { background: #fafafa; }
+  @media print {
+    body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+</style></head><body>
+<div class="page-header">
+  <div class="header-left">
+    ${logoSrc ? `<img class="company-logo" src="${logoSrc.startsWith('data:') ? logoSrc : 'data:image/png;base64,' + logoSrc}" />` : ''}
+    <span class="company-name">${coName}</span>
+  </div>
+  <div class="header-right">${dateStr}<br/>${timeStr}</div>
+</div>
+<div class="report-title">Spec Report — ${sorted.length} ${sorted.length === 1 ? 'project' : 'projects'}</div>
+${filterDesc ? `<div class="report-subtitle">${filterDesc}</div>` : ''}
+<table>
+<thead><tr><th>Subdivision</th><th>Address</th><th>Plan Name</th><th>Current Task</th><th>End Date</th></tr></thead>
+<tbody>${rowsHtml}</tbody>
+</table>
+<script>window.onload=function(){window.print();}</script>
+</body></html>`;
+
+    const win = window.open('', '_blank');
+    if (win) { win.document.write(html); win.document.close(); }
+  };
+
   const COLS = [
     { key: 'subdivision', label: 'Subdivision', flex: 1.2 },
     { key: 'address', label: 'Address', flex: 1.5 },
@@ -162,7 +235,15 @@ function SpecReport({ C, user, onBack, navigation }) {
           <Text style={{ fontSize: 17, color: C.gd, fontWeight: '600' }}>Back</Text>
         </TouchableOpacity>
         <Text style={st.headerTitle}>Spec Report</Text>
-        <View style={{ width: 80 }} />
+        {Platform.OS === 'web' && sorted.length > 0 ? (
+          <TouchableOpacity
+            onPress={printSpecReport}
+            activeOpacity={0.7}
+            style={{ flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: C.gd, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8 }}>
+            <Feather name="printer" size={16} color={C.textBold} />
+            <Text style={{ fontSize: 15, fontWeight: '700', color: C.textBold }}>Print</Text>
+          </TouchableOpacity>
+        ) : <View style={{ width: 80 }} />}
       </View>
 
       {loading ? (
