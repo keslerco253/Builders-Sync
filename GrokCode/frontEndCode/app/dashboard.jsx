@@ -4614,39 +4614,60 @@ export default function Dashboard() {
           )
         )
       ) : !isBuilder && !isContractor ? (
-        /* --- CUSTOMER VIEW: no sidebar, full-width project viewer --- */
-        loading ? (
-          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-            <ActivityIndicator color={C.gd} size="large" />
+        /* --- CUSTOMER VIEW: tasks sidebar + project detail --- */
+        <View style={{ flex: 1, flexDirection: isWide ? 'row' : 'column', minHeight: 0 }}>
+          {isWide && (
+            <View style={[st.sidebar, st.sidebarWide]}>
+              {companyLogo && (
+                <View style={{ alignItems: 'center', paddingVertical: 14, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: C.sw06 }}>
+                  <Image source={{ uri: companyLogo }} style={{ width: 368, height: 147, resizeMode: 'contain' }} />
+                </View>
+              )}
+              <View style={st.sidebarHead}>
+                <Text style={st.sidebarLabel}>CUSTOMER TASKS</Text>
+              </View>
+              <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+                <Feather name="check-square" size={40} color={C.dm} style={{ marginBottom: 10 }} />
+                <Text style={{ color: C.chromeTxt, fontSize: 18, fontWeight: '600', textAlign: 'center' }}>Coming Soon</Text>
+                <Text style={{ color: C.chromeDm, fontSize: 15, marginTop: 4, textAlign: 'center' }}>Your tasks will appear here</Text>
+              </View>
+            </View>
+          )}
+          <View style={{ flex: 1, borderLeftWidth: isWide ? 1 : 0, borderLeftColor: C.bd, minHeight: 0 }}>
+            {loading ? (
+              <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+                <ActivityIndicator color={C.gd} size="large" />
+              </View>
+            ) : selectedProject ? (
+              <CurrentProjectViewer
+                embedded
+                project={selectedProject}
+                clientView={false}
+                activeTab={activeTab}
+                activeSub={activeSub}
+                onTabChange={setActiveTab}
+                onSubChange={setActiveSub}
+                onProjectUpdate={handleProjectUpdate}
+                onProjectDeleted={handleProjectDeleted}
+                scheduleVersion={scheduleVersion}
+                onScheduleChange={handleScheduleChange}
+                syncRef={syncRef}
+                subdivisions={subdivisions}
+                builderTrades={builderTrades}
+                floorPlans={floorPlans}
+                calYear={globalCalMonth.getFullYear()}
+                calMonth={globalCalMonth.getMonth()}
+                onMonthChange={(y, m) => setGlobalCalMonth(new Date(y, m, 1))}
+              />
+            ) : (
+              <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+                <Feather name="clipboard" size={48} color={C.dm} style={{ marginBottom: 10 }} />
+                <Text style={{ color: C.text, fontSize: 21, fontWeight: '600', textAlign: 'center' }}>No projects yet</Text>
+                <Text style={{ color: C.dm, fontSize: 18, marginTop: 4, textAlign: 'center' }}>Projects assigned to you will appear here</Text>
+              </View>
+            )}
           </View>
-        ) : selectedProject ? (
-          <CurrentProjectViewer
-            embedded
-            project={selectedProject}
-            clientView={false}
-            activeTab={activeTab}
-            activeSub={activeSub}
-            onTabChange={setActiveTab}
-            onSubChange={setActiveSub}
-            onProjectUpdate={handleProjectUpdate}
-            onProjectDeleted={handleProjectDeleted}
-            scheduleVersion={scheduleVersion}
-            onScheduleChange={handleScheduleChange}
-            syncRef={syncRef}
-            subdivisions={subdivisions}
-            builderTrades={builderTrades}
-            floorPlans={floorPlans}
-            calYear={globalCalMonth.getFullYear()}
-            calMonth={globalCalMonth.getMonth()}
-            onMonthChange={(y, m) => setGlobalCalMonth(new Date(y, m, 1))}
-          />
-        ) : (
-          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
-            <Feather name="clipboard" size={48} color={C.dm} style={{ marginBottom: 10 }} />
-            <Text style={{ color: C.text, fontSize: 21, fontWeight: '600', textAlign: 'center' }}>No projects yet</Text>
-            <Text style={{ color: C.dm, fontSize: 18, marginTop: 4, textAlign: 'center' }}>Projects assigned to you will appear here</Text>
-          </View>
-        )
+        </View>
       ) : isWide ? (
         /* --- WIDE: sidebar + detail side by side --- */
         <View style={{ flex: 1, flexDirection: 'row', minHeight: 0 }}>
