@@ -1637,7 +1637,7 @@ def add_project():
                      'start_date', 'est_completion', 'progress', 'original_price',
                      'contract_price', 'sqft', 'bedrooms', 'bathrooms', 'garage',
                      'lot_size', 'style', 'stories', 'email', 'dates_from_schedule', 'go_live', 'subdivision_id',
-                     'permit_number'):
+                     'permit_number', 'customer_first_name', 'customer_last_name'):
             if key in data:
                 setattr(p, key, data[key])
 
