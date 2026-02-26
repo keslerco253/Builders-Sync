@@ -2673,7 +2673,7 @@ export default function Dashboard() {
 
             {/* Month nav */}
             <View style={st.subCalNav}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                 <TouchableOpacity onPress={goToday} style={st.subCalTodayBtn} activeOpacity={0.7}>
                   <Text style={st.subCalTodayTxt}>Today</Text>
                 </TouchableOpacity>
@@ -2688,7 +2688,7 @@ export default function Dashboard() {
                 <Text style={st.subCalNavTitle}>{monNames[calMon]} {calYear}</Text>
                 <TouchableOpacity onPress={nextMonth} style={st.subCalNavBtn}><Text style={st.subCalNavArrow}>›</Text></TouchableOpacity>
               </View>
-              <View style={{ width: 60 }} />
+              <View style={{ flex: 1 }} />
             </View>
             {showSubCalLegend && Object.keys(projectColors).length > 0 && (
               <View style={st.subCalLegend}>
@@ -4058,7 +4058,7 @@ export default function Dashboard() {
                   <View style={{ flex: 1, minHeight: 0 }}>
                     {/* Month nav */}
                     <View style={st.subCalNav}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                      <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                         <TouchableOpacity onPress={bcToday} style={st.subCalTodayBtn} activeOpacity={0.7}>
                           <Text style={st.subCalTodayTxt}>Today</Text>
                         </TouchableOpacity>
@@ -4073,7 +4073,7 @@ export default function Dashboard() {
                         <Text style={st.subCalNavTitle}>{monNames[bcMon]} {bcYear}</Text>
                         <TouchableOpacity onPress={bcNext} style={st.subCalNavBtn}><Text style={st.subCalNavArrow}>›</Text></TouchableOpacity>
                       </View>
-                      <View style={{ width: 60 }} />
+                      <View style={{ flex: 1 }} />
                     </View>
 
                     {/* Legend */}

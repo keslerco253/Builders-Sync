@@ -979,7 +979,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
             })()}
           </View>
 
-          {(() => {
+          {!isCon && (() => {
             const overallPct = schedule.length > 0
               ? Math.round(schedule.reduce((sum, t) => sum + calcTaskProgress(t).pct, 0) / schedule.length)
               : (project.progress || 0);
@@ -1419,7 +1419,16 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
               </Card>
             );
 
-            return IS_WIDE ? (
+            return isCon ? (
+              IS_WIDE ? (
+                <View style={s.twoColRow}>
+                  <View style={s.twoColLeft}>{houseSpecsCard}</View>
+                  <View style={[s.twoColRight, { zIndex: 20 }]}>{projectDetailsCard}</View>
+                </View>
+              ) : (
+                <>{projectDetailsCard}{houseSpecsCard}</>
+              )
+            ) : IS_WIDE ? (
               <View style={s.twoColRow}>
                 <View style={s.twoColLeft}>{contractPriceCard}{houseSpecsCard}{datesCard}</View>
                 <View style={[s.twoColRight, { zIndex: 20 }]}>{projectDetailsCard}{goLiveStepsCard}</View>
