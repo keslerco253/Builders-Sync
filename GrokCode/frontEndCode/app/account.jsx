@@ -3,6 +3,7 @@ import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert, TextInput,
   Modal, KeyboardAvoidingView, Platform, Image,
 } from 'react-native';
+import Feather from '@expo/vector-icons/Feather';
 import { AuthContext, ThemeContext, API_BASE, apiFetch } from './context';
 import { fPhone } from './currentProjectViewer';
 
@@ -240,7 +241,7 @@ export default function AccountScreen() {
         {user?.role === 'company_admin' && (
           <View style={st.card}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-              <Text style={{ fontSize: 20 }}>🖼</Text>
+              <Feather name="image" size={20} color={C.dm} />
               <View style={{ flex: 1 }}>
                 <Text style={{ fontSize: 16, fontWeight: '700', color: C.textBold }}>Company Logo</Text>
                 <Text style={{ fontSize: 12, color: C.dm, marginTop: 2 }}>Displayed in the dashboard header</Text>
@@ -277,7 +278,7 @@ export default function AccountScreen() {
                   padding: 28, alignItems: 'center', gap: 8, backgroundColor: C.w03,
                 }}
                 activeOpacity={0.7}>
-                <Text style={{ fontSize: 32 }}>📤</Text>
+                <Feather name="upload" size={32} color={C.dm} />
                 <Text style={{ fontSize: 14, fontWeight: '600', color: C.text }}>
                   {logoLoading ? 'Uploading...' : 'Upload Company Logo'}
                 </Text>
@@ -289,7 +290,7 @@ export default function AccountScreen() {
 
         {/* Actions */}
         <TouchableOpacity onPress={() => setShowPwModal(true)} style={[st.card, { flexDirection: 'row', alignItems: 'center', gap: 12 }]}>
-          <Text style={{ fontSize: 20 }}>🔑</Text>
+          <Feather name="key" size={20} color={C.dm} />
           <View style={{ flex: 1 }}>
             <Text style={{ fontSize: 15, fontWeight: '600', color: C.text }}>Change Password</Text>
             <Text style={{ fontSize: 12, color: C.dm, marginTop: 2 }}>Update your login credentials</Text>
@@ -300,7 +301,7 @@ export default function AccountScreen() {
         {/* Theme Selector */}
         <View style={[st.card, { gap: 12 }]}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-            <Text style={{ fontSize: 20 }}>{C.themePreference === 'system' ? '💻' : C.mode === 'dark' ? '🌙' : '☀️'}</Text>
+            <Feather name={C.themePreference === 'system' ? 'monitor' : C.mode === 'dark' ? 'moon' : 'sun'} size={20} color={C.dm} />
             <View style={{ flex: 1 }}>
               <Text style={{ fontSize: 15, fontWeight: '600', color: C.text }}>Appearance</Text>
               <Text style={{ fontSize: 12, color: C.dm, marginTop: 2 }}>
@@ -309,13 +310,13 @@ export default function AccountScreen() {
             </View>
           </View>
           <View style={{ flexDirection: 'row', gap: 6 }}>
-            {[['system', '💻', 'System'], ['light', '☀️', 'Light'], ['dark', '🌙', 'Dark']].map(([val, icon, label]) => {
+            {[['system', 'monitor', 'System'], ['light', 'sun', 'Light'], ['dark', 'moon', 'Dark']].map(([val, icon, label]) => {
               const on = C.themePreference === val;
               return (
                 <TouchableOpacity key={val} onPress={() => C.setThemePreference(val)}
                   style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, borderRadius: 8, borderWidth: on ? 2 : 1, borderColor: on ? C.gd : C.w10, backgroundColor: on ? C.gd + '18' : 'transparent' }}
                   activeOpacity={0.7}>
-                  <Text style={{ fontSize: 14 }}>{icon}</Text>
+                  <Feather name={icon} size={14} color={on ? C.gd : C.mt} />
                   <Text style={{ fontSize: 13, fontWeight: on ? '600' : '400', color: on ? C.gd : C.mt }}>{label}</Text>
                 </TouchableOpacity>
               );
@@ -324,7 +325,7 @@ export default function AccountScreen() {
         </View>
 
         <TouchableOpacity onPress={handleSignOut} style={[st.card, { flexDirection: 'row', alignItems: 'center', gap: 12, borderColor: 'rgba(239,68,68,0.15)' }]}>
-          <Text style={{ fontSize: 20 }}>🚪</Text>
+          <Feather name="log-out" size={20} color={C.rd} />
           <View style={{ flex: 1 }}>
             <Text style={{ fontSize: 15, fontWeight: '600', color: C.rd }}>Sign Out</Text>
             <Text style={{ fontSize: 12, color: C.dm, marginTop: 2 }}>Log out of BuilderSync</Text>
@@ -334,7 +335,7 @@ export default function AccountScreen() {
 
         {/* Footer */}
         <View style={{ alignItems: 'center', marginTop: 30 }}>
-          <View style={[st.logoBox]}><Text style={{ fontSize: 14, color: C.textBold, fontWeight: '700' }}>⬡</Text></View>
+          <View style={[st.logoBox]}><Feather name="hexagon" size={14} color={C.textBold} /></View>
           <Text style={{ fontSize: 11, color: C.dm, marginTop: 8 }}>BuilderSync v1.0</Text>
           <Text style={{ fontSize: 11, color: C.ph, marginTop: 2 }}>Construction Project Management</Text>
         </View>

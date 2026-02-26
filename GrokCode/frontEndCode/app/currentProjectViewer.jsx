@@ -4,6 +4,7 @@ import {
   TextInput, Alert, ActivityIndicator, Modal, KeyboardAvoidingView, Dimensions, Image, AppState, useWindowDimensions,
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
+import Feather from '@expo/vector-icons/Feather';
 import { AuthContext, ThemeContext, API_BASE, apiFetch } from './context';
 import ScheduleCalendar from './scheduleCalendar';
 import DatePicker from './datePicker';
@@ -143,12 +144,12 @@ const Bar = ({ pct, color, h = 8 }) => {
   );
 };
 
-const Empty = ({ icon = '📋', text = 'Nothing here yet', sub }) => {
+const Empty = ({ icon = 'clipboard', text = 'Nothing here yet', sub }) => {
   const C = React.useContext(ThemeContext);
   const s = React.useMemo(() => getStyles(C), [C]);
   return (
   <View style={s.empty}>
-    <Text style={{ fontSize: 60, marginBottom: 12 }}>{icon}</Text>
+    <Feather name={icon} size={60} color={C.dm} style={{ marginBottom: 12 }} />
     <Text style={s.emptyTxt}>{text}</Text>
     {sub && <Text style={s.emptySub}>{sub}</Text>}
   </View>
@@ -1050,7 +1051,10 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
                                     {subdivisions.map(sd => (
                                       <TouchableOpacity key={sd.id} onPress={() => { setField('subdivision_id', sd.id); setShowSubdivPicker(false); }}
                                         style={{ paddingVertical: 10, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: C.w06, backgroundColor: editInfo.subdivision_id === sd.id ? C.gd + '22' : 'transparent' }}>
-                                        <Text style={{ fontSize: 21, color: editInfo.subdivision_id === sd.id ? C.gd : C.text }}>📁 {sd.name}</Text>
+                                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                                          <Feather name="folder" size={20} color={editInfo.subdivision_id === sd.id ? C.gd : C.text} />
+                                          <Text style={{ fontSize: 21, color: editInfo.subdivision_id === sd.id ? C.gd : C.text }}>{sd.name}</Text>
+                                        </View>
                                       </TouchableOpacity>
                                     ))}
                                   </ScrollView>
@@ -1245,7 +1249,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
                           backgroundColor: step.completed ? '#10b981' : 'transparent',
                           alignItems: 'center', justifyContent: 'center',
                         }}>
-                          {step.completed && <Text style={{ fontSize: 14, color: '#fff', fontWeight: '700' }}>✓</Text>}
+                          {step.completed && <Feather name="check" size={14} color="#fff" />}
                         </View>
                         <View style={{ flex: 1 }}>
                           <Text style={{
@@ -1539,7 +1543,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
         <ScrollView style={{ flex: 1 }} contentContainerStyle={[s.scroll, { maxWidth: windowWidth * 0.9 }]}>
           {schedule.length === 0 ? (
             <View style={{ alignItems: 'center', paddingVertical: 40 }}>
-              <Text style={{ fontSize: 40, marginBottom: 10 }}>📋</Text>
+              <Feather name="clipboard" size={40} color={C.dm} style={{ marginBottom: 10 }} />
               <Text style={{ fontSize: 18, fontWeight: '600', color: C.text }}>No Schedule Tasks</Text>
               <Text style={{ fontSize: 14, color: C.dm, marginTop: 4, textAlign: 'center' }}>
                 Add tasks to the schedule to see trade assignments here.
@@ -1645,7 +1649,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
             </View>
           ) : (
             <View style={{ alignItems: 'center', padding: 40 }}>
-              <Text style={{ fontSize: 48, marginBottom: 16 }}>📐</Text>
+              <Feather name="square" size={48} color={C.dm} style={{ marginBottom: 16 }} />
               <Text style={{ fontSize: 18, color: C.dm, textAlign: 'center' }}>
                 No confirmed selections yet. Confirmed selections will appear here grouped by category.
               </Text>
@@ -1797,7 +1801,10 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
 
           {pending.length > 0 && (
             <View style={s.warnBox}>
-              <Text style={s.warnTxt}>⚠ {pending.length} pending change order(s) not yet reflected</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Feather name="alert-triangle" size={16} color={C.yl} />
+                <Text style={s.warnTxt}>{pending.length} pending change order(s) not yet reflected</Text>
+              </View>
             </View>
           )}
         </ScrollView>
@@ -1864,7 +1871,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
                         style={{ flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, backgroundColor: tradeFilter.length > 0 ? 'rgba(59,130,246,0.12)' : C.w06, borderWidth: 1, borderColor: tradeFilter.length > 0 ? C.bl + '40' : C.w10 }}
                         activeOpacity={0.7}
                       >
-                        <Text style={{ fontSize: 18 }}>🔍</Text>
+                        <Feather name="search" size={18} color={C.dm} />
                         <Text style={{ fontSize: 17, fontWeight: '600', color: tradeFilter.length > 0 ? C.bl : C.dm }}>
                           {tradeFilter.length > 0 ? `Filter (${tradeFilter.length})` : 'Filter'}
                         </Text>
@@ -1976,7 +1983,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
                               <View style={{ flex: 1 }}>
                                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                                   <Text style={{ fontSize: 21, fontWeight: '600', color: C.text }}>{item.task}</Text>
-                                  {hasSlip && <Text style={{ fontSize: 15, color: C.rd }}>⚠ slipped</Text>}
+                                  {hasSlip && <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}><Feather name="alert-triangle" size={14} color={C.rd} /><Text style={{ fontSize: 15, color: C.rd }}>slipped</Text></View>}
                                 </View>
                                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 }}>
                                   <Text style={{ fontSize: 18, color: C.dm }}>{item.contractor || 'Unassigned'}</Text>
@@ -2053,7 +2060,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
                           }}
                           style={{ flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 16, paddingHorizontal: 20 }}
                           activeOpacity={0.7}>
-                          <Text style={{ fontSize: 26 }}>📝</Text>
+                          <Feather name="edit-3" size={26} color={C.gd} />
                           <View style={{ flex: 1 }}>
                             <Text style={{ fontSize: 18, fontWeight: '600', color: C.text }}>Make a Change Order</Text>
                             <Text style={{ fontSize: 14, color: C.dm, marginTop: 2 }}>Submit a change order for this task</Text>
@@ -2262,7 +2269,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
                                   </View>
                                   <TouchableOpacity onPress={() => setTaskInfoEdit(prev => ({ ...prev, contractor: '' }))}
                                     style={{ paddingHorizontal: 8, paddingVertical: 6 }} activeOpacity={0.7}>
-                                    <Text style={{ fontSize: 16, color: C.rd }}>✕</Text>
+                                    <Feather name="x" size={16} color={C.rd} />
                                   </TouchableOpacity>
                                 </View>
                               ) : null}
@@ -2324,7 +2331,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
                                             <Text style={{ fontSize: 16, color: isActive ? '#10b981' : C.text, fontWeight: isActive ? '600' : '400' }} numberOfLines={1}>{display}</Text>
                                             {tradeMatch && <Text style={{ fontSize: 12, color: C.bl, fontWeight: '600' }}>{taskTrade}</Text>}
                                           </View>
-                                          {isActive && <Text style={{ fontSize: 17, color: '#10b981' }}>✓</Text>}
+                                          {isActive && <Feather name="check" size={17} color="#10b981" />}
                                         </TouchableOpacity>
                                       );
                                     });
@@ -2503,7 +2510,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
               )}
             </View>
           </View>
-          {changeOrders.length === 0 ? <Empty icon="📄" text="No change orders" /> : (
+          {changeOrders.length === 0 ? <Empty icon="file-text" text="No change orders" /> : (
             <View style={s.twoColRow}>
               <View style={s.twoColLeft}>
                 {approvedCOs.length > 0 && (
@@ -2607,7 +2614,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
                 )}
                 {isConfirmed ? (
                   <View style={{ backgroundColor: 'rgba(34,197,94,0.12)', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 }}>
-                    <Text style={{ fontSize: 16, fontWeight: '700', color: C.gn }}>✓ Confirmed</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}><Feather name="check" size={16} color={C.gn} /><Text style={{ fontSize: 16, fontWeight: '700', color: C.gn }}>Confirmed</Text></View>
                   </View>
                 ) : hasSelection ? (
                   <View style={{ backgroundColor: C.bH12, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 }}>
@@ -2645,11 +2652,11 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
                           <Image source={{ uri: `${API_BASE}${imgPath}` }} style={{ width: '100%', height: 115 }} resizeMode="cover" />
                         ) : (
                           <View style={{ width: '100%', height: 115, backgroundColor: C.w06, alignItems: 'center', justifyContent: 'center' }}>
-                            <Text style={{ fontSize: 42, opacity: 0.4 }}>📷</Text>
+                            <Feather name="camera" size={42} color={C.dm} style={{ opacity: 0.4 }} />
                           </View>
                         )}
                         <View style={{ padding: 11 }}>
-                          <Text style={{ fontSize: 20, fontWeight: '600', color: active ? C.gd : C.text }} numberOfLines={2}>{active ? '✓ ' : ''}{optName}</Text>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>{active && <Feather name="check" size={16} color={C.gd} />}<Text style={{ fontSize: 20, fontWeight: '600', color: active ? C.gd : C.text }} numberOfLines={2}>{optName}</Text></View>
                           {standard ? (
                             <Text style={{ fontSize: 18, color: C.gn, fontWeight: '600', marginTop: 4 }}>Standard</Text>
                           ) : priceTbd ? (
@@ -2739,7 +2746,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
         <ScrollView style={{ flex: 1 }} contentContainerStyle={[s.scroll, { maxWidth: windowWidth * 0.9 }]}>
           <Text style={[s.sectionTitle, { marginBottom: 16 }]}>Selections</Text>
 
-          {selections.length === 0 ? <Empty icon="🎨" text="No selections yet" sub={isC ? "Your builder will add selections here" : "Add selections in Settings → Manage Selections"} /> : (
+          {selections.length === 0 ? <Empty icon="sliders" text="No selections yet" sub={isC ? "Your builder will add selections here" : "Add selections in Settings → Manage Selections"} /> : (
             <View style={s.twoColRow}>
               <View style={s.twoColLeft}>
                 {confirmedSels.length > 0 && (
@@ -2924,7 +2931,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
                       borderWidth: 1, borderColor: docEditMode ? C.rd + '40' : 'transparent',
                     }}
                     activeOpacity={0.7}>
-                    <Text style={{ fontSize: 18, color: docEditMode ? C.rd : C.dm }}>{docEditMode ? '✕' : '✏️'}</Text>
+                    <Feather name={docEditMode ? "x" : "edit-2"} size={18} color={docEditMode ? C.rd : C.dm} />
                   </TouchableOpacity>
                 )}
                 {(isB || isCon) && (
@@ -2944,11 +2951,11 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
               return (
                 <Card key={tmpl.id} style={{ marginBottom: 10, padding: 0, overflow: 'hidden' }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', padding: 14, gap: 12 }}>
-                    <Text style={{ fontSize: 24 }}>{tmpl.doc_type === 'folder' ? '📁' : '📄'}</Text>
+                    <Feather name={tmpl.doc_type === 'folder' ? "folder" : "file-text"} size={24} color={C.dm} />
                     <View style={{ flex: 1 }}>
                       <Text style={{ fontSize: 20, fontWeight: '600', color: C.text }}>{tmpl.name}</Text>
                       <Text style={{ fontSize: 14, color: hasUpload ? C.gn : C.yl, marginTop: 2 }}>
-                        {hasUpload ? `✓ ${uploads.length} file${uploads.length > 1 ? 's' : ''} uploaded` : '⏳ Not yet uploaded'}
+                        {hasUpload ? `${uploads.length} file${uploads.length > 1 ? 's' : ''} uploaded` : 'Not yet uploaded'}
                       </Text>
                     </View>
                     {(isB || isCon) && (
@@ -2971,10 +2978,10 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
                       {docEditMode ? (
                         <TouchableOpacity onPress={(e) => { e.stopPropagation(); deleteDoc(d.id); }}
                           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} activeOpacity={0.6}>
-                          <Text style={{ fontSize: 20, color: C.rd }}>✕</Text>
+                          <Feather name="x" size={20} color={C.rd} />
                         </TouchableOpacity>
                       ) : (
-                        <Text style={{ fontSize: 18 }}>📎</Text>
+                        <Feather name="paperclip" size={18} color={C.dm} />
                       )}
                       <View style={{ flex: 1 }}>
                         <Text style={{ fontSize: 17, fontWeight: '500', color: C.text }} numberOfLines={1}>{d.name}</Text>
@@ -3004,10 +3011,10 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
                     {docEditMode ? (
                       <TouchableOpacity onPress={(e) => { e.stopPropagation(); deleteDoc(d.id); }}
                         hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} activeOpacity={0.6}>
-                        <View style={[s.docIcon, { backgroundColor: C.rd + '15' }]}><Text style={{ fontSize: 22, color: C.rd }}>✕</Text></View>
+                        <View style={[s.docIcon, { backgroundColor: C.rd + '15' }]}><Feather name="x" size={22} color={C.rd} /></View>
                       </TouchableOpacity>
                     ) : (
-                      <View style={s.docIcon}><Text style={{ fontSize: 24 }}>📄</Text></View>
+                      <View style={s.docIcon}><Feather name="file-text" size={24} color={C.dm} /></View>
                     )}
                     <View style={{ flex: 1 }}>
                       <Text style={{ fontSize: 20, fontWeight: '600', color: C.text }}>{d.name}</Text>
@@ -3026,7 +3033,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
             )}
 
             {docTemplates.length === 0 && documents.length === 0 && (
-              <Empty icon="📁" text="No documents uploaded" />
+              <Empty icon="folder" text="No documents uploaded" />
             )}
           </ScrollView>
         );
@@ -3038,12 +3045,12 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
               <Text style={s.sectionTitle}>Photos</Text>
               {(isB || isCon) && <Btn onPress={() => setModal('uploadphoto')}><Text style={s.btnTxt}>⬆ Upload</Text></Btn>}
             </View>
-            {photos.length === 0 ? <Empty icon="📷" text="No photos uploaded" /> : (
+            {photos.length === 0 ? <Empty icon="camera" text="No photos uploaded" /> : (
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
                 {photos.map(p => (
                   <View key={p.id} style={s.photoCard}>
                     <View style={[s.photoThumb, { backgroundColor: `hsl(${(p.id * 47) % 360}, 30%, 22%)` }]}>
-                      <Text style={{ fontSize: 42 }}>📷</Text>
+                      <Feather name="camera" size={42} color={C.dm} />
                     </View>
                     <View style={{ padding: 10 }}>
                       <Text style={{ fontSize: 18, fontWeight: '600', color: C.text }} numberOfLines={1}>{p.name}</Text>
@@ -3063,12 +3070,12 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
               <Text style={s.sectionTitle}>Videos</Text>
               {(isB || isCon) && <Btn onPress={() => setModal('uploadvideo')}><Text style={s.btnTxt}>⬆ Upload</Text></Btn>}
             </View>
-            {videos.length === 0 ? <Empty icon="🎬" text="No videos uploaded yet" /> : (
+            {videos.length === 0 ? <Empty icon="film" text="No videos uploaded yet" /> : (
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
                 {videos.map(v => (
                   <View key={v.id} style={s.photoCard}>
                     <View style={[s.photoThumb, { backgroundColor: C.modalBg }]}>
-                      <Text style={{ fontSize: 42 }}>🎬</Text>
+                      <Feather name="film" size={42} color={C.dm} />
                     </View>
                     <View style={{ padding: 10 }}>
                       <Text style={{ fontSize: 18, fontWeight: '600', color: C.text }} numberOfLines={1}>{v.name}</Text>
@@ -3112,7 +3119,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
                 <TouchableOpacity onPress={() => setModal('newco')}
                   style={{ flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 18, paddingHorizontal: 20, borderBottomWidth: 1, borderBottomColor: C.w06 }}
                   activeOpacity={0.7}>
-                  <Text style={{ fontSize: 28 }}>📝</Text>
+                  <Feather name="edit-3" size={28} color={C.dm} />
                   <View style={{ flex: 1 }}>
                     <Text style={{ fontSize: 20, fontWeight: '600', color: C.text }}>Custom Change Order</Text>
                     <Text style={{ fontSize: 16, color: C.dm, marginTop: 2 }}>Enter title, description & cost</Text>
@@ -3121,7 +3128,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
                 <TouchableOpacity onPress={() => setModal('newselco')}
                   style={{ flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 18, paddingHorizontal: 20 }}
                   activeOpacity={0.7}>
-                  <Text style={{ fontSize: 28 }}>🔄</Text>
+                  <Feather name="refresh-cw" size={28} color={C.dm} />
                   <View style={{ flex: 1 }}>
                     <Text style={{ fontSize: 20, fontWeight: '600', color: C.text }}>Selection Change Order</Text>
                     <Text style={{ fontSize: 16, color: C.dm, marginTop: 2 }}>Change an existing selection</Text>
@@ -3236,7 +3243,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
           justifyContent: 'space-between',
         }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            <Text style={{ fontSize: 18 }}>🏠</Text>
+            <Feather name="home" size={18} color={C.gn} />
             <Text style={{ fontSize: 16, fontWeight: '600', color: C.gn }}>Client View</Text>
             <Text style={{ fontSize: 14, color: C.dm }}>— Viewing as customer</Text>
           </View>
@@ -3312,7 +3319,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
                   <Text style={{ fontSize: 14, color: C.dm, marginTop: 2 }}>{project?.name}</Text>
                 </View>
                 <TouchableOpacity onPress={() => setShowGoLiveModal(false)} style={{ padding: 6 }}>
-                  <Text style={{ fontSize: 22, color: C.dm }}>✕</Text>
+                  <Feather name="x" size={22} color={C.dm} />
                 </TouchableOpacity>
               </View>
               <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20 }}>
@@ -3320,7 +3327,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
                   <ActivityIndicator color={C.gd} style={{ marginVertical: 30 }} />
                 ) : goLiveSteps.length === 0 ? (
                   <View style={{ alignItems: 'center', paddingVertical: 30 }}>
-                    <Text style={{ fontSize: 40, marginBottom: 10 }}>🚀</Text>
+                    <Feather name="zap" size={40} color={C.dm} style={{ marginBottom: 10 }} />
                     <Text style={{ fontSize: 18, fontWeight: '600', color: C.text, textAlign: 'center' }}>No Go Live Steps Configured</Text>
                     <Text style={{ fontSize: 14, color: C.dm, textAlign: 'center', marginTop: 6 }}>
                       Your company admin can add required steps under Settings.{'\n'}You can go live immediately.
@@ -3345,7 +3352,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
                         backgroundColor: step.completed ? '#10b981' : 'transparent',
                         alignItems: 'center', justifyContent: 'center',
                       }}>
-                        {step.completed && <Text style={{ fontSize: 16, color: '#fff', fontWeight: '700' }}>✓</Text>}
+                        {step.completed && <Feather name="check" size={16} color="#fff" />}
                       </View>
                       <View style={{ flex: 1 }}>
                         <Text style={{ fontSize: 17, fontWeight: '600', color: step.completed ? '#10b981' : C.text,
@@ -3377,9 +3384,10 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
                         }}
                         activeOpacity={0.8}
                       >
-                        <Text style={{ fontSize: 18, fontWeight: '700', color: allDone ? '#fff' : C.dm }}>
-                          🚀 Go Live
-                        </Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                          <Feather name="zap" size={18} color={allDone ? '#fff' : C.dm} />
+                          <Text style={{ fontSize: 18, fontWeight: '700', color: allDone ? '#fff' : C.dm }}>Go Live</Text>
+                        </View>
                       </TouchableOpacity>
                       {!allDone && (
                         <Text style={{ fontSize: 13, color: C.dm, textAlign: 'center' }}>
@@ -3526,7 +3534,7 @@ const ChangeOrderDetailModal = ({ co, isB, isC, isCon, signCO, onClose, user }) 
           )}
           {co.sub_name && (
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6 }}>
-              <Text style={{ fontSize: 16 }}>👷</Text>
+              <Feather name="user" size={16} color={C.dm} />
               <Text style={{ fontSize: 16, fontWeight: '500', color: C.bl }}>{co.sub_name}</Text>
             </View>
           )}
@@ -3536,7 +3544,7 @@ const ChangeOrderDetailModal = ({ co, isB, isC, isCon, signCO, onClose, user }) 
         <View style={{ backgroundColor: C.w04, borderRadius: 10, padding: 14, marginBottom: 16, borderWidth: 1, borderColor: C.w08 }}>
           <Text style={{ fontSize: 14, fontWeight: '700', color: C.dm, letterSpacing: 0.5, marginBottom: 6 }}>SUBCONTRACTOR</Text>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-            <Text style={{ fontSize: 16 }}>👷</Text>
+            <Feather name="user" size={16} color={C.dm} />
             <Text style={{ fontSize: 16, fontWeight: '500', color: C.bl }}>{co.sub_name}</Text>
           </View>
         </View>
@@ -3549,7 +3557,7 @@ const ChangeOrderDetailModal = ({ co, isB, isC, isCon, signCO, onClose, user }) 
           <TouchableOpacity onPress={() => setShowUpload(p => !p)}
             style={{ width: 36, height: 36, borderRadius: 9, backgroundColor: showUpload ? C.rd + '18' : C.gd, alignItems: 'center', justifyContent: 'center' }}
             activeOpacity={0.7}>
-            <Text style={{ fontSize: 22, color: showUpload ? C.rd : C.chromeTxt, fontWeight: '600' }}>{showUpload ? '✕' : '+'}</Text>
+            {showUpload ? <Feather name="x" size={22} color={C.rd} /> : <Text style={{ fontSize: 22, color: C.chromeTxt, fontWeight: '600' }}>+</Text>}
           </TouchableOpacity>
         )}
       </View>
@@ -3564,7 +3572,7 @@ const ChangeOrderDetailModal = ({ co, isB, isC, isCon, signCO, onClose, user }) 
             }}>
             {fileData ? (
               <>
-                <Text style={{ fontSize: 24, marginBottom: 4 }}>✓</Text>
+                <Feather name="check" size={24} color={C.gn} style={{ marginBottom: 4 }} />
                 <Text style={{ color: C.gn, fontSize: 16, fontWeight: '600' }} numberOfLines={1}>{fileData.originalName}</Text>
                 <Text style={{ color: C.dm, fontSize: 13, marginTop: 2 }}>{formatSize(fileData.size)}</Text>
               </>
@@ -3590,7 +3598,7 @@ const ChangeOrderDetailModal = ({ co, isB, isC, isCon, signCO, onClose, user }) 
             backgroundColor: C.w06 + '40', borderRadius: 10, padding: 12, marginBottom: 8,
             borderWidth: 1, borderColor: C.w08,
           }}>
-          <Text style={{ fontSize: 20 }}>📎</Text>
+          <Feather name="paperclip" size={20} color={C.dm} />
           <View style={{ flex: 1 }}>
             <Text style={{ fontSize: 17, fontWeight: '600', color: C.text }} numberOfLines={1}>{d.name}</Text>
             {d.description ? <Text style={{ fontSize: 14, color: C.mt, marginTop: 2 }} numberOfLines={2}>{d.description}</Text> : null}
@@ -3602,7 +3610,7 @@ const ChangeOrderDetailModal = ({ co, isB, isC, isCon, signCO, onClose, user }) 
             <TouchableOpacity onPress={(e) => { e.stopPropagation(); deleteCoDoc(d.id); }}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} activeOpacity={0.6}
               style={{ paddingHorizontal: 8, paddingVertical: 6, borderRadius: 6, backgroundColor: C.rd + '12' }}>
-              <Text style={{ fontSize: 16, color: C.rd }}>✕</Text>
+              <Feather name="x" size={16} color={C.rd} />
             </TouchableOpacity>
           )}
         </TouchableOpacity>
@@ -4002,7 +4010,7 @@ const NewChangeOrderModal = ({ project, api, onClose, onCreated, user, schedule 
           activeOpacity={0.7}
         >
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
-            {subInfo && <Text style={{ fontSize: 18 }}>👷</Text>}
+            {subInfo && <Feather name="hard-hat" size={18} color={C.dm} />}
             <Text style={{ fontSize: 18, color: subInfo ? C.text : C.dm }} numberOfLines={1}>
               {subInfo ? subInfo.name : 'Select a subcontractor...'}
             </Text>
@@ -4079,7 +4087,7 @@ const NewChangeOrderModal = ({ project, api, onClose, onCreated, user, schedule 
             borderWidth: 1, borderColor: C.w08,
           }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-              <Text style={{ fontSize: 18 }}>📎</Text>
+              <Feather name="paperclip" size={18} color={C.dm} />
               <Text style={{ flex: 1, fontSize: 15, fontWeight: '500', color: C.text }} numberOfLines={1}>{att.originalName}</Text>
               <TouchableOpacity onPress={() => setAttachments(prev => prev.filter((_, i) => i !== idx))}
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} activeOpacity={0.6}>
@@ -4312,7 +4320,7 @@ const SubChangeOrderModal = ({ project, api, user, task: initialTask, schedule, 
             borderWidth: 1, borderColor: C.w08,
           }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-              <Text style={{ fontSize: 18 }}>📎</Text>
+              <Feather name="paperclip" size={18} color={C.dm} />
               <Text style={{ flex: 1, fontSize: 15, fontWeight: '500', color: C.text }} numberOfLines={1}>{att.originalName}</Text>
               <TouchableOpacity onPress={() => setAttachments(prev => prev.filter((_, i) => i !== idx))}
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} activeOpacity={0.6}>
@@ -5114,7 +5122,7 @@ const BaselineView = ({ schedule, project, api }) => {
 
               {/* Edit log list */}
               <View style={bl.modalLogHeader}>
-                <Text style={bl.modalLogTitle}>📝 Edit History</Text>
+                <Text style={bl.modalLogTitle}>Edit History</Text>
               </View>
 
               <ScrollView style={bl.modalLogScroll} contentContainerStyle={{ paddingBottom: 16 }}>
@@ -5167,7 +5175,7 @@ const BaselineView = ({ schedule, project, api }) => {
                           </View>
                           {log.edited_by ? (
                             <View style={bl.logEditorBadge}>
-                              <Text style={bl.logEditorTxt}>👤 {log.edited_by}</Text>
+                              <Text style={bl.logEditorTxt}>{log.edited_by}</Text>
                             </View>
                           ) : null}
                         </View>

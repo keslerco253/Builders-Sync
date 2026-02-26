@@ -4,6 +4,7 @@ import {
   ActivityIndicator, Platform, useWindowDimensions,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import Feather from '@expo/vector-icons/Feather';
 import { AuthContext, ThemeContext, apiFetch } from './context';
 
 // ── helpers ─────────────────────────────────────────────────
@@ -35,7 +36,7 @@ export default function ReportsScreen() {
       {/* Header */}
       <View style={st.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={st.backBtn} activeOpacity={0.7}>
-          <Text style={{ fontSize: 24, color: C.gd }}>‹</Text>
+          <Feather name="chevron-left" size={24} color={C.gd} />
           <Text style={{ fontSize: 17, color: C.gd, fontWeight: '600' }}>Back</Text>
         </TouchableOpacity>
         <Text style={st.headerTitle}>Reports</Text>
@@ -50,7 +51,7 @@ export default function ReportsScreen() {
           {/* ── Spec Report (live) ── */}
           <TouchableOpacity style={[st.card, { borderColor: C.gd, borderWidth: 2 }]} activeOpacity={0.7}
             onPress={() => setActiveReport('spec')}>
-            <Text style={{ fontSize: 32 }}>🏗️</Text>
+            <Feather name="tool" size={32} color={C.gd} />
             <Text style={st.cardTitle}>Spec Report</Text>
             <Text style={st.cardDesc}>Projects without a client — sortable by subdivision, plan, task & date</Text>
             <View style={[st.cardBadge, { backgroundColor: C.gd + '30' }]}>
@@ -59,17 +60,17 @@ export default function ReportsScreen() {
           </TouchableOpacity>
 
           {/* ── Coming soon cards ── */}
-          <ReportCard C={C} st={st} icon="📋" title="Schedule Report"
+          <ReportCard C={C} st={st} icon="calendar" title="Schedule Report"
             description="View full project schedule details and timeline" />
-          <ReportCard C={C} st={st} icon="💰" title="Budget Report"
+          <ReportCard C={C} st={st} icon="dollar-sign" title="Budget Report"
             description="Project costs, change orders, and financial summary" />
-          <ReportCard C={C} st={st} icon="📝" title="Change Order Report"
+          <ReportCard C={C} st={st} icon="edit-3" title="Change Order Report"
             description="All change orders with status and signature details" />
-          <ReportCard C={C} st={st} icon="👷" title="Subcontractor Report"
+          <ReportCard C={C} st={st} icon="users" title="Subcontractor Report"
             description="Contractor assignments, trades, and task progress" />
-          <ReportCard C={C} st={st} icon="📄" title="Document Report"
+          <ReportCard C={C} st={st} icon="file-text" title="Document Report"
             description="All project documents, photos, and files" />
-          <ReportCard C={C} st={st} icon="📊" title="Progress Report"
+          <ReportCard C={C} st={st} icon="bar-chart-2" title="Progress Report"
             description="Overall project progress and milestone tracking" />
         </View>
       </ScrollView>
@@ -157,7 +158,7 @@ function SpecReport({ C, user, onBack, navigation }) {
       {/* Header */}
       <View style={st.header}>
         <TouchableOpacity onPress={onBack} style={st.backBtn} activeOpacity={0.7}>
-          <Text style={{ fontSize: 24, color: C.gd }}>‹</Text>
+          <Feather name="chevron-left" size={24} color={C.gd} />
           <Text style={{ fontSize: 17, color: C.gd, fontWeight: '600' }}>Back</Text>
         </TouchableOpacity>
         <Text style={st.headerTitle}>Spec Report</Text>
@@ -181,7 +182,7 @@ function SpecReport({ C, user, onBack, navigation }) {
                 <Text style={[st.filterBtnTxt, !filterSubdiv && { color: C.dm }]} numberOfLines={1}>
                   {filterSubdiv || 'All'}
                 </Text>
-                <Text style={{ fontSize: 13, color: C.dm }}>▼</Text>
+                <Feather name="chevron-down" size={13} color={C.dm} />
               </TouchableOpacity>
               {showSubdivDrop && (
                 <View style={st.dropdown}>
@@ -209,7 +210,7 @@ function SpecReport({ C, user, onBack, navigation }) {
                 <Text style={[st.filterBtnTxt, !filterPlan && { color: C.dm }]} numberOfLines={1}>
                   {filterPlan || 'All'}
                 </Text>
-                <Text style={{ fontSize: 13, color: C.dm }}>▼</Text>
+                <Feather name="chevron-down" size={13} color={C.dm} />
               </TouchableOpacity>
               {showPlanDrop && (
                 <View style={st.dropdown}>
@@ -297,7 +298,7 @@ function SpecReport({ C, user, onBack, navigation }) {
 function ReportCard({ C, st, icon, title, description }) {
   return (
     <TouchableOpacity style={st.card} activeOpacity={0.7}>
-      <Text style={{ fontSize: 32 }}>{icon}</Text>
+      <Feather name={icon} size={32} color={C.dm} />
       <Text style={st.cardTitle}>{title}</Text>
       <Text style={st.cardDesc}>{description}</Text>
       <View style={st.cardBadge}>

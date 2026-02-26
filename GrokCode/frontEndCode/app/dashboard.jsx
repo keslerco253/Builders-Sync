@@ -570,7 +570,7 @@ export default function Dashboard() {
               activeOpacity={0.6}
               hitSlop={{ top: 4, bottom: 4, left: 8, right: 8 }}
             >
-              <Text style={{ fontSize: 18, color: clientView ? C.gn : C.gd }}>🏠</Text>
+              <Feather name="eye" size={18} color={clientView ? C.gn : C.gd} />
             </TouchableOpacity>
           </View>
         )}
@@ -741,7 +741,7 @@ export default function Dashboard() {
         flexDirection: 'row', alignItems: 'center', backgroundColor: C.sw06,
         borderRadius: 10, paddingHorizontal: 12, height: 40,
       }}>
-        <Text style={{ fontSize: 16, color: C.chromeDm, marginRight: 6 }}>🔍</Text>
+        <Feather name="search" size={16} color={C.chromeDm} style={{ marginRight: 6 }} />
         <TextInput
           value={projectSearch}
           onChangeText={setProjectSearch}
@@ -754,7 +754,7 @@ export default function Dashboard() {
         />
         {projectSearch.length > 0 && (
           <TouchableOpacity onPress={() => setProjectSearch('')} activeOpacity={0.7}>
-            <Text style={{ fontSize: 18, color: C.chromeDm, paddingLeft: 4 }}>✕</Text>
+            <Feather name="x" size={18} color={C.chromeDm} style={{ paddingLeft: 4 }} />
           </TouchableOpacity>
         )}
       </View>
@@ -822,7 +822,7 @@ export default function Dashboard() {
         >
           {filteredProjects.length === 0 ? (
             <View style={{ alignItems: 'center', paddingVertical: 60, paddingHorizontal: 16 }}>
-              <Text style={{ fontSize: 48, marginBottom: 10 }}>{projectSearch.trim() ? '🔍' : '📋'}</Text>
+              <Feather name={projectSearch.trim() ? 'search' : 'clipboard'} size={48} color={C.dm} style={{ marginBottom: 10 }} />
               <Text style={{ color: C.chromeTxt, fontSize: 21, fontWeight: '600', textAlign: 'center' }}>
                 {projectSearch.trim() ? 'No matching projects' : 'No projects yet'}
               </Text>
@@ -865,9 +865,12 @@ export default function Dashboard() {
                             style={{ fontSize: 15, fontWeight: '700', color: sdActive ? C.gd : C.chromeTxt, letterSpacing: 0.5, flex: 1, padding: 0, margin: 0, borderBottomWidth: 1, borderBottomColor: C.gd }}
                           />
                         ) : (
-                          <Text style={{ fontSize: 15, fontWeight: '700', color: sdActive ? C.gd : C.chromeTxt, letterSpacing: 0.5, flex: 1 }} numberOfLines={1}>
-                            📁 {sd.name.toUpperCase()}
-                          </Text>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, flex: 1 }}>
+                            <Feather name="folder" size={15} color={sdActive ? C.gd : C.chromeTxt} />
+                            <Text style={{ fontSize: 15, fontWeight: '700', color: sdActive ? C.gd : C.chromeTxt, letterSpacing: 0.5, flex: 1 }} numberOfLines={1}>
+                              {sd.name.toUpperCase()}
+                            </Text>
+                          </View>
                         )}
                         {isBuilder && editSubdivId !== sd.id && (
                           <TouchableOpacity
@@ -876,7 +879,7 @@ export default function Dashboard() {
                             activeOpacity={0.6}
                             hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
                           >
-                            <Text style={{ fontSize: 14, color: sdActive ? C.gd : C.dm }}>✏️</Text>
+                            <Feather name="edit-2" size={14} color={sdActive ? C.gd : C.dm} />
                           </TouchableOpacity>
                         )}
                         <View style={{ backgroundColor: sdActive ? C.gd + '30' : C.w08, borderRadius: 10, paddingHorizontal: 7, paddingVertical: 2 }}>
@@ -900,7 +903,7 @@ export default function Dashboard() {
   // ============================================================
   const renderEmptyDetail = () => (
     <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 40, backgroundColor: C.bg }}>
-      <Text style={{ fontSize: 72, marginBottom: 16 }}>🏗</Text>
+      <Feather name="tool" size={72} color={C.dm} style={{ marginBottom: 16 }} />
       <Text style={{ fontSize: 30, fontWeight: '700', color: C.textBold, marginBottom: 8 }}>Select a Project</Text>
       <Text style={{ fontSize: 21, color: C.dm, textAlign: 'center' }}>
         Choose a project from the sidebar to view details, schedule, documents, and more.
@@ -926,7 +929,10 @@ export default function Dashboard() {
                 <Text style={{ fontSize: 24, color: C.gd }}>←</Text>
               </TouchableOpacity>
             )}
-            <Text style={{ fontSize: 28, fontWeight: '700', color: C.textBold, flex: 1 }} numberOfLines={1}>📁 {selectedSubdivision.name}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
+              <Feather name="folder" size={24} color={C.textBold} />
+              <Text style={{ fontSize: 28, fontWeight: '700', color: C.textBold, flex: 1 }} numberOfLines={1}>{selectedSubdivision.name}</Text>
+            </View>
             <View style={{ backgroundColor: C.gd + '20', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 }}>
               <Text style={{ fontSize: 16, fontWeight: '600', color: C.gd }}>{sdProjects.length} project{sdProjects.length !== 1 ? 's' : ''}</Text>
             </View>
@@ -1002,7 +1008,7 @@ export default function Dashboard() {
                   </View>
                   {assigned ? (
                     <TouchableOpacity onPress={() => handleRemove(trade)} style={{ padding: 6 }}>
-                      <Text style={{ fontSize: 18, color: C.dm }}>✕</Text>
+                      <Feather name="x" size={18} color={C.dm} />
                     </TouchableOpacity>
                   ) : (
                     <Text style={{ fontSize: 14, color: C.dm }}>{isOpen ? '▲' : '▼'}</Text>
@@ -1123,11 +1129,11 @@ export default function Dashboard() {
                     return (
                       <View key={tmpl.id} style={{ marginBottom: 10, backgroundColor: C.card, borderRadius: 12, borderWidth: 1, borderColor: C.w08, overflow: 'hidden' }}>
                         <View style={{ flexDirection: 'row', alignItems: 'center', padding: 14, gap: 12 }}>
-                          <Text style={{ fontSize: 24 }}>{tmpl.doc_type === 'folder' ? '📁' : '📄'}</Text>
+                          <Feather name={tmpl.doc_type === 'folder' ? 'folder' : 'file-text'} size={24} color={C.dm} />
                           <View style={{ flex: 1 }}>
                             <Text style={{ fontSize: 20, fontWeight: '600', color: C.text }}>{tmpl.name}</Text>
                             <Text style={{ fontSize: 14, color: hasUpload ? C.gn : C.yl, marginTop: 2 }}>
-                              {hasUpload ? `✓ ${uploads.length} file${uploads.length > 1 ? 's' : ''} uploaded` : '⏳ Not yet uploaded'}
+                              {hasUpload ? `${uploads.length} file${uploads.length > 1 ? 's' : ''} uploaded` : 'Not yet uploaded'}
                             </Text>
                           </View>
                           {isBuilder && (
@@ -1145,7 +1151,7 @@ export default function Dashboard() {
                             borderTopWidth: 1, borderTopColor: C.w06,
                             backgroundColor: C.w06 + '40',
                           }}>
-                            <Text style={{ fontSize: 18 }}>📎</Text>
+                            <Feather name="paperclip" size={18} color={C.dm} />
                             <View style={{ flex: 1 }}>
                               <Text style={{ fontSize: 17, fontWeight: '500', color: C.text }} numberOfLines={1}>{d.name}</Text>
                               <Text style={{ fontSize: 13, color: C.dm }}>
@@ -1181,7 +1187,7 @@ export default function Dashboard() {
                       )}
                       {unlinkedDocs.map(d => (
                         <View key={d.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 8, backgroundColor: C.card, borderRadius: 12, borderWidth: 1, borderColor: C.w08, padding: 14 }}>
-                          <Text style={{ fontSize: 24 }}>📄</Text>
+                          <Feather name="file-text" size={24} color={C.dm} />
                           <View style={{ flex: 1 }}>
                             <Text style={{ fontSize: 20, fontWeight: '600', color: C.text }}>{d.name}</Text>
                             <Text style={{ fontSize: 15, color: C.dm, marginTop: 2 }}>
@@ -1211,7 +1217,7 @@ export default function Dashboard() {
 
                   {sdDocTemplates.length === 0 && sdDocs.length === 0 && (
                     <View style={{ alignItems: 'center', paddingVertical: 60 }}>
-                      <Text style={{ fontSize: 48, marginBottom: 12 }}>📁</Text>
+                      <Feather name="folder" size={48} color={C.dm} style={{ marginBottom: 12 }} />
                       <Text style={{ fontSize: 21, fontWeight: '600', color: C.textBold }}>No documents</Text>
                       <Text style={{ fontSize: 17, color: C.dm, marginTop: 4, textAlign: 'center' }}>
                         {isBuilder ? 'Tap + to upload a document, or add subdivision templates in Document Manager.' : 'No documents have been uploaded yet.'}
@@ -1264,7 +1270,7 @@ export default function Dashboard() {
         </View>
       ) : filteredSubs.length === 0 ? (
         <View style={{ alignItems: 'center', paddingVertical: 60, paddingHorizontal: 16 }}>
-          <Text style={{ fontSize: 48, marginBottom: 10 }}>{projectSearch.trim() ? '🔍' : '👷'}</Text>
+          <Feather name={projectSearch.trim() ? 'search' : 'user'} size={48} color={C.dm} style={{ marginBottom: 10 }} />
           <Text style={{ color: C.chromeTxt, fontSize: 21, fontWeight: '600', textAlign: 'center' }}>
             {projectSearch.trim() ? 'No matching subcontractors' : 'No subcontractors'}
           </Text>
@@ -1349,7 +1355,7 @@ export default function Dashboard() {
                     activeOpacity={0.6}
                     hitSlop={{ top: 4, bottom: 4, left: 8, right: 8 }}
                   >
-                    <Text style={{ fontSize: 18, color: subView ? C.gd : C.dm }}>🛠️</Text>
+                    <Feather name="tool" size={18} color={subView ? C.gd : C.dm} />
                   </TouchableOpacity>
                 )}
               </TouchableOpacity>
@@ -1888,7 +1894,7 @@ export default function Dashboard() {
     if (!selectedSub) {
       return (
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 40, backgroundColor: C.bg }}>
-          <Text style={{ fontSize: 72, marginBottom: 16 }}>👷</Text>
+          <Feather name="user" size={72} color={C.dm} style={{ marginBottom: 16 }} />
           <Text style={{ fontSize: 30, fontWeight: '700', color: C.textBold, marginBottom: 8 }}>Select a Subcontractor</Text>
           <Text style={{ fontSize: 21, color: C.dm, textAlign: 'center' }}>
             Choose a subcontractor from the list to view their details and assigned tasks.
@@ -2073,7 +2079,7 @@ export default function Dashboard() {
                   borderRadius: 10, padding: 16, marginBottom: 20,
                 }}>
                   <Text style={{ fontSize: 18, lineHeight: 28, color: C.mt, textAlign: 'center', fontWeight: '500' }}>
-                    ⚠️ By signing below, you are agreeing to the terms of this change order. This is a legally binding electronic signature.
+                    By signing below, you are agreeing to the terms of this change order. This is a legally binding electronic signature.
                   </Text>
                 </View>
 
@@ -2135,7 +2141,7 @@ export default function Dashboard() {
             justifyContent: 'space-between',
           }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              <Text style={{ fontSize: 18 }}>🛠️</Text>
+              <Feather name="tool" size={18} color={C.gd} />
               <Text style={{ fontSize: 16, fontWeight: '600', color: C.gd }}>Subcontractor View</Text>
               <Text style={{ fontSize: 14, color: C.dm }}>— Viewing as {selectedSub.company_name || selectedSub.name}</Text>
             </View>
@@ -2190,7 +2196,7 @@ export default function Dashboard() {
               </View>
             ) : subChangeOrders.length === 0 ? (
               <View style={{ padding: 30, alignItems: 'center' }}>
-                <Text style={{ fontSize: 40, marginBottom: 8 }}>📄</Text>
+                <Feather name="file-text" size={40} color={C.dm} style={{ marginBottom: 8 }} />
                 <Text style={{ fontSize: 17, color: C.dm }}>No change orders involving this subcontractor</Text>
               </View>
             ) : subChangeOrders.map(co => {
@@ -2249,7 +2255,7 @@ export default function Dashboard() {
                           backgroundColor: signed ? '#10b981' : 'transparent',
                           alignItems: 'center', justifyContent: 'center',
                         }}>
-                          {signed && <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>✓</Text>}
+                          {signed && <Feather name="check" size={12} color="#fff" />}
                         </View>
                         <Text style={{ fontSize: 15, color: C.mt }}>{label}</Text>
                       </View>
@@ -2320,7 +2326,7 @@ export default function Dashboard() {
                       setSubEditing(true);
                     }
                   }} style={{ padding: 8, marginLeft: 8 }}>
-                    <Text style={{ fontSize: 20, color: subEditing ? C.rd : C.dm }}>{subEditing ? '✕' : '✏️'}</Text>
+                    <Feather name={subEditing ? "x" : "edit-2"} size={20} color={subEditing ? C.rd : C.dm} />
                   </TouchableOpacity>
                 )}
               </View>
@@ -2362,19 +2368,19 @@ export default function Dashboard() {
                 <View style={{ gap: 8, marginBottom: 14 }}>
                   {selectedSub.username && (
                     <View style={st.subInfoRow}>
-                      <Text style={st.subInfoLabel}>📧 Email</Text>
+                      <Text style={st.subInfoLabel}>Email</Text>
                       <Text style={st.subInfoVal}>{selectedSub.username}</Text>
                     </View>
                   )}
                   {selectedSub.phone && (
                     <View style={st.subInfoRow}>
-                      <Text style={st.subInfoLabel}>📱 Phone</Text>
+                      <Text style={st.subInfoLabel}>Phone</Text>
                       <Text style={st.subInfoVal}>{fPhone(selectedSub.phone)}</Text>
                     </View>
                   )}
                   {(selectedSub.street_address || selectedSub.city || selectedSub.state) && (
                     <View style={st.subInfoRow}>
-                      <Text style={st.subInfoLabel}>📍 Address</Text>
+                      <Text style={st.subInfoLabel}>Address</Text>
                       <Text style={st.subInfoVal}>
                         {[selectedSub.street_address, [selectedSub.city, selectedSub.state].filter(Boolean).join(', '), selectedSub.zip_code].filter(Boolean).join('\n')}
                       </Text>
@@ -2450,7 +2456,7 @@ export default function Dashboard() {
 
                   <TouchableOpacity onPress={() => { setShowDeleteSub(true); setDeleteConfirmText(''); }}
                     style={{ paddingVertical: 14, borderRadius: 10, alignItems: 'center', borderWidth: 1, borderColor: C.rd, backgroundColor: 'rgba(239,68,68,0.06)' }}>
-                    <Text style={{ fontSize: 20, fontWeight: '600', color: C.rd }}>🗑 Delete Subcontractor</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}><Feather name="trash-2" size={18} color={C.rd} /><Text style={{ fontSize: 20, fontWeight: '600', color: C.rd }}>Delete Subcontractor</Text></View>
                   </TouchableOpacity>
                 </View>
               )}
@@ -2478,7 +2484,7 @@ export default function Dashboard() {
 
             {/* Assigned Projects */}
             <View style={st.subDetailCard}>
-              <Text style={st.subCardTitle}>📁 Assigned Projects</Text>
+              <Text style={st.subCardTitle}>Assigned Projects</Text>
               {subProjects.length === 0 ? (
                 <Text style={{ color: C.dm, fontSize: 20, paddingVertical: 12 }}>No projects assigned</Text>
               ) : (
@@ -2511,7 +2517,7 @@ export default function Dashboard() {
 
             {/* Assigned Tasks */}
             <View style={[st.subDetailCard, { marginTop: 14 }]}>
-              <Text style={st.subCardTitle}>📋 Assigned Tasks</Text>
+              <Text style={st.subCardTitle}>Assigned Tasks</Text>
               {subTasks.length === 0 ? (
                 <Text style={{ color: C.dm, fontSize: 20, paddingVertical: 12 }}>No tasks assigned</Text>
               ) : (
@@ -2539,7 +2545,7 @@ export default function Dashboard() {
             {/* Employees */}
             <View style={[st.subDetailCard, { marginTop: 14, marginBottom: 20 }]}>
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-                <Text style={st.subCardTitle}>👷 Employees</Text>
+                <Text style={st.subCardTitle}>Employees</Text>
                 <TouchableOpacity onPress={() => { setShowAddEmployee(true); setEmpName(''); setEmpJob(''); setEmpPhone(''); setEditingEmpId(null); }}
                   style={{ paddingHorizontal: 12, paddingVertical: 6, backgroundColor: C.bl, borderRadius: 8 }} activeOpacity={0.7}>
                   <Text style={{ fontSize: 15, fontWeight: '700', color: '#fff' }}>+ Add</Text>
@@ -2556,18 +2562,18 @@ export default function Dashboard() {
                     <View style={{ flex: 1 }}>
                       <Text style={{ fontSize: 19, fontWeight: '600', color: C.text }}>{emp.name}</Text>
                       {!!emp.job_description && <Text style={{ fontSize: 15, color: C.dm, marginTop: 1 }}>{emp.job_description}</Text>}
-                      {!!emp.phone && <Text style={{ fontSize: 15, color: C.dm, marginTop: 1 }}>📱 {fPhone(emp.phone)}</Text>}
+                      {!!emp.phone && <Text style={{ fontSize: 15, color: C.dm, marginTop: 1 }}>{fPhone(emp.phone)}</Text>}
                     </View>
                     <TouchableOpacity onPress={() => { setShowAddEmployee(true); setEditingEmpId(emp.id); setEmpName(emp.name); setEmpJob(emp.job_description || ''); setEmpPhone(emp.phone || ''); }}
                       style={{ padding: 6 }} activeOpacity={0.6}>
-                      <Text style={{ fontSize: 16, color: C.dm }}>✏️</Text>
+                      <Feather name="edit-2" size={16} color={C.dm} />
                     </TouchableOpacity>
                     <TouchableOpacity onPress={async () => {
                       const ok = Platform.OS === 'web' ? window.confirm(`Remove ${emp.name}?`) : await new Promise(r => Alert.alert('Remove', `Remove ${emp.name}?`, [{ text: 'Cancel', onPress: () => r(false) }, { text: 'Remove', style: 'destructive', onPress: () => r(true) }]));
                       if (!ok) return;
                       try { await apiFetch(`/employees/${emp.id}`, { method: 'DELETE' }); setEmployees(prev => prev.filter(e => e.id !== emp.id)); } catch (e) {}
                     }} style={{ padding: 6 }} activeOpacity={0.6}>
-                      <Text style={{ fontSize: 16, color: C.rd }}>✕</Text>
+                      <Feather name="x" size={16} color={C.rd} />
                     </TouchableOpacity>
                   </View>
                 ))
@@ -2603,7 +2609,7 @@ export default function Dashboard() {
                 }}
                 activeOpacity={0.7}
               >
-                <Text style={{ fontSize: 18, color: subTaskFilter ? C.gd : C.dm }}>🔍</Text>
+                <Feather name="search" size={18} color={subTaskFilter ? C.gd : C.dm} />
               </TouchableOpacity>
             </View>
 
@@ -2639,7 +2645,7 @@ export default function Dashboard() {
                           <Text style={{ fontSize: 16, fontWeight: isActive ? '700' : '500', color: isActive ? C.gd : C.text, flex: 1 }} numberOfLines={1}>{name}</Text>
                           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                             <Text style={{ fontSize: 13, color: C.dm }}>{count}</Text>
-                            {isActive && <Text style={{ fontSize: 14, color: C.gd }}>✓</Text>}
+                            {isActive && <Feather name="check" size={14} color={C.gd} />}
                           </View>
                         </TouchableOpacity>
                       );
@@ -2952,25 +2958,25 @@ export default function Dashboard() {
                   <View style={{ borderBottomWidth: taskActionPopup.project.go_live ? 0 : 1, borderBottomColor: C.w06 }}>
                     <TouchableOpacity onPress={() => taskActionNav(taskActionPopup.project, 'schedule', 'calendar')}
                       style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: C.w06 }} activeOpacity={0.7}>
-                      <Text style={{ fontSize: 22 }}>📅</Text>
+                      <Feather name="calendar" size={20} color={C.text} />
                       <Text style={{ fontSize: 18, fontWeight: '600', color: C.text }}>Job Schedule</Text>
                       <Text style={{ marginLeft: 'auto', fontSize: 18, color: C.dm }}>›</Text>
                     </TouchableOpacity>
                     <TouchableOpacity onPress={() => taskActionNav(taskActionPopup.project, 'schedule', 'list')}
                       style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: C.w06 }} activeOpacity={0.7}>
-                      <Text style={{ fontSize: 22 }}>📋</Text>
+                      <Feather name="list" size={20} color={C.text} />
                       <Text style={{ fontSize: 18, fontWeight: '600', color: C.text }}>Job Schedule Report</Text>
                       <Text style={{ marginLeft: 'auto', fontSize: 18, color: C.dm }}>›</Text>
                     </TouchableOpacity>
                     <TouchableOpacity onPress={() => taskActionNav(taskActionPopup.project, 'info', 'specifications')}
                       style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: C.w06 }} activeOpacity={0.7}>
-                      <Text style={{ fontSize: 22 }}>📐</Text>
+                      <Feather name="clipboard" size={20} color={C.text} />
                       <Text style={{ fontSize: 18, fontWeight: '600', color: C.text }}>Job Specifications</Text>
                       <Text style={{ marginLeft: 'auto', fontSize: 18, color: C.dm }}>›</Text>
                     </TouchableOpacity>
                     <TouchableOpacity onPress={() => taskActionNav(taskActionPopup.project, 'docs', 'documents')}
                       style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: C.w06 }} activeOpacity={0.7}>
-                      <Text style={{ fontSize: 22 }}>📄</Text>
+                      <Feather name="file-text" size={20} color={C.text} />
                       <Text style={{ fontSize: 18, fontWeight: '600', color: C.text }}>Documents</Text>
                       <Text style={{ marginLeft: 'auto', fontSize: 18, color: C.dm }}>›</Text>
                     </TouchableOpacity>
@@ -2980,7 +2986,7 @@ export default function Dashboard() {
                         setSubCOModal({ task, project });
                       }}
                       style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, paddingHorizontal: 16, borderBottomWidth: taskActionPopup.project.subdivision_id ? 1 : 0, borderBottomColor: C.w06 }} activeOpacity={0.7}>
-                      <Text style={{ fontSize: 22 }}>📝</Text>
+                      <Feather name="edit-3" size={20} color={C.text} />
                       <Text style={{ fontSize: 18, fontWeight: '600', color: C.text }}>Make a Change Order</Text>
                       <Text style={{ marginLeft: 'auto', fontSize: 18, color: C.dm }}>›</Text>
                     </TouchableOpacity>
@@ -2990,7 +2996,7 @@ export default function Dashboard() {
                         if (sd) { closeTaskActionPopup(); setDashView('projects'); setSelectedProject(null); selectSubdivision(sd); setSubdivTab('docs'); }
                       }}
                         style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, paddingHorizontal: 16 }} activeOpacity={0.7}>
-                        <Text style={{ fontSize: 22 }}>🏘️</Text>
+                        <Feather name="folder" size={20} color={C.text} />
                         <Text style={{ fontSize: 18, fontWeight: '600', color: C.text }}>Subdivision Documents</Text>
                         <Text style={{ marginLeft: 'auto', fontSize: 18, color: C.dm }}>›</Text>
                       </TouchableOpacity>
@@ -3144,7 +3150,7 @@ export default function Dashboard() {
                             {subCOAttachments.map((att, idx) => (
                               <View key={idx} style={{ backgroundColor: C.w04, borderRadius: 10, padding: 12, marginBottom: 8, borderWidth: 1, borderColor: C.w08 }}>
                                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                                  <Text style={{ fontSize: 18 }}>📎</Text>
+                                  <Feather name="paperclip" size={18} color={C.dm} />
                                   <Text style={{ flex: 1, fontSize: 15, fontWeight: '500', color: C.text }} numberOfLines={1}>{att.originalName}</Text>
                                   <TouchableOpacity onPress={() => setSubCOAttachments(prev => prev.filter((_, i) => i !== idx))} activeOpacity={0.6}>
                                     <Text style={{ fontSize: 16, color: C.rd }}>✕</Text>
@@ -4364,7 +4370,7 @@ export default function Dashboard() {
                     style={st.settingsItem}
                     activeOpacity={0.7}
                   >
-                    <Text style={st.settingsItemIcon}>📑</Text>
+                    <Feather name="layers" size={20} color={C.text} />
                     <Text style={st.settingsItemTxt}>Manage Schedule Templates</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
@@ -4372,7 +4378,7 @@ export default function Dashboard() {
                     style={st.settingsItem}
                     activeOpacity={0.7}
                   >
-                    <Text style={st.settingsItemIcon}>🗓️</Text>
+                    <Feather name="calendar" size={20} color={C.text} />
                     <Text style={st.settingsItemTxt}>Workday Exemptions</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
@@ -4380,7 +4386,7 @@ export default function Dashboard() {
                     style={st.settingsItem}
                     activeOpacity={0.7}
                   >
-                    <Text style={st.settingsItemIcon}>🎨</Text>
+                    <Feather name="sliders" size={20} color={C.text} />
                     <Text style={st.settingsItemTxt}>Manage Selections</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
@@ -4388,7 +4394,7 @@ export default function Dashboard() {
                     style={st.settingsItem}
                     activeOpacity={0.7}
                   >
-                    <Text style={st.settingsItemIcon}>📄</Text>
+                    <Feather name="file-text" size={20} color={C.text} />
                     <Text style={st.settingsItemTxt}>Manage Documents</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
@@ -4396,7 +4402,7 @@ export default function Dashboard() {
                     style={st.settingsItem}
                     activeOpacity={0.7}
                   >
-                    <Text style={st.settingsItemIcon}>🔧</Text>
+                    <Feather name="tool" size={20} color={C.text} />
                     <Text style={st.settingsItemTxt}>Manage Trades</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
@@ -4404,7 +4410,7 @@ export default function Dashboard() {
                     style={st.settingsItem}
                     activeOpacity={0.7}
                   >
-                    <Text style={st.settingsItemIcon}>🏠</Text>
+                    <Feather name="home" size={20} color={C.text} />
                     <Text style={st.settingsItemTxt}>Manage Floor Plans</Text>
                   </TouchableOpacity>
                   {user?.role === 'company_admin' && (
@@ -4413,7 +4419,7 @@ export default function Dashboard() {
                       style={st.settingsItem}
                       activeOpacity={0.7}
                     >
-                      <Text style={st.settingsItemIcon}>🚀</Text>
+                      <Feather name="zap" size={20} color={C.text} />
                       <Text style={st.settingsItemTxt}>Manage Go Live Steps</Text>
                     </TouchableOpacity>
                   )}
@@ -4775,7 +4781,7 @@ export default function Dashboard() {
                             activeOpacity={0.6}
                             hitSlop={{ top: 4, bottom: 4, left: 8, right: 8 }}
                           >
-                            <Text style={{ fontSize: 18, color: (active && subView) ? C.gd : C.dm }}>🛠️</Text>
+                            <Feather name="tool" size={18} color={(active && subView) ? C.gd : C.dm} />
                           </TouchableOpacity>
                         </TouchableOpacity>
                       );

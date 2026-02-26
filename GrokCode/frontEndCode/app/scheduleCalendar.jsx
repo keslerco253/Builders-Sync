@@ -2,6 +2,7 @@ import React, { useState, useRef, useCallback, useMemo, useEffect } from 'react'
 import {
   View, Text, TouchableOpacity, ScrollView, StyleSheet, Platform, TextInput, Alert,
 } from 'react-native';
+import Feather from '@expo/vector-icons/Feather';
 import { ThemeContext } from './context';
 
 const TASK_COLORS = [
@@ -715,9 +716,9 @@ export default function ScheduleCalendar({ schedule, onUpdateTask, onEditTask, o
                           onPointerDown: (e) => handleDragStart(task, e),
                         } : {})}
                       >
-                        {task.progress === 100 && <Text style={[st.taskCheck, (isExc || isOnHold) && { color: '#fff' }]}>✓</Text>}
+                        {task.progress === 100 && <Feather name="check" size={12} color={(isExc || isOnHold) ? '#fff' : C.gn} />}
                         <Text style={[st.taskBarTxt, (isExc || isOnHold) && { color: '#fff' }]} numberOfLines={1}>{task.task}</Text>
-                        {task.predecessor_id && <Text style={st.taskBarLink}>🔗</Text>}
+                        {task.predecessor_id && <Feather name="link" size={10} color={C.dm} />}
                       </View>
                     );
                   })
@@ -730,7 +731,7 @@ export default function ScheduleCalendar({ schedule, onUpdateTask, onEditTask, o
 
       {isBuilder && Platform.OS === 'web' && (
         <View style={st.hint}>
-          <Text style={st.hintTxt}>Click a day to add · Drag to move · Double-click to edit · Right-click to assign contractor · 🔗 = predecessor</Text>
+          <Text style={st.hintTxt}>Click a day to add · Drag to move · Double-click to edit · Right-click to assign contractor</Text>
         </View>
       )}
       </>
@@ -808,9 +809,11 @@ export default function ScheduleCalendar({ schedule, onUpdateTask, onEditTask, o
                               onPointerDown: (e) => { suppressDayPress.current = true; setTimeout(() => { suppressDayPress.current = false; }, 500); handleDragStart(task, e); },
                             } : {})}
                           >
-                            <Text style={[st.tfChipName, isComplete && { textDecorationLine: 'line-through', color: C.dm }, (isExc || isOnHold) && { color: '#fff' }]}>
-                              {isComplete ? '✓ ' : ''}{task.task}{task.predecessor_id ? ' 🔗' : ''}
-                            </Text>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                              {isComplete && <Feather name="check" size={12} color={(isExc || isOnHold) ? '#fff' : C.gn} />}
+                              <Text style={[st.tfChipName, isComplete && { textDecorationLine: 'line-through', color: C.dm }, (isExc || isOnHold) && { color: '#fff' }]} numberOfLines={1}>{task.task}</Text>
+                              {task.predecessor_id && <Feather name="link" size={10} color={(isExc || isOnHold) ? '#fff' : C.dm} />}
+                            </View>
                             <Text style={[st.tfChipDate, (isExc || isOnHold) && { color: 'rgba(255,255,255,0.8)' }]} numberOfLines={1}>→ {shortDate(task.end_date)}</Text>
                           </View>
                         );
@@ -826,7 +829,7 @@ export default function ScheduleCalendar({ schedule, onUpdateTask, onEditTask, o
 
       {isBuilder && Platform.OS === 'web' && (
         <View style={st.hint}>
-          <Text style={st.hintTxt}>Click a day to add · Drag to move · Double-click to edit · Right-click to assign contractor · 🔗 = predecessor</Text>
+          <Text style={st.hintTxt}>Click a day to add · Drag to move · Double-click to edit · Right-click to assign contractor</Text>
         </View>
       )}
       </>
@@ -844,7 +847,7 @@ export default function ScheduleCalendar({ schedule, onUpdateTask, onEditTask, o
             <View style={st.popupContainer}>
               {/* Header */}
               <View style={st.popupHeader}>
-                <Text style={st.popupTitle} numberOfLines={1}>✏️ Edit Task</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}><Feather name="edit-2" size={16} color={C.textBold} /><Text style={st.popupTitle} numberOfLines={1}>Edit Task</Text></View>
                 <TouchableOpacity onPress={closeEditPopup} style={st.popupClose}>
                   <Text style={st.popupCloseTxt}>×</Text>
                 </TouchableOpacity>

@@ -4,6 +4,7 @@ import {
   Modal, KeyboardAvoidingView, Platform, ActivityIndicator,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
+import Feather from '@expo/vector-icons/Feather';
 import { AuthContext, ThemeContext, API_BASE, apiFetch } from './context';
 
 const ini = n => n?.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() || '??';
@@ -158,7 +159,7 @@ export default function UserManagement() {
               </View>
               {!invited && (
                 <TouchableOpacity onPress={() => setModal({ type: 'resetpw', data: u })} style={st.iconBtn}>
-                  <Text style={{ fontSize: 14 }}>🔑</Text>
+                  <Feather name="key" size={14} color={C.dm} />
                 </TouchableOpacity>
               )}
               {isCompanyAdmin && u.id !== user.id ? (
@@ -167,7 +168,7 @@ export default function UserManagement() {
                 </TouchableOpacity>
               ) : !isCompanyAdmin && (
                 <TouchableOpacity onPress={() => toggleActive(u)} style={st.iconBtn}>
-                  <Text style={{ fontSize: 14, color: u.active ? C.rd : C.gn }}>{u.active ? '⊘' : '✓'}</Text>
+                  <Feather name={u.active ? 'slash' : 'check'} size={14} color={u.active ? C.rd : C.gn} />
                 </TouchableOpacity>
               )}
             </View>

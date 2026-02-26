@@ -4,6 +4,7 @@ import {
   Alert,
 } from 'react-native';
 import DatePicker from './datePicker';
+import Feather from '@expo/vector-icons/Feather';
 import { AuthContext, ThemeContext, API_BASE, apiFetch } from './context';
 
 const TASK_COLORS = [
@@ -134,7 +135,7 @@ const shortDate = (s) => {
 const TEMPLATES = [
   {
     name: 'Custom Home Build',
-    icon: '🏠',
+    icon: 'home',
     desc: 'Full residential new construction',
     tasks: [
       { task: 'Permitting & Approvals', workdays: '10', predIdx: null, relType: 'FS', lag: '0' },
@@ -170,7 +171,7 @@ const TEMPLATES = [
   },
   {
     name: 'Kitchen Remodel',
-    icon: '🍳',
+    icon: 'coffee',
     desc: 'Full kitchen renovation',
     tasks: [
       { task: 'Design & Ordering', workdays: '10', predIdx: null, relType: 'FS', lag: '0' },
@@ -192,7 +193,7 @@ const TEMPLATES = [
   },
   {
     name: 'Bathroom Remodel',
-    icon: '🚿',
+    icon: 'droplet',
     desc: 'Full bathroom renovation',
     tasks: [
       { task: 'Design & Ordering', workdays: '5', predIdx: null, relType: 'FS', lag: '0' },
@@ -212,7 +213,7 @@ const TEMPLATES = [
   },
   {
     name: 'Addition',
-    icon: '🔨',
+    icon: 'tool',
     desc: 'Room or wing addition',
     tasks: [
       { task: 'Architecture & Engineering', workdays: '15', predIdx: null, relType: 'FS', lag: '0' },
@@ -237,7 +238,7 @@ const TEMPLATES = [
   },
   {
     name: 'Blank Schedule',
-    icon: '📋',
+    icon: 'clipboard',
     desc: 'Start from scratch',
     tasks: [],
   },
@@ -334,7 +335,7 @@ const TemplatePicker = ({ onApply, existingCount }) => {
   // Convert saved template to the same format as built-in TEMPLATES
   const savedAsBuiltIn = savedTemplates.map(st => ({
     name: st.name,
-    icon: st.icon || '📋',
+    icon: st.icon || 'clipboard',
     desc: st.description || `${st.tasks?.length || 0} tasks`,
     tasks: st.tasks || [],
     _savedId: st.id,
@@ -355,7 +356,7 @@ const TemplatePicker = ({ onApply, existingCount }) => {
   return (
     <>
       <TouchableOpacity onPress={handleOpen} style={st.templateTrigger} activeOpacity={0.7}>
-        <Text style={st.templateTriggerIcon}>📑</Text>
+        <Feather name="layers" size={16} color={C.gd} />
         <Text style={st.templateTriggerTxt}>Use Template</Text>
       </TouchableOpacity>
 
@@ -382,7 +383,7 @@ const TemplatePicker = ({ onApply, existingCount }) => {
                           style={[st.templateCard, isActive && st.templateCardOn]}
                           activeOpacity={0.7}
                         >
-                          <Text style={st.templateIcon}>{tmpl.icon}</Text>
+                          <Feather name={tmpl.icon} size={20} color={C.dm} />
                           <View style={{ flex: 1 }}>
                             <Text style={[st.templateName, isActive && st.templateNameOn]}>{tmpl.name}</Text>
                             <Text style={st.templateDesc}>
@@ -393,9 +394,9 @@ const TemplatePicker = ({ onApply, existingCount }) => {
                             onPress={(e) => { e.stopPropagation(); handleDelete(tmpl._savedId); }}
                             style={st.templateDeleteBtn}
                           >
-                            <Text style={st.templateDeleteTxt}>🗑</Text>
+                            <Feather name="trash-2" size={14} color={C.rd} />
                           </TouchableOpacity>
-                          {isActive && <Text style={st.templateCheck}>✓</Text>}
+                          {isActive && <Feather name="check" size={18} color={C.gd} />}
                         </TouchableOpacity>
                       );
                     })}
@@ -413,14 +414,14 @@ const TemplatePicker = ({ onApply, existingCount }) => {
                       style={[st.templateCard, isActive && st.templateCardOn]}
                       activeOpacity={0.7}
                     >
-                      <Text style={st.templateIcon}>{tmpl.icon}</Text>
+                      <Feather name={tmpl.icon} size={20} color={C.dm} />
                       <View style={{ flex: 1 }}>
                         <Text style={[st.templateName, isActive && st.templateNameOn]}>{tmpl.name}</Text>
                         <Text style={st.templateDesc}>
                           {tmpl.desc} · {tmpl.tasks.length || 0} tasks
                         </Text>
                       </View>
-                      {isActive && <Text style={st.templateCheck}>✓</Text>}
+                      {isActive && <Feather name="check" size={18} color={C.gd} />}
                     </TouchableOpacity>
                   );
                 })}
@@ -483,7 +484,7 @@ const PredecessorSelect = ({ tasks, currentIdx, value, relType, lag, onChangePre
         style={[st.predSelect, value && st.predSelectOn]}
         activeOpacity={0.7}
       >
-        <Text style={st.predIcon}>⛓</Text>
+        <Feather name="link" size={14} color={C.dm} />
         <Text style={[st.predSelectTxt, !value && { color: C.ph }]} numberOfLines={1}>
           {selected ? selected.task || `Task ${tasks.indexOf(selected) + 1}` : 'Predecessor'}
         </Text>
@@ -646,7 +647,7 @@ const ContractorSelect = ({ value, onChange, subs }) => {
                             </View>
                           )}
                         </View>
-                        {isActive && <Text style={{ fontSize: 21, color: C.gd }}>✓</Text>}
+                        {isActive && <Feather name="check" size={21} color={C.gd} />}
                       </TouchableOpacity>
                     );
                   })
@@ -731,7 +732,7 @@ const TradeSelect = ({ value, onChange, trades }) => {
                         <Text style={[st.dropItemTxt, isActive && { color: C.bl, fontWeight: '600' }]} numberOfLines={1}>
                           {trade}
                         </Text>
-                        {isActive && <Text style={{ fontSize: 21, color: C.bl }}>✓</Text>}
+                        {isActive && <Feather name="check" size={21} color={C.bl} />}
                       </TouchableOpacity>
                     );
                   })
@@ -903,7 +904,7 @@ export default function ScheduleBuilder({ tasks, onTasksChange, templateMode, co
             {collapsed && templateInfo ? (
               <>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 4 }}>
-                  <Text style={{ fontSize: 28 }}>{templateInfo.icon || '📋'}</Text>
+                  <Feather name={templateInfo.icon || 'clipboard'} size={28} color={C.gd} />
                   <View>
                     <Text style={st.headerTitle}>{templateInfo.name}</Text>
                     <Text style={st.headerSub}>
@@ -914,7 +915,7 @@ export default function ScheduleBuilder({ tasks, onTasksChange, templateMode, co
               </>
             ) : (
               <>
-                <Text style={st.headerTitle}>📅 Build Schedule</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}><Feather name="calendar" size={18} color={C.textBold} /><Text style={st.headerTitle}>Build Schedule</Text></View>
                 <Text style={st.headerSub}>
                   {tasks.length} task{tasks.length !== 1 ? 's' : ''} · Set predecessors to chain tasks
                 </Text>
@@ -993,7 +994,7 @@ export default function ScheduleBuilder({ tasks, onTasksChange, templateMode, co
                 <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
                   {hasPred ? (
                     <View style={[st.autoDateBox, { flex: 1 }]}>
-                      <Text style={st.autoDateIcon}>🔗</Text>
+                      <Feather name="link" size={14} color={C.gd} />
                       <Text style={st.autoDateTxt}>
                         {task.start_date ? shortDate(task.start_date) : 'Waiting...'}
                       </Text>

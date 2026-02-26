@@ -3,6 +3,7 @@ import {
   View, Text, TextInput, TouchableOpacity, Alert,
   StyleSheet, ScrollView, KeyboardAvoidingView, Platform,
 } from 'react-native';
+import Feather from '@expo/vector-icons/Feather';
 import { ThemeContext, API_BASE, apiFetch } from './context';
 import { fPhone } from './currentProjectViewer';
 
@@ -69,7 +70,7 @@ export const Register = ({ navigation }) => {
       <ScrollView contentContainerStyle={styles.scrollContent}>
 
         <View style={styles.brandContainer}>
-          <View style={styles.logoBox}><Text style={styles.logoIcon}>⬡</Text></View>
+          <View style={styles.logoBox}><Feather name="hexagon" size={22} color={styles.logoIcon.color} /></View>
           <Text style={styles.title}>Complete Registration</Text>
           <Text style={styles.subtitle}>Your admin has invited you to BuilderSync</Text>
         </View>
@@ -120,7 +121,7 @@ export const Register = ({ navigation }) => {
         </View>
 
         <View style={styles.securityRow}>
-          <Text style={{ fontSize: 12 }}>🔒</Text>
+          <Feather name="lock" size={12} color={styles.securityText.color} />
           <Text style={styles.securityText}>Your data is encrypted and secure</Text>
         </View>
 
