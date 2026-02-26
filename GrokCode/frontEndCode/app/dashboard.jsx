@@ -5,6 +5,7 @@ import {
   useWindowDimensions, Image, Linking,
 } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import Feather from '@expo/vector-icons/Feather';
 import { AuthContext, ThemeContext, API_BASE, apiFetch } from './context';
 import CurrentProjectViewer, { calcTaskProgress, fPhone } from './currentProjectViewer';
 import ScheduleBuilder, { cascadeAll, calcEndDate, calcFromPredecessor } from './scheduleBuilder';
@@ -4354,7 +4355,7 @@ export default function Dashboard() {
           {isBuilder && (
             <View style={{ position: 'relative' }}>
               <TouchableOpacity onPress={() => setShowSettings(p => !p)} style={st.headerBtn}>
-                <Text style={{ fontSize: 24, color: C.chromeDm }}>⚙</Text>
+                <Feather name="settings" size={24} color={C.chromeDm} />
               </TouchableOpacity>
               {showSettings && (
                 <View style={st.settingsDropdown}>
@@ -4422,17 +4423,17 @@ export default function Dashboard() {
           )}
           {isBuilder && (
             <TouchableOpacity onPress={() => navigation.navigate('UserManagement')} style={st.headerBtn}>
-              <Text style={{ fontSize: 27 }}>👥</Text>
+              <Feather name="users" size={24} color={C.chromeDm} />
             </TouchableOpacity>
           )}
           {isBuilder && (
             <TouchableOpacity onPress={() => setShowBuilderCal(true)} style={st.headerBtn}>
-              <Text style={{ fontSize: 24 }}>📅</Text>
+              <Feather name="calendar" size={24} color={C.chromeDm} />
             </TouchableOpacity>
           )}
           {isBuilder && (
             <TouchableOpacity onPress={() => navigation.navigate('Reports')} style={st.headerBtn}>
-              <Text style={{ fontSize: 24 }}>📊</Text>
+              <Feather name="bar-chart-2" size={24} color={C.chromeDm} />
             </TouchableOpacity>
           )}
           <TouchableOpacity onPress={() => navigation.navigate('Account')} style={st.headerBtn}>
@@ -4457,7 +4458,7 @@ export default function Dashboard() {
             }}
             style={st.headerBtn}
           >
-            <Text style={{ fontSize: 21, color: C.chromeDm }}>⏻</Text>
+            <Feather name="log-out" size={22} color={C.chromeDm} />
           </TouchableOpacity>
         </View>
       </View>
