@@ -91,6 +91,15 @@ export default function Dashboard() {
   const [clientView, setClientView] = useState(false);
   const [subView, setSubView] = useState(false);
 
+  // Client Tasks
+  const [showClientTaskModal, setShowClientTaskModal] = useState(null); // project object or null
+  const [ctTitle, setCtTitle] = useState('');
+  const [ctDescription, setCtDescription] = useState('');
+  const [ctDueDate, setCtDueDate] = useState('');
+  const [ctSaving, setCtSaving] = useState(false);
+  const [customerTasks, setCustomerTasks] = useState([]);
+  const [selectedClientTask, setSelectedClientTask] = useState(null); // for customer detail popup
+
   useEffect(() => {
     if (clientView) {
       setActiveTab('schedule');
@@ -374,6 +383,32 @@ export default function Dashboard() {
     } catch (e) { console.warn('Fetch floor plans error:', e.message); }
   };
 
+  const fetchCustomerTasks = async () => {
+    try {
+      const res = await apiFetch(`/users/${user.id}/client-tasks`);
+      const data = await res.json();
+      if (Array.isArray(data)) setCustomerTasks(data);
+    } catch (e) { console.warn('Fetch client tasks:', e); }
+  };
+
+  const submitClientTask = async () => {
+    if (!showClientTaskModal || !ctTitle.trim()) return;
+    setCtSaving(true);
+    try {
+      const res = await apiFetch(`/projects/${showClientTaskModal.id}/client-tasks`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: ctTitle.trim(), description: ctDescription.trim(), due_date: ctDueDate, created_by: user.id }),
+      });
+      if (res.ok) {
+        setShowClientTaskModal(null);
+        setCtTitle(''); setCtDescription(''); setCtDueDate('');
+        fetchCustomerTasks();
+      }
+    } catch (e) { console.warn('Create client task error:', e); }
+    setCtSaving(false);
+  };
+
   const fetchGoLiveStepsDef = async () => {
     if (!user?.company_id) return;
     setGoLiveStepsLoading(true);
@@ -470,6 +505,7 @@ export default function Dashboard() {
         fetchCompanyTrades();
         fetchFloorPlans();
       }
+      fetchCustomerTasks();
     }
     // Fetch company logo — try own logo first, then fallback to any builder's logo
     if (user?.id) {
@@ -496,7 +532,7 @@ export default function Dashboard() {
     }
   }, []));
 
-  const onRefresh = () => { setRefreshing(true); fetchProjects(); if (isBuilder) { fetchSubdivisions(); fetchCompanyTrades(); } };
+  const onRefresh = () => { setRefreshing(true); fetchProjects(); fetchCustomerTasks(); if (isBuilder) { fetchSubdivisions(); fetchCompanyTrades(); } };
 
   const selectProject = (p) => {
     setSelectedProject(p);
@@ -598,7 +634,7 @@ export default function Dashboard() {
         ]);
         const allUsers = await userRes.json();
         if (Array.isArray(allUsers)) {
-          setSdSubs(allUsers.filter(u => u.role === 'contractor'));
+          setSdSubs(allUsers.filter(u => u.role === 'contractor' || u.role === 'builder' || u.role === 'company_admin'));
         }
         const assignments = await assignRes.json();
         if (Array.isArray(assignments)) {
@@ -1020,7 +1056,7 @@ export default function Dashboard() {
                 {!assigned && isOpen && (
                   <View style={{ marginTop: 4, marginLeft: 8, borderLeftWidth: 2, borderLeftColor: C.gd + '30', paddingLeft: 10 }}>
                     {matchingSubs.length === 0 ? (
-                      <Text style={{ fontSize: 14, color: C.dm, paddingVertical: 10 }}>No subcontractors for this trade</Text>
+                      <Text style={{ fontSize: 14, color: C.dm, paddingVertical: 10 }}>No users matched for this trade</Text>
                     ) : (
                       matchingSubs.map(sub => (
                         <TouchableOpacity key={sub.id} activeOpacity={0.7} onPress={() => handleAssign(trade, sub.id)}
@@ -3332,6 +3368,11 @@ export default function Dashboard() {
                   <Text style={{ fontSize: 18, fontWeight: '500', color: C.text }}>Exception</Text>
                   {!projectActionMenu.go_live && <Text style={{ fontSize: 13, color: C.dm, marginLeft: 'auto' }}>Requires Go Live</Text>}
                 </TouchableOpacity>
+                <TouchableOpacity onPress={() => { setShowClientTaskModal(projectActionMenu); setProjectActionMenu(null); setCtTitle(''); setCtDescription(''); setCtDueDate(''); }}
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 14, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: C.w06 }} activeOpacity={0.7}>
+                  <Feather name="check-square" size={20} color={C.bl} />
+                  <Text style={{ fontSize: 18, fontWeight: '500', color: C.text }}>Make Client Task</Text>
+                </TouchableOpacity>
                 <TouchableOpacity onPress={() => { setShowDeleteConfirm(projectActionMenu); setProjectActionMenu(null); setDeleteConfirmName(''); setDeletingProject(false); }}
                   style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 14, paddingHorizontal: 16 }} activeOpacity={0.7}>
                   <Feather name="trash-2" size={20} color={C.rd} />
@@ -3447,6 +3488,137 @@ export default function Dashboard() {
                       {deletingProject ? 'Deleting...' : 'Delete'}
                     </Text>
                   </TouchableOpacity>
+                </View>
+              </View>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </Modal>
+      )}
+
+      {/* Client Task Creation Modal */}
+      {showClientTaskModal && (
+        <Modal visible animationType="fade" transparent>
+          <TouchableOpacity style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', alignItems: 'center' }} activeOpacity={1}
+            onPress={() => { if (!ctSaving) { setShowClientTaskModal(null); setCtTitle(''); setCtDescription(''); setCtDueDate(''); } }}>
+            <TouchableOpacity activeOpacity={1} onPress={e => e.stopPropagation()}>
+              <View style={{ width: 420, backgroundColor: C.cardBg || C.card, borderRadius: 14, borderWidth: 1, borderColor: C.w12, overflow: 'hidden', ...(Platform.OS === 'web' ? { boxShadow: '0 10px 30px rgba(0,0,0,0.4)' } : { elevation: 20 }) }}>
+                <View style={{ padding: 20, alignItems: 'center', borderBottomWidth: 1, borderBottomColor: C.w06 }}>
+                  <Feather name="check-square" size={28} color={C.bl} style={{ marginBottom: 8 }} />
+                  <Text style={{ fontSize: 20, fontWeight: '700', color: C.textBold }}>New Client Task</Text>
+                  <Text style={{ fontSize: 15, color: C.dm, marginTop: 4, textAlign: 'center' }}>{showClientTaskModal.name}</Text>
+                </View>
+                <View style={{ padding: 18 }}>
+                  <Text style={{ fontSize: 14, fontWeight: '700', color: C.dm, letterSpacing: 0.5, marginBottom: 8 }}>TITLE</Text>
+                  <TextInput
+                    value={ctTitle}
+                    onChangeText={setCtTitle}
+                    placeholder="Task title..."
+                    placeholderTextColor={C.w20}
+                    style={{ fontSize: 16, color: C.text, backgroundColor: C.w04, borderRadius: 8, padding: 12, borderWidth: 1, borderColor: C.w10, marginBottom: 14 }}
+                    autoFocus
+                  />
+                  <Text style={{ fontSize: 14, fontWeight: '700', color: C.dm, letterSpacing: 0.5, marginBottom: 8 }}>DESCRIPTION</Text>
+                  <TextInput
+                    value={ctDescription}
+                    onChangeText={setCtDescription}
+                    placeholder="Describe what the client needs to do..."
+                    placeholderTextColor={C.w20}
+                    multiline
+                    numberOfLines={3}
+                    style={{ fontSize: 16, color: C.text, backgroundColor: C.w04, borderRadius: 8, padding: 12, borderWidth: 1, borderColor: C.w10, minHeight: 80, textAlignVertical: 'top', marginBottom: 14 }}
+                  />
+                  <DatePicker value={ctDueDate} onChange={setCtDueDate} label="DUE DATE" placeholder="Select due date" />
+                </View>
+                <View style={{ flexDirection: 'row', gap: 10, padding: 18, paddingTop: 0 }}>
+                  <TouchableOpacity
+                    onPress={() => { setShowClientTaskModal(null); setCtTitle(''); setCtDescription(''); setCtDueDate(''); }}
+                    style={{ flex: 1, paddingVertical: 12, borderRadius: 8, alignItems: 'center', borderWidth: 1, borderColor: C.w12 }}
+                    activeOpacity={0.7} disabled={ctSaving}>
+                    <Text style={{ fontSize: 16, fontWeight: '600', color: C.dm }}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={submitClientTask}
+                    disabled={!ctTitle.trim() || ctSaving}
+                    style={{ flex: 1, paddingVertical: 12, borderRadius: 8, alignItems: 'center', backgroundColor: C.bl, opacity: !ctTitle.trim() || ctSaving ? 0.5 : 1 }}
+                    activeOpacity={0.8}>
+                    <Text style={{ fontSize: 16, fontWeight: '700', color: '#fff' }}>{ctSaving ? 'Creating...' : 'Create Task'}</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </Modal>
+      )}
+
+      {/* Client Task Detail Modal (Customer view) */}
+      {selectedClientTask && (
+        <Modal visible animationType="fade" transparent>
+          <TouchableOpacity style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', alignItems: 'center' }} activeOpacity={1}
+            onPress={() => setSelectedClientTask(null)}>
+            <TouchableOpacity activeOpacity={1} onPress={e => e.stopPropagation()}>
+              <View style={{ width: 420, backgroundColor: C.cardBg || C.card, borderRadius: 14, borderWidth: 1, borderColor: C.w12, overflow: 'hidden', ...(Platform.OS === 'web' ? { boxShadow: '0 10px 30px rgba(0,0,0,0.4)' } : { elevation: 20 }) }}>
+                <View style={{ padding: 20, borderBottomWidth: 1, borderBottomColor: C.w06 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                    {selectedClientTask.completed ? (
+                      <Feather name="check-circle" size={22} color={C.gn || '#10b981'} />
+                    ) : (
+                      <Feather name="circle" size={22} color={C.bl} />
+                    )}
+                    <Text style={{ fontSize: 20, fontWeight: '700', color: C.textBold, flex: 1 }}>{selectedClientTask.title}</Text>
+                  </View>
+                  <Text style={{ fontSize: 14, color: C.dm }}>{selectedClientTask.project_name}</Text>
+                </View>
+                <View style={{ padding: 18 }}>
+                  {selectedClientTask.description ? (
+                    <View style={{ marginBottom: 14 }}>
+                      <Text style={{ fontSize: 13, fontWeight: '700', color: C.dm, letterSpacing: 0.5, marginBottom: 6 }}>DESCRIPTION</Text>
+                      <Text style={{ fontSize: 16, color: C.text, lineHeight: 24 }}>{selectedClientTask.description}</Text>
+                    </View>
+                  ) : null}
+                  {selectedClientTask.due_date ? (
+                    <View style={{ marginBottom: 14 }}>
+                      <Text style={{ fontSize: 13, fontWeight: '700', color: C.dm, letterSpacing: 0.5, marginBottom: 6 }}>DUE DATE</Text>
+                      <Text style={{ fontSize: 16, color: selectedClientTask.due_date < new Date().toISOString().slice(0, 10) && !selectedClientTask.completed ? '#ef4444' : C.text }}>
+                        {new Date(selectedClientTask.due_date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
+                      </Text>
+                    </View>
+                  ) : null}
+                  {selectedClientTask.completed && selectedClientTask.completed_at ? (
+                    <View style={{ marginBottom: 14, backgroundColor: 'rgba(16,185,129,0.08)', padding: 10, borderRadius: 8 }}>
+                      <Text style={{ fontSize: 14, color: C.gn || '#10b981', fontWeight: '600' }}>
+                        Completed {new Date(selectedClientTask.completed_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                      </Text>
+                    </View>
+                  ) : null}
+                </View>
+                <View style={{ flexDirection: 'row', gap: 10, padding: 18, paddingTop: 0 }}>
+                  <TouchableOpacity
+                    onPress={() => setSelectedClientTask(null)}
+                    style={{ flex: 1, paddingVertical: 12, borderRadius: 8, alignItems: 'center', borderWidth: 1, borderColor: C.w12 }}
+                    activeOpacity={0.7}>
+                    <Text style={{ fontSize: 16, fontWeight: '600', color: C.dm }}>Close</Text>
+                  </TouchableOpacity>
+                  {!selectedClientTask.completed && (
+                    <TouchableOpacity
+                      onPress={async () => {
+                        const now = new Date().toISOString().replace('T', ' ').slice(0, 19);
+                        try {
+                          const res = await apiFetch(`/client-tasks/${selectedClientTask.id}`, {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ completed: true, completed_at: now }),
+                          });
+                          if (res.ok) {
+                            setSelectedClientTask(null);
+                            fetchCustomerTasks();
+                          }
+                        } catch (e) { console.warn('Complete task error:', e); }
+                      }}
+                      style={{ flex: 1, paddingVertical: 12, borderRadius: 8, alignItems: 'center', backgroundColor: C.gn || '#10b981' }}
+                      activeOpacity={0.8}>
+                      <Text style={{ fontSize: 16, fontWeight: '700', color: '#fff' }}>Mark as Complete</Text>
+                    </TouchableOpacity>
+                  )}
                 </View>
               </View>
             </TouchableOpacity>
@@ -4627,12 +4799,47 @@ export default function Dashboard() {
               )}
               <View style={st.sidebarHead}>
                 <Text style={st.sidebarLabel}>CUSTOMER TASKS</Text>
+                <Text style={{ fontSize: 13, color: C.chromeDm, marginLeft: 'auto' }}>{customerTasks.filter(t => !t.completed).length} pending</Text>
               </View>
-              <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
-                <Feather name="check-square" size={40} color={C.dm} style={{ marginBottom: 10 }} />
-                <Text style={{ color: C.chromeTxt, fontSize: 18, fontWeight: '600', textAlign: 'center' }}>Coming Soon</Text>
-                <Text style={{ color: C.chromeDm, fontSize: 15, marginTop: 4, textAlign: 'center' }}>Your tasks will appear here</Text>
-              </View>
+              {customerTasks.length === 0 ? (
+                <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+                  <Feather name="check-square" size={40} color={C.dm} style={{ marginBottom: 10 }} />
+                  <Text style={{ color: C.chromeTxt, fontSize: 18, fontWeight: '600', textAlign: 'center' }}>No Tasks</Text>
+                  <Text style={{ color: C.chromeDm, fontSize: 15, marginTop: 4, textAlign: 'center' }}>Tasks from your builder will appear here</Text>
+                </View>
+              ) : (
+                <ScrollView style={{ flex: 1 }}>
+                  {customerTasks.filter(t => !t.completed).map(task => (
+                    <TouchableOpacity key={task.id} activeOpacity={0.7} onPress={() => setSelectedClientTask(task)}
+                      style={{ paddingVertical: 12, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: C.sw06 }}>
+                      <Text style={{ fontSize: 16, fontWeight: '600', color: C.chromeTxt }} numberOfLines={1}>{task.title}</Text>
+                      <Text style={{ fontSize: 13, color: C.chromeDm, marginTop: 2 }} numberOfLines={1}>{task.project_name}</Text>
+                      {task.due_date ? (
+                        <Text style={{ fontSize: 12, color: task.due_date < new Date().toISOString().slice(0, 10) ? '#ef4444' : C.chromeDm, marginTop: 2 }}>
+                          Due: {new Date(task.due_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                        </Text>
+                      ) : null}
+                    </TouchableOpacity>
+                  ))}
+                  {customerTasks.some(t => t.completed) && (
+                    <>
+                      <View style={{ paddingVertical: 8, paddingHorizontal: 16, backgroundColor: C.sw04 || C.w04 }}>
+                        <Text style={{ fontSize: 13, fontWeight: '700', color: C.chromeDm, letterSpacing: 0.5 }}>COMPLETED</Text>
+                      </View>
+                      {customerTasks.filter(t => t.completed).map(task => (
+                        <TouchableOpacity key={task.id} activeOpacity={0.7} onPress={() => setSelectedClientTask(task)}
+                          style={{ paddingVertical: 12, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: C.sw06, opacity: 0.6 }}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                            <Feather name="check-circle" size={14} color={C.gn || '#10b981'} />
+                            <Text style={{ fontSize: 16, fontWeight: '600', color: C.chromeTxt, textDecorationLine: 'line-through' }} numberOfLines={1}>{task.title}</Text>
+                          </View>
+                          <Text style={{ fontSize: 13, color: C.chromeDm, marginTop: 2 }} numberOfLines={1}>{task.project_name}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </>
+                  )}
+                </ScrollView>
+              )}
             </View>
           )}
           <View style={{ flex: 1, borderLeftWidth: isWide ? 1 : 0, borderLeftColor: C.bd, minHeight: 0 }}>

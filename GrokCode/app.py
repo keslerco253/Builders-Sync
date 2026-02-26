@@ -566,6 +566,27 @@ class Todos(db.Model):
         }
 
 
+class ClientTask(db.Model):
+    __tablename__ = 'client_task'
+    id = db.Column(db.Integer, primary_key=True)
+    job_id = db.Column(db.Integer, db.ForeignKey('projects.id'), nullable=False)
+    title = db.Column(db.String(255), nullable=False)
+    description = db.Column(db.Text, default='')
+    due_date = db.Column(db.String(20), default='')
+    completed = db.Column(db.Boolean, default=False)
+    completed_at = db.Column(db.String(30), default='')
+    created_by = db.Column(db.Integer, nullable=True)
+    created_at = db.Column(db.String(30), default='')
+
+    def to_dict(self):
+        return {
+            'id': self.id, 'job_id': self.job_id, 'title': self.title,
+            'description': self.description, 'due_date': self.due_date,
+            'completed': self.completed, 'completed_at': self.completed_at,
+            'created_by': self.created_by, 'created_at': self.created_at,
+        }
+
+
 class Documents(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     job_id = db.Column(db.Integer, db.ForeignKey('projects.id'), nullable=True)
@@ -3150,6 +3171,78 @@ def update_todo(todo_id):
             setattr(todo, k, data[k])
     db.session.commit()
     return jsonify(todo.to_dict())
+
+
+# ============================================================
+# CLIENT TASKS
+# ============================================================
+
+@app.route('/projects/<int:pid>/client-tasks', methods=['GET'])
+def get_client_tasks(pid):
+    items = ClientTask.query.filter_by(job_id=pid).order_by(ClientTask.due_date).all()
+    return jsonify([t.to_dict() for t in items])
+
+
+@app.route('/projects/<int:pid>/client-tasks', methods=['POST'])
+def add_client_task(pid):
+    data = request.get_json()
+    from datetime import datetime
+    task = ClientTask(
+        job_id=pid,
+        title=data.get('title', ''),
+        description=data.get('description', ''),
+        due_date=data.get('due_date', ''),
+        created_by=data.get('created_by'),
+        created_at=datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S'),
+    )
+    db.session.add(task)
+    db.session.commit()
+    return jsonify(task.to_dict()), 201
+
+
+@app.route('/client-tasks/<int:task_id>', methods=['PUT'])
+def update_client_task(task_id):
+    task = ClientTask.query.get_or_404(task_id)
+    data = request.get_json()
+    for k in ('title', 'description', 'due_date', 'completed', 'completed_at'):
+        if k in data:
+            setattr(task, k, data[k])
+    db.session.commit()
+    return jsonify(task.to_dict())
+
+
+@app.route('/client-tasks/<int:task_id>', methods=['DELETE'])
+def delete_client_task(task_id):
+    task = ClientTask.query.get_or_404(task_id)
+    db.session.delete(task)
+    db.session.commit()
+    return jsonify({'ok': True})
+
+
+@app.route('/users/<int:uid>/client-tasks', methods=['GET'])
+def get_user_client_tasks(uid):
+    """Get all client tasks across all projects assigned to this user."""
+    user = LoginInfo.query.get_or_404(uid)
+    # Find all project IDs assigned to this user
+    job_links = JobUsers.query.filter_by(user_id=uid).all()
+    job_ids = [j.job_id for j in job_links]
+    # Also include projects where user is the customer
+    owned = Projects.query.filter_by(customer_id=uid).all()
+    job_ids += [p.id for p in owned]
+    job_ids = list(set(job_ids))
+    if not job_ids:
+        return jsonify([])
+    tasks = ClientTask.query.filter(ClientTask.job_id.in_(job_ids)).order_by(ClientTask.due_date).all()
+    # Include project name for each task
+    proj_map = {}
+    for p in Projects.query.filter(Projects.id.in_(job_ids)).all():
+        proj_map[p.id] = p.name
+    result = []
+    for t in tasks:
+        d = t.to_dict()
+        d['project_name'] = proj_map.get(t.job_id, '')
+        result.append(d)
+    return jsonify(result)
 
 
 # ============================================================

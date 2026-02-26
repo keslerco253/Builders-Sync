@@ -347,6 +347,17 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
   // On Hold tracking
   const onHold = project?.on_hold || false;
 
+  // Client Tasks for Assignments tab
+  const [clientTasks, setClientTasks] = useState([]);
+  const fetchClientTasks = async () => {
+    if (!project?.id) return;
+    try {
+      const res = await apiFetch(`/projects/${project.id}/client-tasks`);
+      if (res.ok) { const data = await res.json(); if (Array.isArray(data)) setClientTasks(data); }
+    } catch (e) { /* ignore */ }
+  };
+  useEffect(() => { fetchClientTasks(); }, [project?.id]);
+
   const openGoLiveSteps = () => {
     fetchGoLiveSteps();
     setShowGoLiveModal(true);
@@ -1567,22 +1578,51 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
             </View>
           ) : (
             <View style={{ flexDirection: 'row', gap: 16 }}>
-              {/* Column 1 — Subcontractors Assigned */}
+              {/* Column 1 — Client Tasks */}
               <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 18, fontWeight: '700', color: C.textBold, marginBottom: 12 }}>Subcontractors Assigned</Text>
-                {subTrades.length === 0 ? (
-                  <Text style={{ fontSize: 15, color: C.dm, fontStyle: 'italic' }}>No subcontractors assigned yet</Text>
+                <Text style={{ fontSize: 18, fontWeight: '700', color: C.textBold, marginBottom: 12 }}>Client Tasks</Text>
+                {clientTasks.length === 0 ? (
+                  <View style={{ padding: 14, backgroundColor: C.card, borderRadius: 10, borderWidth: 1, borderColor: C.w08 }}>
+                    <Text style={{ fontSize: 15, color: C.dm, fontStyle: 'italic' }}>No client tasks created</Text>
+                  </View>
                 ) : (
-                  subTrades.map(t => renderTradeCard(t))
+                  clientTasks.map(ct => (
+                    <View key={ct.id} style={{ marginBottom: 10 }}>
+                      <View style={{
+                        padding: 14, backgroundColor: C.card, borderRadius: 10,
+                        borderWidth: 1, borderColor: ct.completed ? (C.gn || '#10b981') + '40' : C.bl + '40',
+                      }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                          <Feather name={ct.completed ? 'check-circle' : 'circle'} size={18} color={ct.completed ? (C.gn || '#10b981') : C.bl} />
+                          <Text style={{ fontSize: 17, fontWeight: '700', color: C.textBold, flex: 1, textDecorationLine: ct.completed ? 'line-through' : 'none' }}>{ct.title}</Text>
+                        </View>
+                        {ct.description ? (
+                          <Text style={{ fontSize: 14, color: C.dm, marginTop: 6 }} numberOfLines={2}>{ct.description}</Text>
+                        ) : null}
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 8 }}>
+                          {ct.due_date ? (
+                            <Text style={{ fontSize: 13, color: ct.due_date < new Date().toISOString().slice(0, 10) && !ct.completed ? '#ef4444' : C.dm }}>
+                              Due: {new Date(ct.due_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                            </Text>
+                          ) : null}
+                          {ct.completed && ct.completed_at ? (
+                            <Text style={{ fontSize: 13, color: C.gn || '#10b981' }}>
+                              Completed {new Date(ct.completed_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                            </Text>
+                          ) : null}
+                        </View>
+                      </View>
+                    </View>
+                  ))
                 )}
               </View>
-              {/* Column 2 — Contractors (Builders) Assigned */}
+              {/* Column 2 — Assigned (Subcontractors + Builders) */}
               <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 18, fontWeight: '700', color: C.textBold, marginBottom: 12 }}>Contractors (Builders) Assigned</Text>
-                {builderTrades.length === 0 ? (
-                  <Text style={{ fontSize: 15, color: C.dm, fontStyle: 'italic' }}>No builders assigned yet</Text>
+                <Text style={{ fontSize: 18, fontWeight: '700', color: C.textBold, marginBottom: 12 }}>Assigned</Text>
+                {subTrades.length === 0 && builderTrades.length === 0 ? (
+                  <Text style={{ fontSize: 15, color: C.dm, fontStyle: 'italic' }}>No trades assigned yet</Text>
                 ) : (
-                  builderTrades.map(t => renderTradeCard(t))
+                  [...subTrades, ...builderTrades].map(t => renderTradeCard(t))
                 )}
               </View>
               {/* Column 3 — Unassigned */}
