@@ -210,6 +210,11 @@ class Projects(db.Model):
     customer_id = db.Column(db.Integer, db.ForeignKey('login_info.id'), nullable=True)
     customer_first_name = db.Column(db.String(100), default='')
     customer_last_name = db.Column(db.String(100), default='')
+    customer_phone = db.Column(db.String(30), default='')
+    homeowner2_first_name = db.Column(db.String(100), default='')
+    homeowner2_last_name = db.Column(db.String(100), default='')
+    homeowner2_phone = db.Column(db.String(30), default='')
+    homeowner2_email = db.Column(db.String(120), default='')
     start_date = db.Column(db.String(20), default='')
     est_completion = db.Column(db.String(20), default='')
     progress = db.Column(db.Integer, default=0)
@@ -251,6 +256,11 @@ class Projects(db.Model):
             'customer_name': f'{self.customer_first_name or ""} {self.customer_last_name or ""}'.strip(),
             'customer_first_name': self.customer_first_name or '',
             'customer_last_name': self.customer_last_name or '',
+            'customer_phone': self.customer_phone or '',
+            'homeowner2_first_name': self.homeowner2_first_name or '',
+            'homeowner2_last_name': self.homeowner2_last_name or '',
+            'homeowner2_phone': self.homeowner2_phone or '',
+            'homeowner2_email': self.homeowner2_email or '',
             'start_date': self.start_date,
             'est_completion': self.est_completion,
             'progress': self.progress,
@@ -1735,6 +1745,8 @@ def update_project(project_id):
 
     for key in ('name', 'number', 'address', 'street_address', 'city', 'state', 'zip_code',
                  'status', 'phase', 'customer_id', 'customer_first_name', 'customer_last_name',
+                 'customer_phone', 'homeowner2_first_name', 'homeowner2_last_name',
+                 'homeowner2_phone', 'homeowner2_email',
                  'start_date', 'est_completion', 'progress', 'original_price',
                  'contract_price', 'sqft', 'bedrooms', 'bathrooms', 'garage',
                  'lot_size', 'style', 'stories', 'email', 'reconciliation', 'dates_from_schedule', 'go_live', 'subdivision_id',
