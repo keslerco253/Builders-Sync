@@ -314,6 +314,20 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
   const [showPlanPicker, setShowPlanPicker] = useState(false);
   const [showSubdivPicker, setShowSubdivPicker] = useState(false);
 
+  // Company logo for printable Job Spec
+  const [companyLogo, setCompanyLogo] = useState(null);
+  useEffect(() => {
+    if (!user?.id) return;
+    if (isB) {
+      apiFetch(`/users/${user.id}/logo`).then(r => r.json()).then(data => {
+        if (data.logo) setCompanyLogo(data.logo);
+        else apiFetch(`/builder-logo`).then(r => r.json()).then(d => { if (d.logo) setCompanyLogo(d.logo); }).catch(() => {});
+      }).catch(() => {});
+    } else {
+      apiFetch(`/builder-logo`).then(r => r.json()).then(data => { if (data.logo) setCompanyLogo(data.logo); }).catch(() => {});
+    }
+  }, [user?.id]);
+
   // Go Live toggle
   const [goLive, setGoLive] = useState(false);
   const [showGoLiveModal, setShowGoLiveModal] = useState(false);
@@ -759,7 +773,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
     if (tab === 'changeorders') {
       api(`/projects/${pid}/change-orders`).then(d => d && setChangeOrders(d));
     }
-    if (tab === 'selections') {
+    if (tab === 'selections' || (tab === 'info' && sub === 'specifications')) {
       api(`/projects/${pid}/selections`).then(d => d && setSelections(d));
     }
     if (tab === 'docs') {
@@ -1708,8 +1722,89 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
       });
       const specCategories = Object.entries(specsByCategory);
 
+      const printJobSpec = () => {
+        if (Platform.OS !== 'web') return;
+        const esc = (str) => String(str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        const now = new Date();
+        const dateStr = now.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+        const timeStr = now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+        const address = esc(project?.address || project?.street_address || project?.name || '');
+        const permit = esc(project?.permit_number || editInfo.permit_number || '');
+        const planName = esc(project?.plan_name || editInfo.plan_name || '');
+        const coName = esc(user?.company_name || '');
+        const logoSrc = companyLogo || '';
+
+        let sectionsHtml = '';
+        specCategories.forEach(([cat, sels]) => {
+          sectionsHtml += `<div class="spec-section">`;
+          sectionsHtml += `<div class="section-header">${esc(cat)}</div>`;
+          sels.forEach(sel => {
+            const selectedArr = Array.isArray(sel.selected) ? sel.selected : (sel.selected ? [sel.selected] : []);
+            const selectedStr = esc(selectedArr.join(', ') || '—');
+            sectionsHtml += `<div class="spec-item"><span class="item-name">${esc(sel.item)}:</span> <span class="item-value">${selectedStr}</span></div>`;
+            if (sel.customer_comment) {
+              sectionsHtml += `<div class="item-comment">${esc(sel.customer_comment)}</div>`;
+            }
+          });
+          sectionsHtml += `</div>`;
+        });
+
+        const html = `<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Job Specification Report</title>
+<style>
+  @page { size: letter; margin: 0.75in; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: Arial, Helvetica, sans-serif; color: #222; font-size: 11pt; line-height: 1.4; }
+  .page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; border-bottom: 2px solid #222; padding-bottom: 12px; }
+  .header-left { display: flex; align-items: center; gap: 12px; }
+  .company-logo { width: 60px; height: 60px; object-fit: contain; border-radius: 6px; }
+  .company-name { font-size: 22pt; font-weight: 700; }
+  .header-right { text-align: right; font-size: 9pt; color: #555; }
+  .report-title { font-size: 16pt; font-weight: 700; margin-bottom: 4px; }
+  .report-subtitle { font-size: 10pt; color: #444; margin-bottom: 16px; }
+  .spec-section { margin-bottom: 16px; break-inside: avoid; }
+  .section-header { font-size: 13pt; font-weight: 700; background: #f0f0f0; padding: 6px 10px; border-left: 4px solid #333; margin-bottom: 6px; }
+  .spec-item { padding: 4px 0 4px 14px; font-size: 10.5pt; border-bottom: 1px solid #eee; }
+  .item-name { font-weight: 600; }
+  .item-value { color: #333; }
+  .item-comment { padding: 2px 0 4px 14px; font-size: 9pt; color: #666; font-style: italic; }
+  @media print {
+    body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .no-print { display: none !important; }
+  }
+</style></head><body>
+<div class="page-header">
+  <div class="header-left">
+    ${logoSrc ? `<img class="company-logo" src="${logoSrc.startsWith('data:') ? logoSrc : 'data:image/png;base64,' + logoSrc}" />` : ''}
+    <span class="company-name">${coName}</span>
+  </div>
+  <div class="header-right">${dateStr}<br/>${timeStr}</div>
+</div>
+<div class="report-title">Job Specification Report — ${address}</div>
+<div class="report-subtitle">${permit ? 'Permit #: ' + permit : ''}${permit && planName ? '  |  ' : ''}${planName ? 'Plan: ' + planName : ''}</div>
+${sectionsHtml}
+<script>window.onload=function(){window.print();}</script>
+</body></html>`;
+
+        const win = window.open('', '_blank');
+        if (win) { win.document.write(html); win.document.close(); }
+      };
+
       return (
         <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+            <Text style={s.sectionTitle}>Job Specifications</Text>
+            {Platform.OS === 'web' && specCategories.length > 0 && (
+              <TouchableOpacity
+                onPress={printJobSpec}
+                activeOpacity={0.7}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: C.gd, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 8 }}>
+                <Feather name="printer" size={18} color={C.textBold} />
+                <Text style={{ fontSize: 16, fontWeight: '700', color: C.textBold }}>Print</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+
           {/* Permit # & Plan Name header */}
           <Card style={{ marginBottom: 18 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: (project?.plan_name || editInfo.plan_name) ? 8 : 0 }}>
