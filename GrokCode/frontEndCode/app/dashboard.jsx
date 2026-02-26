@@ -2275,26 +2275,6 @@ export default function Dashboard() {
         ) : subTab === 'info' ? (
           /* ---- INFO TAB ---- */
           <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20 }}>
-            {/* Stats row */}
-            <View style={{ flexDirection: 'row', gap: 10, marginBottom: 16 }}>
-              <View style={st.subStatCard}>
-                <Text style={st.subStatNum}>{subProjects.length}</Text>
-                <Text style={st.subStatLbl}>Projects</Text>
-              </View>
-              <View style={st.subStatCard}>
-                <Text style={st.subStatNum}>{totalTasks}</Text>
-                <Text style={st.subStatLbl}>Tasks</Text>
-              </View>
-              <View style={st.subStatCard}>
-                <Text style={[st.subStatNum, { color: C.gn }]}>{completeTasks}</Text>
-                <Text style={st.subStatLbl}>Complete</Text>
-              </View>
-              <View style={st.subStatCard}>
-                <Text style={[st.subStatNum, { color: totalTasks - completeTasks > 0 ? C.yl : C.gn }]}>{totalTasks - completeTasks}</Text>
-                <Text style={st.subStatLbl}>Active</Text>
-              </View>
-            </View>
-
             {/* Two-column layout: Info card + Assigned Projects */}
             <View style={isWide ? { flexDirection: 'row', gap: 16, alignItems: 'flex-start' } : {}}>
             {/* Sub header card */}
@@ -2525,6 +2505,26 @@ export default function Dashboard() {
               )}
             </View>
             </View>{/* end two-column */}
+
+            {/* Stats row */}
+            <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
+              <View style={st.subStatCard}>
+                <Text style={st.subStatNum}>{subProjects.length}</Text>
+                <Text style={st.subStatLbl}>Projects</Text>
+              </View>
+              <View style={st.subStatCard}>
+                <Text style={st.subStatNum}>{totalTasks}</Text>
+                <Text style={st.subStatLbl}>Tasks</Text>
+              </View>
+              <View style={st.subStatCard}>
+                <Text style={[st.subStatNum, { color: C.gn }]}>{completeTasks}</Text>
+                <Text style={st.subStatLbl}>Complete</Text>
+              </View>
+              <View style={st.subStatCard}>
+                <Text style={[st.subStatNum, { color: totalTasks - completeTasks > 0 ? C.yl : C.gn }]}>{totalTasks - completeTasks}</Text>
+                <Text style={st.subStatLbl}>Active</Text>
+              </View>
+            </View>
 
             {/* Assigned Tasks — builder only */}
             {isBuilder && (
