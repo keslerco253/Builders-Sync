@@ -573,6 +573,7 @@ class ClientTask(db.Model):
     title = db.Column(db.String(255), nullable=False)
     description = db.Column(db.Text, default='')
     due_date = db.Column(db.String(20), default='')
+    image_url = db.Column(db.String(500), default='')
     completed = db.Column(db.Boolean, default=False)
     completed_at = db.Column(db.String(30), default='')
     created_by = db.Column(db.Integer, nullable=True)
@@ -582,6 +583,7 @@ class ClientTask(db.Model):
         return {
             'id': self.id, 'job_id': self.job_id, 'title': self.title,
             'description': self.description, 'due_date': self.due_date,
+            'image_url': self.image_url or '',
             'completed': self.completed, 'completed_at': self.completed_at,
             'created_by': self.created_by, 'created_at': self.created_at,
         }
@@ -3210,6 +3212,7 @@ def add_client_task(pid):
         title=data.get('title', ''),
         description=data.get('description', ''),
         due_date=data.get('due_date', ''),
+        image_url=data.get('image_url', ''),
         created_by=data.get('created_by'),
         created_at=datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S'),
     )
@@ -3222,7 +3225,7 @@ def add_client_task(pid):
 def update_client_task(task_id):
     task = ClientTask.query.get_or_404(task_id)
     data = request.get_json()
-    for k in ('title', 'description', 'due_date', 'completed', 'completed_at'):
+    for k in ('title', 'description', 'due_date', 'image_url', 'completed', 'completed_at'):
         if k in data:
             setattr(task, k, data[k])
     db.session.commit()

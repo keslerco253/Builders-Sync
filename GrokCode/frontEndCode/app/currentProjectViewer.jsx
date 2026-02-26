@@ -1596,6 +1596,12 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
                           <Feather name={ct.completed ? 'check-circle' : 'circle'} size={18} color={ct.completed ? (C.gn || '#10b981') : C.bl} />
                           <Text style={{ fontSize: 17, fontWeight: '700', color: C.textBold, flex: 1, textDecorationLine: ct.completed ? 'line-through' : 'none' }}>{ct.title}</Text>
                         </View>
+                        {ct.image_url ? (
+                          <Image
+                            source={{ uri: ct.image_url.startsWith('http') ? ct.image_url : `${API_BASE}${ct.image_url}` }}
+                            style={{ width: '100%', height: 120, borderRadius: 6, resizeMode: 'cover', marginTop: 8 }}
+                          />
+                        ) : null}
                         {ct.description ? (
                           <Text style={{ fontSize: 14, color: C.dm, marginTop: 6 }} numberOfLines={2}>{ct.description}</Text>
                         ) : null}
