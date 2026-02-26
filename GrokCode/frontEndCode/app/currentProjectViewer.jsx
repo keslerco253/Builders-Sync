@@ -524,6 +524,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
   const [documents, setDocuments] = useState([]);
   const [docTemplates, setDocTemplates] = useState([]);
   const [docEditMode, setDocEditMode] = useState(false);
+  const [subdivDocs, setSubdivDocs] = useState([]);
   const [photos, setPhotos] = useState([]);
   const [videos, setVideos] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -551,6 +552,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
     setChangeOrders([]);
     setSelections([]);
     setDocuments([]);
+    setSubdivDocs([]);
     setPhotos([]);
     setVideos([]);
   }, [projectId]);
@@ -740,6 +742,11 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
       if (sub === 'documents') {
         api(`/projects/${pid}/documents?type=document`).then(d => d && setDocuments(d));
         api(`/document-templates?scope=projects`).then(d => d && setDocTemplates(d));
+        if (project.subdivision_id) {
+          api(`/subdivisions/${project.subdivision_id}/documents?type=document`).then(d => d && setSubdivDocs(d));
+        } else {
+          setSubdivDocs([]);
+        }
       }
       if (sub === 'photos') api(`/projects/${pid}/documents?type=photo`).then(d => d && setPhotos(d));
       if (sub === 'videos') api(`/projects/${pid}/documents?type=video`).then(d => d && setVideos(d));
@@ -3049,8 +3056,33 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
               </>
             )}
 
-            {docTemplates.length === 0 && documents.length === 0 && (
+            {docTemplates.length === 0 && documents.length === 0 && subdivDocs.length === 0 && (
               <Empty icon="folder" text="No documents uploaded" />
+            )}
+
+            {/* Subdivision Documents */}
+            {subdivDocs.length > 0 && (
+              <>
+                <Text style={{ fontSize: 18, fontWeight: '600', color: C.dm, marginTop: 20, marginBottom: 8 }}>
+                  Subdivision Documents{project.subdivision_id ? ` — ${subdivisions.find(sd => sd.id === project.subdivision_id)?.name || ''}` : ''}
+                </Text>
+                {subdivDocs.map(d => (
+                  <Card key={d.id} onPress={() => d.file_url && openFile(d.file_url)} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+                    <View style={s.docIcon}><Feather name="file-text" size={24} color={C.dm} /></View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 20, fontWeight: '600', color: C.text }}>{d.name}</Text>
+                      <Text style={{ fontSize: 15, color: C.dm, marginTop: 2 }}>{d.category ? `${d.category} · ` : ''}{fD(d.created_at)}{d.uploaded_by ? ` · ${d.uploaded_by}` : ''}{d.file_size ? ` · ${formatSize(d.file_size)}` : ''}</Text>
+                    </View>
+                    {d.file_url ? (
+                      <TouchableOpacity onPress={(e) => { e.stopPropagation(); downloadFile(d.file_url, d.name); }}
+                        style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 6, backgroundColor: C.bl + '20' }}
+                        activeOpacity={0.7}>
+                        <Text style={{ fontSize: 16 }}>⬇</Text>
+                      </TouchableOpacity>
+                    ) : null}
+                  </Card>
+                ))}
+              </>
             )}
           </ScrollView>
         );
