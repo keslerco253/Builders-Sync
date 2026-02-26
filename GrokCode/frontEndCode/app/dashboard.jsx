@@ -96,6 +96,7 @@ export default function Dashboard() {
   const [ctTitle, setCtTitle] = useState('');
   const [ctDescription, setCtDescription] = useState('');
   const [ctDueDate, setCtDueDate] = useState('');
+  const [ctImageB64, setCtImageB64] = useState('');
   const [ctSaving, setCtSaving] = useState(false);
   const [customerTasks, setCustomerTasks] = useState([]);
   const [selectedClientTask, setSelectedClientTask] = useState(null); // for customer detail popup
@@ -391,18 +392,42 @@ export default function Dashboard() {
     } catch (e) { console.warn('Fetch client tasks:', e); }
   };
 
+  const pickClientTaskImage = () => {
+    if (Platform.OS !== 'web') return;
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.onchange = (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => setCtImageB64(reader.result);
+      reader.readAsDataURL(file);
+    };
+    input.click();
+  };
+
   const submitClientTask = async () => {
     if (!showClientTaskModal || !ctTitle.trim()) return;
     setCtSaving(true);
     try {
+      let imageUrl = '';
+      if (ctImageB64) {
+        const upRes = await apiFetch(`/upload-image`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ image: ctImageB64, ext: 'jpg' }),
+        });
+        if (upRes.ok) { const upData = await upRes.json(); imageUrl = upData.path || ''; }
+      }
       const res = await apiFetch(`/projects/${showClientTaskModal.id}/client-tasks`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: ctTitle.trim(), description: ctDescription.trim(), due_date: ctDueDate, created_by: user.id }),
+        body: JSON.stringify({ title: ctTitle.trim(), description: ctDescription.trim(), due_date: ctDueDate, image_url: imageUrl, created_by: user.id }),
       });
       if (res.ok) {
         setShowClientTaskModal(null);
-        setCtTitle(''); setCtDescription(''); setCtDueDate('');
+        setCtTitle(''); setCtDescription(''); setCtDueDate(''); setCtImageB64('');
         fetchCustomerTasks();
       }
     } catch (e) { console.warn('Create client task error:', e); }
@@ -3368,7 +3393,7 @@ export default function Dashboard() {
                   <Text style={{ fontSize: 18, fontWeight: '500', color: C.text }}>Exception</Text>
                   {!projectActionMenu.go_live && <Text style={{ fontSize: 13, color: C.dm, marginLeft: 'auto' }}>Requires Go Live</Text>}
                 </TouchableOpacity>
-                <TouchableOpacity onPress={() => { setShowClientTaskModal(projectActionMenu); setProjectActionMenu(null); setCtTitle(''); setCtDescription(''); setCtDueDate(''); }}
+                <TouchableOpacity onPress={() => { setShowClientTaskModal(projectActionMenu); setProjectActionMenu(null); setCtTitle(''); setCtDescription(''); setCtDueDate(''); setCtImageB64(''); }}
                   style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 14, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: C.w06 }} activeOpacity={0.7}>
                   <Feather name="check-square" size={20} color={C.bl} />
                   <Text style={{ fontSize: 18, fontWeight: '500', color: C.text }}>Make Client Task</Text>
@@ -3499,7 +3524,7 @@ export default function Dashboard() {
       {showClientTaskModal && (
         <Modal visible animationType="fade" transparent>
           <TouchableOpacity style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', alignItems: 'center' }} activeOpacity={1}
-            onPress={() => { if (!ctSaving) { setShowClientTaskModal(null); setCtTitle(''); setCtDescription(''); setCtDueDate(''); } }}>
+            onPress={() => { if (!ctSaving) { setShowClientTaskModal(null); setCtTitle(''); setCtDescription(''); setCtDueDate(''); setCtImageB64(''); } }}>
             <TouchableOpacity activeOpacity={1} onPress={e => e.stopPropagation()}>
               <View style={{ width: 420, backgroundColor: C.cardBg || C.card, borderRadius: 14, borderWidth: 1, borderColor: C.w12, overflow: 'hidden', ...(Platform.OS === 'web' ? { boxShadow: '0 10px 30px rgba(0,0,0,0.4)' } : { elevation: 20 }) }}>
                 <View style={{ padding: 20, alignItems: 'center', borderBottomWidth: 1, borderBottomColor: C.w06 }}>
@@ -3517,6 +3542,22 @@ export default function Dashboard() {
                     style={{ fontSize: 16, color: C.text, backgroundColor: C.w04, borderRadius: 8, padding: 12, borderWidth: 1, borderColor: C.w10, marginBottom: 14 }}
                     autoFocus
                   />
+                  <Text style={{ fontSize: 14, fontWeight: '700', color: C.dm, letterSpacing: 0.5, marginBottom: 8 }}>IMAGE (OPTIONAL)</Text>
+                  {ctImageB64 ? (
+                    <View style={{ marginBottom: 14 }}>
+                      <Image source={{ uri: ctImageB64 }} style={{ width: '100%', height: 180, borderRadius: 8, resizeMode: 'cover' }} />
+                      <TouchableOpacity onPress={() => setCtImageB64('')}
+                        style={{ position: 'absolute', top: 6, right: 6, backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: 12, width: 24, height: 24, alignItems: 'center', justifyContent: 'center' }}>
+                        <Feather name="x" size={14} color="#fff" />
+                      </TouchableOpacity>
+                    </View>
+                  ) : (
+                    <TouchableOpacity onPress={pickClientTaskImage} activeOpacity={0.7}
+                      style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 10, paddingHorizontal: 12, backgroundColor: C.w04, borderRadius: 8, borderWidth: 1, borderColor: C.w10, borderStyle: 'dashed', marginBottom: 14 }}>
+                      <Feather name="image" size={18} color={C.dm} />
+                      <Text style={{ fontSize: 15, color: C.dm }}>Add an image</Text>
+                    </TouchableOpacity>
+                  )}
                   <Text style={{ fontSize: 14, fontWeight: '700', color: C.dm, letterSpacing: 0.5, marginBottom: 8 }}>DESCRIPTION</Text>
                   <TextInput
                     value={ctDescription}
@@ -3531,7 +3572,7 @@ export default function Dashboard() {
                 </View>
                 <View style={{ flexDirection: 'row', gap: 10, padding: 18, paddingTop: 0 }}>
                   <TouchableOpacity
-                    onPress={() => { setShowClientTaskModal(null); setCtTitle(''); setCtDescription(''); setCtDueDate(''); }}
+                    onPress={() => { setShowClientTaskModal(null); setCtTitle(''); setCtDescription(''); setCtDueDate(''); setCtImageB64(''); }}
                     style={{ flex: 1, paddingVertical: 12, borderRadius: 8, alignItems: 'center', borderWidth: 1, borderColor: C.w12 }}
                     activeOpacity={0.7} disabled={ctSaving}>
                     <Text style={{ fontSize: 16, fontWeight: '600', color: C.dm }}>Cancel</Text>
@@ -3569,6 +3610,14 @@ export default function Dashboard() {
                   <Text style={{ fontSize: 14, color: C.dm }}>{selectedClientTask.project_name}</Text>
                 </View>
                 <View style={{ padding: 18 }}>
+                  {selectedClientTask.image_url ? (
+                    <View style={{ marginBottom: 14 }}>
+                      <Image
+                        source={{ uri: selectedClientTask.image_url.startsWith('http') ? selectedClientTask.image_url : `${API_BASE}${selectedClientTask.image_url}` }}
+                        style={{ width: '100%', height: 200, borderRadius: 8, resizeMode: 'cover' }}
+                      />
+                    </View>
+                  ) : null}
                   {selectedClientTask.description ? (
                     <View style={{ marginBottom: 14 }}>
                       <Text style={{ fontSize: 13, fontWeight: '700', color: C.dm, letterSpacing: 0.5, marginBottom: 6 }}>DESCRIPTION</Text>
