@@ -3642,7 +3642,7 @@ const ChangeOrderDetailModal = ({ co, isB, isC, isCon, signCO, onClose, user }) 
           </View>
         ) : canBuilderSign ? (
           <Btn onPress={() => setSignConfirmRole('builder')} style={{ paddingVertical: 8, paddingHorizontal: 14 }}>
-            <Text style={s.btnTxt}>✍ Sign</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}><Feather name="edit" size={14} color={C.chromeTxt} /><Text style={s.btnTxt}>Sign</Text></View>
           </Btn>
         ) : (
           <Text style={{ color: C.dm, fontSize: 18 }}>Awaiting</Text>
@@ -3663,7 +3663,7 @@ const ChangeOrderDetailModal = ({ co, isB, isC, isCon, signCO, onClose, user }) 
           </View>
         ) : canCustomerSign ? (
           <Btn onPress={() => setSignConfirmRole('customer')} bg={C.gn} style={{ paddingVertical: 8, paddingHorizontal: 14 }}>
-            <Text style={s.btnTxt}>✍ Sign</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}><Feather name="edit" size={14} color={C.chromeTxt} /><Text style={s.btnTxt}>Sign</Text></View>
           </Btn>
         ) : isExpired && isC && !co.customer_sig ? (
           <Text style={{ color: C.rd, fontSize: 18, fontWeight: '600' }}>Expired</Text>
@@ -3687,7 +3687,7 @@ const ChangeOrderDetailModal = ({ co, isB, isC, isCon, signCO, onClose, user }) 
             </View>
           ) : isCon && !co.sub_sig ? (
             <Btn onPress={() => setSignConfirmRole('sub')} bg={C.bl} style={{ paddingVertical: 8, paddingHorizontal: 14 }}>
-              <Text style={s.btnTxt}>✍ Sign</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}><Feather name="edit" size={14} color={C.chromeTxt} /><Text style={s.btnTxt}>Sign</Text></View>
             </Btn>
           ) : (
             <Text style={{ color: C.dm, fontSize: 18 }}>Awaiting</Text>
@@ -3706,7 +3706,7 @@ const ChangeOrderDetailModal = ({ co, isB, isC, isCon, signCO, onClose, user }) 
             : isExpired && co.status !== 'approved' ? C.rd : C.yl
         }]}>
           {co.status === 'approved'
-            ? '✓ Approved — reflected in Price Summary'
+            ? 'Approved — reflected in Price Summary'
             : isExpired && co.status !== 'approved'
               ? 'This change order has expired — the due date has passed'
               : co.sub_id
@@ -3967,7 +3967,7 @@ const NewChangeOrderModal = ({ project, api, onClose, onCreated, user, schedule 
           </Text>
           {selectedTask ? (
             <TouchableOpacity onPress={() => { setSelectedTask(null); setExtensionDays(''); }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-              <Text style={{ fontSize: 18, color: C.dm }}>✕</Text>
+              <Feather name="x" size={18} color={C.dm} />
             </TouchableOpacity>
           ) : (
             <Text style={{ fontSize: 16, color: C.dm }}>▼</Text>
@@ -4017,7 +4017,7 @@ const NewChangeOrderModal = ({ project, api, onClose, onCreated, user, schedule 
           </View>
           {subInfo ? (
             <TouchableOpacity onPress={() => setSubInfo(null)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-              <Text style={{ fontSize: 18, color: C.dm }}>✕</Text>
+              <Feather name="x" size={18} color={C.dm} />
             </TouchableOpacity>
           ) : (
             <Text style={{ fontSize: 16, color: C.dm }}>▼</Text>
@@ -4091,7 +4091,7 @@ const NewChangeOrderModal = ({ project, api, onClose, onCreated, user, schedule 
               <Text style={{ flex: 1, fontSize: 15, fontWeight: '500', color: C.text }} numberOfLines={1}>{att.originalName}</Text>
               <TouchableOpacity onPress={() => setAttachments(prev => prev.filter((_, i) => i !== idx))}
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} activeOpacity={0.6}>
-                <Text style={{ fontSize: 16, color: C.rd }}>✕</Text>
+                <Feather name="x" size={16} color={C.rd} />
               </TouchableOpacity>
             </View>
             <Inp label="NAME" value={att.docName}
@@ -4229,7 +4229,7 @@ const SubChangeOrderModal = ({ project, api, user, task: initialTask, schedule, 
           <View style={{ marginBottom: 16 }} />
         )}
         <Btn onPress={create} disabled={loading || !signerName.trim()} bg={C.gn} style={{ opacity: (loading || !signerName.trim()) ? 0.4 : 1 }}>
-          <Text style={s.btnTxt}>{loading ? 'Submitting...' : '✍ Sign & Submit'}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>{!loading && <Feather name="edit" size={14} color={C.chromeTxt} />}<Text style={s.btnTxt}>{loading ? 'Submitting...' : 'Sign & Submit'}</Text></View>
         </Btn>
       </ModalSheet>
     );
@@ -4251,7 +4251,7 @@ const SubChangeOrderModal = ({ project, api, user, task: initialTask, schedule, 
               </View>
               {!initialTask?.id && (
                 <TouchableOpacity onPress={() => setSelectedTask(null)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                  <Text style={{ fontSize: 18, color: C.dm }}>✕</Text>
+                  <Feather name="x" size={18} color={C.dm} />
                 </TouchableOpacity>
               )}
             </View>
@@ -4324,7 +4324,7 @@ const SubChangeOrderModal = ({ project, api, user, task: initialTask, schedule, 
               <Text style={{ flex: 1, fontSize: 15, fontWeight: '500', color: C.text }} numberOfLines={1}>{att.originalName}</Text>
               <TouchableOpacity onPress={() => setAttachments(prev => prev.filter((_, i) => i !== idx))}
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} activeOpacity={0.6}>
-                <Text style={{ fontSize: 16, color: C.rd }}>✕</Text>
+                <Feather name="x" size={16} color={C.rd} />
               </TouchableOpacity>
             </View>
             <Inp label="NAME" value={att.docName}
@@ -4750,7 +4750,7 @@ const UploadModal = ({ project, user, api, mediaType, templateId, templateName, 
         style={[s.uploadZone, fileData && { borderColor: C.gn, backgroundColor: C.gn + '10' }]}>
         {fileData ? (
           <>
-            <Text style={{ fontSize: 36, marginBottom: 6 }}>✓</Text>
+            <Feather name="check" size={36} color={C.gn} style={{ marginBottom: 6 }} />
             <Text style={{ color: C.gn, fontSize: 18, fontWeight: '600' }}>{fileData.originalName}</Text>
             <Text style={{ color: C.dm, fontSize: 15, marginTop: 2 }}>
               {fileData.size < 1024 * 1024 ? `${(fileData.size / 1024).toFixed(1)} KB` : `${(fileData.size / (1024 * 1024)).toFixed(1)} MB`}
@@ -4876,12 +4876,12 @@ const BaselineView = ({ schedule, project, api }) => {
   };
 
   if (!schedule || schedule.length === 0) {
-    return <Empty icon="📊" text="No schedule items" sub="Add tasks to see baseline comparison" />;
+    return <Empty icon="bar-chart-2" text="No schedule items" sub="Add tasks to see baseline comparison" />;
   }
 
   const hasBaseline = schedule.some(t => t.baseline_start && t.baseline_end);
   if (!hasBaseline) {
-    return <Empty icon="📊" text="No baseline set" sub="Baselines are set when the project goes live" />;
+    return <Empty icon="bar-chart-2" text="No baseline set" sub="Baselines are set when the project goes live" />;
   }
 
   // Summary stats (based on duration slip)
@@ -4949,7 +4949,7 @@ const BaselineView = ({ schedule, project, api }) => {
             {/* Header row 2 — column labels */}
             <View style={[bl.headerRow, bl.headerRow2]}>
               <View style={[bl.cell, bl.cellCheck]}>
-                <Text style={bl.colTxt}>✓</Text>
+                <Feather name="check" size={14} color={C.dm} />
               </View>
               <View style={[bl.cell, bl.cellTitle]}>
                 <Text style={bl.colTxt}>Title</Text>
@@ -5011,7 +5011,7 @@ const BaselineView = ({ schedule, project, api }) => {
                   {/* Complete */}
                   <View style={[bl.cell, bl.cellCheck]}>
                     <View style={[bl.checkCircle, isComplete && bl.checkCircleOn]}>
-                      {isComplete && <Text style={bl.checkMark}>✓</Text>}
+                      {isComplete && <Feather name="check" size={14} color="#fff" />}
                     </View>
                   </View>
 
@@ -5133,7 +5133,7 @@ const BaselineView = ({ schedule, project, api }) => {
                   </View>
                 ) : editLogs.length === 0 ? (
                   <View style={{ padding: 30, alignItems: 'center' }}>
-                    <Text style={{ fontSize: 72, marginBottom: 8 }}>✅</Text>
+                    <Feather name="check-circle" size={72} color={C.gn} style={{ marginBottom: 8 }} />
                     <Text style={{ color: C.dm, fontSize: 34 }}>No edits recorded for this task</Text>
                     <Text style={{ color: C.dm, fontSize: 28, marginTop: 4 }}>Task is still at its original schedule</Text>
                   </View>
@@ -5192,9 +5192,10 @@ const BaselineView = ({ schedule, project, api }) => {
 
                         {/* Slip indicator */}
                         {slipInfo !== null && slipInfo !== 0 && (
-                          <View style={[bl.logSlipBadge, { backgroundColor: slipInfo > 0 ? 'rgba(239,68,68,0.1)' : 'rgba(34,197,94,0.1)' }]}>
+                          <View style={[bl.logSlipBadge, { backgroundColor: slipInfo > 0 ? 'rgba(239,68,68,0.1)' : 'rgba(34,197,94,0.1)', flexDirection: 'row', alignItems: 'center', gap: 6 }]}>
+                            <Feather name={slipInfo > 0 ? "alert-triangle" : "check"} size={24} color={slipInfo > 0 ? C.rd : C.gn} />
                             <Text style={{ fontSize: 28, fontWeight: '700', color: slipInfo > 0 ? C.rd : C.gn }}>
-                              {slipInfo > 0 ? '⚠' : '✓'} {_slipTxt(slipInfo)}
+                              {_slipTxt(slipInfo)}
                             </Text>
                           </View>
                         )}
