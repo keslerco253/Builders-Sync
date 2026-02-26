@@ -336,7 +336,7 @@ export default function Dashboard() {
       if (Array.isArray(data)) {
         const sorted = data.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
         setProjects(sorted);
-        if (!selectedProject && sorted.length > 0 && isWide) {
+        if (!selectedProject && sorted.length > 0 && (isWide || (!isBuilder && !isContractor))) {
           setSelectedProject(sorted[0]);
         }
       }
@@ -4612,6 +4612,40 @@ export default function Dashboard() {
           ) : (
             renderSubDetail()
           )
+        )
+      ) : !isBuilder && !isContractor ? (
+        /* --- CUSTOMER VIEW: no sidebar, full-width project viewer --- */
+        loading ? (
+          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+            <ActivityIndicator color={C.gd} size="large" />
+          </View>
+        ) : selectedProject ? (
+          <CurrentProjectViewer
+            embedded
+            project={selectedProject}
+            clientView={false}
+            activeTab={activeTab}
+            activeSub={activeSub}
+            onTabChange={setActiveTab}
+            onSubChange={setActiveSub}
+            onProjectUpdate={handleProjectUpdate}
+            onProjectDeleted={handleProjectDeleted}
+            scheduleVersion={scheduleVersion}
+            onScheduleChange={handleScheduleChange}
+            syncRef={syncRef}
+            subdivisions={subdivisions}
+            builderTrades={builderTrades}
+            floorPlans={floorPlans}
+            calYear={globalCalMonth.getFullYear()}
+            calMonth={globalCalMonth.getMonth()}
+            onMonthChange={(y, m) => setGlobalCalMonth(new Date(y, m, 1))}
+          />
+        ) : (
+          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+            <Feather name="clipboard" size={48} color={C.dm} style={{ marginBottom: 10 }} />
+            <Text style={{ color: C.text, fontSize: 21, fontWeight: '600', textAlign: 'center' }}>No projects yet</Text>
+            <Text style={{ color: C.dm, fontSize: 18, marginTop: 4, textAlign: 'center' }}>Projects assigned to you will appear here</Text>
+          </View>
         )
       ) : isWide ? (
         /* --- WIDE: sidebar + detail side by side --- */

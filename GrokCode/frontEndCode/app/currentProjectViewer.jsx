@@ -3056,12 +3056,12 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
               </>
             )}
 
-            {docTemplates.length === 0 && documents.length === 0 && subdivDocs.length === 0 && (
+            {docTemplates.length === 0 && documents.length === 0 && (isC || subdivDocs.length === 0) && (
               <Empty icon="folder" text="No documents uploaded" />
             )}
 
-            {/* Subdivision Documents */}
-            {subdivDocs.length > 0 && (
+            {/* Subdivision Documents (hidden from customers) */}
+            {!isC && subdivDocs.length > 0 && (
               <>
                 <Text style={{ fontSize: 18, fontWeight: '600', color: C.dm, marginTop: 20, marginBottom: 8 }}>
                   Subdivision Documents{project.subdivision_id ? ` — ${subdivisions.find(sd => sd.id === project.subdivision_id)?.name || ''}` : ''}
