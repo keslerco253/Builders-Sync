@@ -4523,6 +4523,10 @@ export default function Dashboard() {
               project={contractorProject}
               clientView={clientView}
               onClientViewToggle={() => setClientView(false)}
+              activeTab={activeTab}
+              activeSub={activeSub}
+              onTabChange={setActiveTab}
+              onSubChange={setActiveSub}
               onProjectUpdate={handleProjectUpdate}
               onProjectDeleted={handleProjectDeleted}
               scheduleVersion={scheduleVersion}
