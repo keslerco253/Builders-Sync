@@ -211,6 +211,7 @@ class Projects(db.Model):
     customer_first_name = db.Column(db.String(100), default='')
     customer_last_name = db.Column(db.String(100), default='')
     customer_phone = db.Column(db.String(30), default='')
+    homeowner2_id = db.Column(db.Integer, db.ForeignKey('login_info.id'), nullable=True)
     homeowner2_first_name = db.Column(db.String(100), default='')
     homeowner2_last_name = db.Column(db.String(100), default='')
     homeowner2_phone = db.Column(db.String(30), default='')
@@ -258,6 +259,7 @@ class Projects(db.Model):
             'customer_first_name': self.customer_first_name or '',
             'customer_last_name': self.customer_last_name or '',
             'customer_phone': self.customer_phone or '',
+            'homeowner2_id': self.homeowner2_id,
             'homeowner2_first_name': self.homeowner2_first_name or '',
             'homeowner2_last_name': self.homeowner2_last_name or '',
             'homeowner2_phone': self.homeowner2_phone or '',
@@ -1613,7 +1615,9 @@ def get_projects():
             q = q.filter_by(company_id=company_id)
         projects = q.all()
     elif role == 'customer':
-        projects = Projects.query.filter_by(customer_id=user_id).all()
+        projects = Projects.query.filter(
+            db.or_(Projects.customer_id == user_id, Projects.homeowner2_id == user_id)
+        ).all()
     else:
         # Contractors: see projects they are assigned to
         job_ids = [ju.job_id for ju in JobUsers.query.filter_by(user_id=user_id).all()]
@@ -1725,13 +1729,38 @@ def add_project():
                 db.session.flush()  # Get the id before committing
                 customer_id = new_customer.id
 
+        # --- Auto-create second homeowner user if email provided ---
+        homeowner2_id = None
+        h2_email = data.get('homeowner2_email', '').strip().lower()
+        h2_first = data.get('homeowner2_first_name', '').strip()
+        h2_last = data.get('homeowner2_last_name', '').strip()
+
+        if h2_email:
+            existing_h2 = LoginInfo.query.filter_by(username=h2_email).first()
+            if existing_h2:
+                homeowner2_id = existing_h2.id
+            else:
+                new_h2 = LoginInfo(
+                    username=h2_email,
+                    password='Liberty',
+                    firstName=h2_first or 'Homeowner',
+                    lastName=h2_last or '2',
+                    companyName='',
+                    role='customer',
+                    phone=data.get('homeowner2_phone', ''),
+                )
+                db.session.add(new_h2)
+                db.session.flush()
+                homeowner2_id = new_h2.id
+
         p = Projects()
         for key in ('name', 'address', 'street_address', 'city', 'state', 'zip_code',
                      'status', 'phase',
                      'start_date', 'est_completion', 'progress', 'original_price',
                      'contract_price', 'sqft', 'bedrooms', 'bathrooms', 'garage',
                      'lot_size', 'style', 'stories', 'email', 'dates_from_schedule', 'go_live', 'subdivision_id',
-                     'permit_number', 'customer_first_name', 'customer_last_name', 'selection_template_id'):
+                     'permit_number', 'customer_first_name', 'customer_last_name', 'selection_template_id',
+                     'homeowner2_first_name', 'homeowner2_last_name', 'homeowner2_phone', 'homeowner2_email'):
             if key in data:
                 setattr(p, key, data[key])
 
@@ -1761,17 +1790,19 @@ def add_project():
         p.number = f'{prefix}{str(max_num + 1).zfill(2)}'
 
         p.customer_id = customer_id
+        p.homeowner2_id = homeowner2_id
         # Set company_id from the creating user
         creator_id = data.get('created_by') or data.get('user_id')
         if creator_id:
             creator = LoginInfo.query.get(creator_id)
             if creator and creator.company_id:
                 p.company_id = creator.company_id
-                # Also assign the customer to the same company if newly created
-                if customer_id:
-                    cust = LoginInfo.query.get(customer_id)
-                    if cust and not cust.company_id:
-                        cust.company_id = creator.company_id
+                # Also assign customers to the same company if newly created
+                for cid in [customer_id, homeowner2_id]:
+                    if cid:
+                        cust = LoginInfo.query.get(cid)
+                        if cust and not cust.company_id:
+                            cust.company_id = creator.company_id
         db.session.add(p)
         db.session.commit()
 
@@ -1806,7 +1837,7 @@ def update_project(project_id):
 
     for key in ('name', 'number', 'address', 'street_address', 'city', 'state', 'zip_code',
                  'status', 'phase', 'customer_id', 'customer_first_name', 'customer_last_name',
-                 'customer_phone', 'homeowner2_first_name', 'homeowner2_last_name',
+                 'customer_phone', 'homeowner2_id', 'homeowner2_first_name', 'homeowner2_last_name',
                  'homeowner2_phone', 'homeowner2_email',
                  'start_date', 'est_completion', 'progress', 'original_price',
                  'contract_price', 'sqft', 'bedrooms', 'bathrooms', 'garage',
@@ -2897,6 +2928,35 @@ def batch_update_schedule():
     return jsonify([i.to_dict() for i in updated])
 
 
+@app.route('/projects/<int:pid>/assign-trade-contractor', methods=['PUT'])
+def assign_trade_contractor(pid):
+    """Assign a contractor to all schedule tasks matching a given trade."""
+    data = request.get_json()
+    trade = (data.get('trade') or '').strip()
+    contractor_name = (data.get('contractor_name') or '').strip()
+    if not trade:
+        return jsonify({'error': 'trade is required'}), 400
+
+    tasks = Schedule.query.filter_by(job_id=pid).all()
+    updated = []
+    for t in tasks:
+        task_trades = t._get_trades()
+        if trade in task_trades:
+            if contractor_name:
+                # Set (or replace) the contractor
+                t.contractor = contractor_name
+                t.contractors_json = json.dumps([contractor_name])
+            else:
+                # Unassign contractor
+                t.contractor = ''
+                t.contractors_json = None
+            updated.append(t)
+    db.session.commit()
+    # Return the full updated schedule
+    all_tasks = Schedule.query.filter_by(job_id=pid).order_by(Schedule.start_date).all()
+    return jsonify([t.to_dict() for t in all_tasks])
+
+
 @app.route('/schedule/<int:item_id>', methods=['DELETE'])
 def delete_schedule_item(item_id):
     """Delete a single schedule task. Successors lose their predecessor link but keep their start date."""
@@ -3514,8 +3574,10 @@ def get_user_client_tasks(uid):
     # Find all project IDs assigned to this user
     job_links = JobUsers.query.filter_by(user_id=uid).all()
     job_ids = [j.job_id for j in job_links]
-    # Also include projects where user is the customer
-    owned = Projects.query.filter_by(customer_id=uid).all()
+    # Also include projects where user is the customer (primary or secondary homeowner)
+    owned = Projects.query.filter(
+        db.or_(Projects.customer_id == uid, Projects.homeowner2_id == uid)
+    ).all()
     job_ids += [p.id for p in owned]
     job_ids = list(set(job_ids))
     if not job_ids:
