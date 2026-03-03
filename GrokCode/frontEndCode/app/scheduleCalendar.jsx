@@ -299,7 +299,7 @@ const getMonthGrid = (year, month) => {
 // ============================================================
 export default function ScheduleCalendar({ schedule, onUpdateTask, onEditTask, onDeleteTask, isBuilder, onDayPress, onAddItem, mode = 'gantt', headerContent, onTaskDoubleClick, goLive, onGoLiveChange, onHold, calYear: extYear, calMonth: extMonth, onMonthChange }) {
   const C = React.useContext(ThemeContext);
-  const st = React.useMemo(() => getStyles(C), [C]);
+  const styles = React.useMemo(() => getStyles(C), [C]);
   const [intYear, setIntYear] = useState(() => extYear ?? new Date().getFullYear());
   const [intMonth, setIntMonth] = useState(() => extMonth ?? new Date().getMonth());
   
@@ -688,31 +688,31 @@ export default function ScheduleCalendar({ schedule, onUpdateTask, onEditTask, o
   // RENDER
   // ============================================================
   return (
-    <View style={st.container}>
+    <View style={styles.container}>
       {headerContent && (
         <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 6, paddingVertical: 8, paddingRight: 40 }}>
           {headerContent}
         </View>
       )}
-      <View style={st.navBar}>
-        <View style={st.navLeft}>
-          <TouchableOpacity onPress={goToday} style={st.todayBtn}>
-            <Text style={st.todayBtnTxt}>Today</Text>
+      <View style={styles.navBar}>
+        <View style={styles.navLeft}>
+          <TouchableOpacity onPress={goToday} style={styles.todayBtn}>
+            <Text style={styles.todayBtnTxt}>Today</Text>
           </TouchableOpacity>
         </View>
-        <View style={st.navCenter}>
-          <TouchableOpacity onPress={prevMonth} style={st.arrowBtn}>
-            <Text style={st.arrowTxt}>‹</Text>
+        <View style={styles.navCenter}>
+          <TouchableOpacity onPress={prevMonth} style={styles.arrowBtn}>
+            <Text style={styles.arrowTxt}>‹</Text>
           </TouchableOpacity>
-          <Text style={st.monthLabel}>{MONTHS[month]} {year}</Text>
-          <TouchableOpacity onPress={nextMonth} style={st.arrowBtn}>
-            <Text style={st.arrowTxt}>›</Text>
+          <Text style={styles.monthLabel}>{MONTHS[month]} {year}</Text>
+          <TouchableOpacity onPress={nextMonth} style={styles.arrowBtn}>
+            <Text style={styles.arrowTxt}>›</Text>
           </TouchableOpacity>
         </View>
-        <View style={st.navRight}>
+        <View style={styles.navRight}>
           {onAddItem ? (
-            <TouchableOpacity onPress={onAddItem} style={st.addItemBtn} activeOpacity={0.8}>
-              <Text style={st.addItemBtnTxt}>+ New Item</Text>
+            <TouchableOpacity onPress={onAddItem} style={styles.addItemBtn} activeOpacity={0.8}>
+              <Text style={styles.addItemBtnTxt}>+ New Item</Text>
             </TouchableOpacity>
           ) : null}
         </View>
@@ -720,22 +720,22 @@ export default function ScheduleCalendar({ schedule, onUpdateTask, onEditTask, o
 
       {/* Toggle row: Go Live */}
       {isBuilder && (
-        <View style={st.baselineToggleRow}>
+        <View style={styles.baselineToggleRow}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
             {isBuilder && goLive && (
-              <View style={[st.baselineToggle, { borderColor: 'rgba(16,185,129,0.4)', backgroundColor: 'rgba(16,185,129,0.08)' }]}>
-                <View style={[st.toggleDot, { backgroundColor: '#10b981' }]} />
-                <Text style={[st.baselineToggleTxt, { color: '#10b981' }]}>Live</Text>
+              <View style={[styles.baselineToggle, { borderColor: 'rgba(16,185,129,0.4)', backgroundColor: 'rgba(16,185,129,0.08)' }]}>
+                <View style={[styles.toggleDot, { backgroundColor: '#10b981' }]} />
+                <Text style={[styles.baselineToggleTxt, { color: '#10b981' }]}>Live</Text>
               </View>
             )}
             {isBuilder && !goLive && onGoLiveChange && (
               <TouchableOpacity
                 onPress={() => onGoLiveChange(true)}
-                style={st.baselineToggle}
+                style={styles.baselineToggle}
                 activeOpacity={0.7}
               >
-                <View style={st.toggleDot} />
-                <Text style={st.baselineToggleTxt}>Go Live</Text>
+                <View style={styles.toggleDot} />
+                <Text style={styles.baselineToggleTxt}>Go Live</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -757,13 +757,13 @@ export default function ScheduleCalendar({ schedule, onUpdateTask, onEditTask, o
         showsVerticalScrollIndicator={Platform.OS === 'web'}>
         <View
           ref={calRef}
-          style={[st.grid, Platform.OS === 'web' && { userSelect: 'none' }]}
+          style={[styles.grid, Platform.OS === 'web' && { userSelect: 'none' }]}
           onLayout={(e) => { cellWidth.current = e.nativeEvent.layout.width / 7; }}
         >
-          <View style={st.dayHeader}>
+          <View style={styles.dayHeader}>
             {DAYS.map(d => (
-              <View key={d} style={st.dayHeaderCell}>
-                <Text style={st.dayHeaderTxt}>{d}</Text>
+              <View key={d} style={styles.dayHeaderCell}>
+                <Text style={styles.dayHeaderTxt}>{d}</Text>
               </View>
             ))}
           </View>
@@ -789,7 +789,7 @@ export default function ScheduleCalendar({ schedule, onUpdateTask, onEditTask, o
             const rowMinH = Math.max(125, rowH);
 
             return (
-              <View key={wi} style={[st.weekRow, { height: rowMinH }]}>
+              <View key={wi} style={[styles.weekRow, { height: rowMinH }]}>
                 {week.map((day, di) => {
                   const isToday = isSameDay(day, today);
                   const isCurMonth = day.getMonth() === month;
@@ -801,10 +801,10 @@ export default function ScheduleCalendar({ schedule, onUpdateTask, onEditTask, o
                           onDayPress(`${day.getFullYear()}-${String(day.getMonth()+1).padStart(2,'0')}-${String(day.getDate()).padStart(2,'0')}`);
                         }
                       }}
-                      style={[st.dayCell, di < 6 && st.dayCellBorder, (di===0||di===6) && st.weekendCell]}
+                      style={[styles.dayCell, di < 6 && styles.dayCellBorder, (di===0||di===6) && styles.weekendCell]}
                     >
-                      <View style={[st.dayNumber, isToday && st.todayNumber]}>
-                        <Text style={[st.dayNumberTxt, !isCurMonth && st.otherMonthTxt, isToday && st.todayNumberTxt]}>
+                      <View style={[styles.dayNumber, isToday && styles.todayNumber]}>
+                        <Text style={[styles.dayNumberTxt, !isCurMonth && styles.otherMonthTxt, isToday && styles.todayNumberTxt]}>
                           {day.getDate()}
                         </Text>
                       </View>
@@ -828,14 +828,14 @@ export default function ScheduleCalendar({ schedule, onUpdateTask, onEditTask, o
                       <View
                         key={`${task.id}-${wi}`}
                         style={[
-                          st.taskBar,
+                          styles.taskBar,
                           { left: leftPct, width: widthPct, top: laneTop,
                             borderColor: color,
                             opacity: (isDragged || isCascaded) ? 0.85 : 1 },
                           isExc && !isOnHold && { backgroundColor: C.og, borderColor: C.og },
                           isOnHold && { backgroundColor: C.rd, borderColor: C.rd },
-                          isDragged && st.taskBarDragged,
-                          isCascaded && st.taskBarCascade,
+                          isDragged && styles.taskBarDragged,
+                          isCascaded && styles.taskBarCascade,
                         ]}
                         {...(Platform.OS === 'web' && isBuilder ? {
                           onPointerDown: (e) => handleDragStart(task, e),
@@ -843,7 +843,7 @@ export default function ScheduleCalendar({ schedule, onUpdateTask, onEditTask, o
                         } : {})}
                       >
                         {task.progress === 100 && <Feather name="check" size={12} color={(isExc || isOnHold) ? '#fff' : C.gn} />}
-                        <Text style={[st.taskBarTxt, (isExc || isOnHold) && { color: '#fff' }]} numberOfLines={1}>{task.task}</Text>
+                        <Text style={[styles.taskBarTxt, (isExc || isOnHold) && { color: '#fff' }]} numberOfLines={1}>{task.task}</Text>
                         {task.predecessor_id && <Feather name="link" size={10} color={C.dm} />}
                       </View>
                     );
@@ -856,8 +856,8 @@ export default function ScheduleCalendar({ schedule, onUpdateTask, onEditTask, o
       </ScrollView>
 
       {isBuilder && Platform.OS === 'web' && (
-        <View style={st.hint}>
-          <Text style={st.hintTxt}>Click a day to add · Drag to move · Right-drag to move entire chain · Double-click to edit</Text>
+        <View style={styles.hint}>
+          <Text style={styles.hintTxt}>Click a day to add · Drag to move · Right-drag to move entire chain · Double-click to edit</Text>
         </View>
       )}
       </>
@@ -870,13 +870,13 @@ export default function ScheduleCalendar({ schedule, onUpdateTask, onEditTask, o
         showsVerticalScrollIndicator={Platform.OS === 'web'}>
         <View
           ref={calRef}
-          style={[st.grid, Platform.OS === 'web' && { userSelect: 'none' }]}
+          style={[styles.grid, Platform.OS === 'web' && { userSelect: 'none' }]}
           onLayout={(e) => { cellWidth.current = e.nativeEvent.layout.width / 7; }}
         >
-          <View style={st.dayHeader}>
+          <View style={styles.dayHeader}>
             {DAYS.map(d => (
-              <View key={d} style={st.dayHeaderCell}>
-                <Text style={st.dayHeaderTxt}>{d}</Text>
+              <View key={d} style={styles.dayHeaderCell}>
+                <Text style={styles.dayHeaderTxt}>{d}</Text>
               </View>
             ))}
           </View>
@@ -888,7 +888,7 @@ export default function ScheduleCalendar({ schedule, onUpdateTask, onEditTask, o
             const rowMinH = Math.max(125, 48 + maxTasks * 80);
 
             return (
-              <View key={wi} style={[st.weekRow, { minHeight: rowMinH }]}>
+              <View key={wi} style={[styles.weekRow, { minHeight: rowMinH }]}>
                 {week.map((day, di) => {
                   const isToday = isSameDay(day, today);
                   const isCurMonth = day.getMonth() === month;
@@ -903,10 +903,10 @@ export default function ScheduleCalendar({ schedule, onUpdateTask, onEditTask, o
                           onDayPress(fmt(day));
                         }
                       }}
-                      style={[st.dayCell, di < 6 && st.dayCellBorder, (di===0||di===6) && st.weekendCell, { overflow: 'hidden' }]}
+                      style={[styles.dayCell, di < 6 && styles.dayCellBorder, (di===0||di===6) && styles.weekendCell, { overflow: 'hidden' }]}
                     >
-                      <View style={[st.dayNumber, isToday && st.todayNumber]}>
-                        <Text style={[st.dayNumberTxt, !isCurMonth && st.otherMonthTxt, isToday && st.todayNumberTxt]}>
+                      <View style={[styles.dayNumber, isToday && styles.todayNumber]}>
+                        <Text style={[styles.dayNumberTxt, !isCurMonth && styles.otherMonthTxt, isToday && styles.todayNumberTxt]}>
                           {day.getDate()}
                         </Text>
                       </View>
@@ -924,7 +924,7 @@ export default function ScheduleCalendar({ schedule, onUpdateTask, onEditTask, o
                           <View
                             key={task.id}
                             style={[
-                              st.tfChip,
+                              styles.tfChip,
                               { borderLeftColor: color, opacity: (isDragged || isCascaded) ? 0.7 : 1 },
                               isExc && !isOnHold && { backgroundColor: C.og, borderLeftColor: C.og },
                               isOnHold && { backgroundColor: C.rd, borderLeftColor: C.rd },
@@ -938,10 +938,10 @@ export default function ScheduleCalendar({ schedule, onUpdateTask, onEditTask, o
                           >
                             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
                               {isComplete && <Feather name="check" size={12} color={(isExc || isOnHold) ? '#fff' : C.gn} />}
-                              <Text style={[st.tfChipName, isComplete && { textDecorationLine: 'line-through', color: C.dm }, (isExc || isOnHold) && { color: '#fff' }]} numberOfLines={1}>{task.task}</Text>
+                              <Text style={[styles.tfChipName, isComplete && { textDecorationLine: 'line-through', color: C.dm }, (isExc || isOnHold) && { color: '#fff' }]} numberOfLines={1}>{task.task}</Text>
                               {task.predecessor_id && <Feather name="link" size={10} color={(isExc || isOnHold) ? '#fff' : C.dm} />}
                             </View>
-                            <Text style={[st.tfChipDate, (isExc || isOnHold) && { color: 'rgba(255,255,255,0.8)' }]} numberOfLines={1}>→ {shortDate(task.end_date)}</Text>
+                            <Text style={[styles.tfChipDate, (isExc || isOnHold) && { color: 'rgba(255,255,255,0.8)' }]} numberOfLines={1}>→ {shortDate(task.end_date)}</Text>
                           </View>
                         );
                       })}
@@ -955,8 +955,8 @@ export default function ScheduleCalendar({ schedule, onUpdateTask, onEditTask, o
       </ScrollView>
 
       {isBuilder && Platform.OS === 'web' && (
-        <View style={st.hint}>
-          <Text style={st.hintTxt}>Click a day to add · Drag to move · Right-drag to move entire chain · Double-click to edit</Text>
+        <View style={styles.hint}>
+          <Text style={styles.hintTxt}>Click a day to add · Drag to move · Right-drag to move entire chain · Double-click to edit</Text>
         </View>
       )}
       </>
@@ -964,70 +964,70 @@ export default function ScheduleCalendar({ schedule, onUpdateTask, onEditTask, o
 
       {/* Right-click edit popup — rendered as fixed centered modal */}
       {editPopup && Platform.OS === 'web' && (
-        <View style={st.popupOverlay}>
-          <TouchableOpacity style={st.popupOverlayBg} activeOpacity={1} onPress={closeEditPopup} />
+        <View style={styles.popupOverlay}>
+          <TouchableOpacity style={styles.popupOverlayBg} activeOpacity={1} onPress={closeEditPopup} />
           <ScrollView
-            style={st.popupScroll}
-            contentContainerStyle={st.popupScrollContent}
+            style={styles.popupScroll}
+            contentContainerStyle={styles.popupScrollContent}
             keyboardShouldPersistTaps="handled"
           >
-            <View style={st.popupContainer}>
+            <View style={styles.popupContainer}>
               {/* Header */}
-              <View style={st.popupHeader}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}><Feather name="edit-2" size={16} color={C.textBold} /><Text style={st.popupTitle} numberOfLines={1}>Edit Task</Text></View>
-                <TouchableOpacity onPress={closeEditPopup} style={st.popupClose}>
-                  <Text style={st.popupCloseTxt}>×</Text>
+              <View style={styles.popupHeader}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}><Feather name="edit-2" size={16} color={C.textBold} /><Text style={styles.popupTitle} numberOfLines={1}>Edit Task</Text></View>
+                <TouchableOpacity onPress={closeEditPopup} style={styles.popupClose}>
+                  <Text style={styles.popupCloseTxt}>×</Text>
                 </TouchableOpacity>
               </View>
 
               {/* Task info */}
-              <View style={st.popupTaskInfo}>
-                <Text style={st.popupTaskName} numberOfLines={2}>{editPopup.task.task}</Text>
-                <Text style={st.popupTaskDates}>
+              <View style={styles.popupTaskInfo}>
+                <Text style={styles.popupTaskName} numberOfLines={2}>{editPopup.task.task}</Text>
+                <Text style={styles.popupTaskDates}>
                   {editPopup.task.start_date} → {editPopup.task.end_date}
                 </Text>
                 {((editPopup.task.contractors || []).length > 0 || editPopup.task.contractor) ? (
-                  <Text style={st.popupTaskContractor}>{(editPopup.task.contractors || []).length > 0 ? editPopup.task.contractors.join(', ') : editPopup.task.contractor}</Text>
+                  <Text style={styles.popupTaskContractor}>{(editPopup.task.contractors || []).length > 0 ? editPopup.task.contractors.join(', ') : editPopup.task.contractor}</Text>
                 ) : null}
               </View>
 
               {/* Duration input */}
-              <View style={st.popupField}>
-                <Text style={st.popupLabel}>DURATION (WORKDAYS)</Text>
-                <View style={st.popupDurationRow}>
+              <View style={styles.popupField}>
+                <Text style={styles.popupLabel}>DURATION (WORKDAYS)</Text>
+                <View style={styles.popupDurationRow}>
                   <TouchableOpacity
                     onPress={() => setEditDuration(d => String(Math.max(1, (parseInt(d)||1) - 1)))}
-                    style={st.popupDurBtn}
+                    style={styles.popupDurBtn}
                   >
-                    <Text style={st.popupDurBtnTxt}>−</Text>
+                    <Text style={styles.popupDurBtnTxt}>−</Text>
                   </TouchableOpacity>
-                  <View style={st.popupDurInputWrap}>
+                  <View style={styles.popupDurInputWrap}>
                     <TextInput
                       value={editDuration}
                       onChangeText={setEditDuration}
                       keyboardType="number-pad"
-                      style={st.popupDurInput}
+                      style={styles.popupDurInput}
                       selectTextOnFocus
                     />
                   </View>
                   <TouchableOpacity
                     onPress={() => setEditDuration(d => String((parseInt(d)||1) + 1))}
-                    style={st.popupDurBtn}
+                    style={styles.popupDurBtn}
                   >
-                    <Text style={st.popupDurBtnTxt}>+</Text>
+                    <Text style={styles.popupDurBtnTxt}>+</Text>
                   </TouchableOpacity>
                 </View>
                 {editDuration && editPopup.task.start_date && (
-                  <Text style={st.popupNewEnd}>
+                  <Text style={styles.popupNewEnd}>
                     New end: {calcEndFromWorkdays(editPopup.task.start_date, parseInt(editDuration) || 1)}
                   </Text>
                 )}
               </View>
 
               {/* Reason input */}
-              <View style={st.popupField}>
-                <Text style={st.popupLabel}>REASON FOR CHANGE *</Text>
-                <View style={st.popupReasonWrap}>
+              <View style={styles.popupField}>
+                <Text style={styles.popupLabel}>REASON FOR CHANGE *</Text>
+                <View style={styles.popupReasonWrap}>
                   <TextInput
                     value={editReason}
                     onChangeText={setEditReason}
@@ -1035,22 +1035,22 @@ export default function ScheduleCalendar({ schedule, onUpdateTask, onEditTask, o
                     placeholderTextColor={C.w20}
                     multiline
                     numberOfLines={3}
-                    style={st.popupReasonInput}
+                    style={styles.popupReasonInput}
                   />
                 </View>
               </View>
 
               {/* Actions */}
-              <View style={st.popupActions}>
-                <TouchableOpacity onPress={closeEditPopup} style={st.popupCancelBtn}>
-                  <Text style={st.popupCancelTxt}>Cancel</Text>
+              <View style={styles.popupActions}>
+                <TouchableOpacity onPress={closeEditPopup} style={styles.popupCancelBtn}>
+                  <Text style={styles.popupCancelTxt}>Cancel</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   onPress={saveEdit}
                   disabled={!editReason.trim() || editSaving}
-                  style={[st.popupSaveBtn, (!editReason.trim() || editSaving) && st.popupSaveBtnDisabled]}
+                  style={[styles.popupSaveBtn, (!editReason.trim() || editSaving) && styles.popupSaveBtnDisabled]}
                 >
-                  <Text style={st.popupSaveTxt}>
+                  <Text style={styles.popupSaveTxt}>
                     {editSaving ? 'Saving...' : 'Save Changes'}
                   </Text>
                 </TouchableOpacity>

@@ -12,7 +12,7 @@ const rG = (r, C) => r === 'builder' ? C.gd : r === 'contractor' ? C.bl : C.gn;
 
 export default function AccountScreen() {
   const C = React.useContext(ThemeContext);
-  const st = React.useMemo(() => getStyles(C), [C]);
+  const styles = React.useMemo(() => getStyles(C), [C]);
   const { user, signout, updateUser } = React.useContext(AuthContext);
   const [showPwModal, setShowPwModal] = useState(false);
   const [logo, setLogo] = useState(null);
@@ -155,19 +155,19 @@ export default function AccountScreen() {
       <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40, maxWidth: 680, width: '100%', alignSelf: 'center' }}>
         {/* Profile card */}
         <View style={{ alignItems: 'center', marginBottom: 28 }}>
-          <View style={[st.bigAvatar, { backgroundColor: rG(user?.role, C) }]}>
-            <Text style={st.bigAvatarTxt}>{ini(user?.name)}</Text>
+          <View style={[styles.bigAvatar, { backgroundColor: rG(user?.role, C) }]}>
+            <Text style={styles.bigAvatarTxt}>{ini(user?.name)}</Text>
           </View>
           <Text style={{ fontSize: 22, fontWeight: '700', color: C.textBold, marginTop: 12 }}>{user?.name}</Text>
-          <View style={[st.rolePill, { backgroundColor: rG(user?.role, C) + '22' }]}>
+          <View style={[styles.rolePill, { backgroundColor: rG(user?.role, C) + '22' }]}>
             <Text style={{ fontSize: 12, fontWeight: '600', color: rG(user?.role, C), textTransform: 'uppercase' }}>{user?.role}</Text>
           </View>
         </View>
 
         {/* Info */}
-        <View style={st.card}>
+        <View style={styles.card}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-            <Text style={[st.cardTitle, { marginBottom: 0 }]}>Account Information</Text>
+            <Text style={[styles.cardTitle, { marginBottom: 0 }]}>Account Information</Text>
             {!editing && (
               <TouchableOpacity onPress={startEditing} activeOpacity={0.7}
                 style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, backgroundColor: C.gd + '18' }}>
@@ -179,27 +179,27 @@ export default function AccountScreen() {
           {editing ? (
             <View>
               <View style={{ marginBottom: 14 }}>
-                <Text style={st.lbl}>EMAIL</Text>
+                <Text style={styles.lbl}>EMAIL</Text>
                 <TextInput value={editEmail} onChangeText={setEditEmail} placeholder="Email address"
-                  placeholderTextColor={C.ph} keyboardType="email-address" autoCapitalize="none" style={st.inp} />
+                  placeholderTextColor={C.ph} keyboardType="email-address" autoCapitalize="none" style={styles.inp} />
               </View>
               <View style={{ marginBottom: 14 }}>
-                <Text style={st.lbl}>COMPANY</Text>
+                <Text style={styles.lbl}>COMPANY</Text>
                 <TextInput value={editCompany} onChangeText={setEditCompany} placeholder="Company name"
-                  placeholderTextColor={C.ph} style={st.inp} />
+                  placeholderTextColor={C.ph} style={styles.inp} />
               </View>
               <View style={{ marginBottom: 14 }}>
-                <Text style={st.lbl}>PHONE</Text>
+                <Text style={styles.lbl}>PHONE</Text>
                 <TextInput value={editPhone} onChangeText={setEditPhone} placeholder="Phone number"
-                  placeholderTextColor={C.ph} keyboardType="phone-pad" style={st.inp} />
+                  placeholderTextColor={C.ph} keyboardType="phone-pad" style={styles.inp} />
               </View>
               {readOnlyRows.map(([label, val], i) => (
                 <View key={label}>
-                  <View style={st.infoRow}>
-                    <Text style={st.infoLbl}>{label.toUpperCase()}</Text>
-                    <Text style={st.infoVal}>{val}</Text>
+                  <View style={styles.infoRow}>
+                    <Text style={styles.infoLbl}>{label.toUpperCase()}</Text>
+                    <Text style={styles.infoVal}>{val}</Text>
                   </View>
-                  {i < readOnlyRows.length - 1 && <View style={st.divider} />}
+                  {i < readOnlyRows.length - 1 && <View style={styles.divider} />}
                 </View>
               ))}
               <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
@@ -209,7 +209,7 @@ export default function AccountScreen() {
                   <Text style={{ fontSize: 14, fontWeight: '600', color: C.mt }}>Cancel</Text>
                 </TouchableOpacity>
                 <TouchableOpacity onPress={saveProfile} disabled={saving}
-                  style={[st.submitBtn, { flex: 1, marginTop: 0 }, saving && { backgroundColor: C.dm }]}
+                  style={[styles.submitBtn, { flex: 1, marginTop: 0 }, saving && { backgroundColor: C.dm }]}
                   activeOpacity={0.7}>
                   <Text style={{ fontSize: 14, fontWeight: '700', color: C.textBold, textAlign: 'center' }}>
                     {saving ? 'Saving...' : 'Save Changes'}
@@ -226,11 +226,11 @@ export default function AccountScreen() {
                 ...readOnlyRows,
               ].filter(([, v]) => v).map(([label, val], i, arr) => (
                 <View key={label}>
-                  <View style={st.infoRow}>
-                    <Text style={st.infoLbl}>{label.toUpperCase()}</Text>
-                    <Text style={st.infoVal}>{val}</Text>
+                  <View style={styles.infoRow}>
+                    <Text style={styles.infoLbl}>{label.toUpperCase()}</Text>
+                    <Text style={styles.infoVal}>{val}</Text>
                   </View>
-                  {i < arr.length - 1 && <View style={st.divider} />}
+                  {i < arr.length - 1 && <View style={styles.divider} />}
                 </View>
               ))}
             </>
@@ -239,7 +239,7 @@ export default function AccountScreen() {
 
         {/* Company Logo — company admin only */}
         {user?.role === 'company_admin' && (
-          <View style={st.card}>
+          <View style={styles.card}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 14 }}>
               <Feather name="image" size={20} color={C.dm} />
               <View style={{ flex: 1 }}>
@@ -289,7 +289,7 @@ export default function AccountScreen() {
         )}
 
         {/* Actions */}
-        <TouchableOpacity onPress={() => setShowPwModal(true)} style={[st.card, { flexDirection: 'row', alignItems: 'center', gap: 12 }]}>
+        <TouchableOpacity onPress={() => setShowPwModal(true)} style={[styles.card, { flexDirection: 'row', alignItems: 'center', gap: 12 }]}>
           <Feather name="key" size={20} color={C.dm} />
           <View style={{ flex: 1 }}>
             <Text style={{ fontSize: 15, fontWeight: '600', color: C.text }}>Change Password</Text>
@@ -299,7 +299,7 @@ export default function AccountScreen() {
         </TouchableOpacity>
 
         {/* Theme Selector */}
-        <View style={[st.card, { gap: 12 }]}>
+        <View style={[styles.card, { gap: 12 }]}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
             <Feather name={C.themePreference === 'system' ? 'monitor' : C.mode === 'dark' ? 'moon' : 'sun'} size={20} color={C.dm} />
             <View style={{ flex: 1 }}>
@@ -324,7 +324,7 @@ export default function AccountScreen() {
           </View>
         </View>
 
-        <TouchableOpacity onPress={handleSignOut} style={[st.card, { flexDirection: 'row', alignItems: 'center', gap: 12, borderColor: 'rgba(239,68,68,0.15)' }]}>
+        <TouchableOpacity onPress={handleSignOut} style={[styles.card, { flexDirection: 'row', alignItems: 'center', gap: 12, borderColor: 'rgba(239,68,68,0.15)' }]}>
           <Feather name="log-out" size={20} color={C.rd} />
           <View style={{ flex: 1 }}>
             <Text style={{ fontSize: 15, fontWeight: '600', color: C.rd }}>Sign Out</Text>
@@ -335,7 +335,7 @@ export default function AccountScreen() {
 
         {/* Footer */}
         <View style={{ alignItems: 'center', marginTop: 30 }}>
-          <View style={[st.logoBox]}><Feather name="hexagon" size={14} color={C.textBold} /></View>
+          <View style={[styles.logoBox]}><Feather name="hexagon" size={14} color={C.textBold} /></View>
           <Text style={{ fontSize: 11, color: C.dm, marginTop: 8 }}>BuilderSync v1.0</Text>
           <Text style={{ fontSize: 11, color: C.ph, marginTop: 2 }}>Construction Project Management</Text>
         </View>
@@ -347,7 +347,7 @@ export default function AccountScreen() {
 // Change Password Modal
 const ChangePasswordModal = ({ userId, onClose }) => {
   const C = React.useContext(ThemeContext);
-  const st = React.useMemo(() => getStyles(C), [C]);
+  const styles = React.useMemo(() => getStyles(C), [C]);
   const [cur, setCur] = useState('');
   const [np, setNp] = useState('');
   const [conf, setConf] = useState('');
@@ -374,31 +374,31 @@ const ChangePasswordModal = ({ userId, onClose }) => {
   return (
     <Modal visible animationType="slide" transparent>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
-        <View style={st.modalBg}>
-          <View style={st.modalContent}>
-            <View style={st.modalHead}>
-              <Text style={st.modalTitle}>Change Password</Text>
+        <View style={styles.modalBg}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHead}>
+              <Text style={styles.modalTitle}>Change Password</Text>
               <TouchableOpacity onPress={onClose}><Text style={{ color: C.mt, fontSize: 28 }}>×</Text></TouchableOpacity>
             </View>
             <ScrollView showsVerticalScrollIndicator={false}>
-              {err ? <View style={st.errBox}><Text style={{ color: C.rd, fontSize: 13 }}>{err}</Text></View> : null}
+              {err ? <View style={styles.errBox}><Text style={{ color: C.rd, fontSize: 13 }}>{err}</Text></View> : null}
               <View style={{ marginBottom: 14 }}>
-                <Text style={st.lbl}>CURRENT PASSWORD</Text>
+                <Text style={styles.lbl}>CURRENT PASSWORD</Text>
                 <TextInput value={cur} onChangeText={v => { setCur(v); setErr(''); }} placeholder="Current password"
-                  placeholderTextColor={C.ph} secureTextEntry style={st.inp} />
+                  placeholderTextColor={C.ph} secureTextEntry style={styles.inp} />
               </View>
               <View style={{ marginBottom: 14 }}>
-                <Text style={st.lbl}>NEW PASSWORD (MIN 8)</Text>
+                <Text style={styles.lbl}>NEW PASSWORD (MIN 8)</Text>
                 <TextInput value={np} onChangeText={v => { setNp(v); setErr(''); }} placeholder="New password"
-                  placeholderTextColor={C.ph} secureTextEntry style={st.inp} />
+                  placeholderTextColor={C.ph} secureTextEntry style={styles.inp} />
               </View>
               <View style={{ marginBottom: 14 }}>
-                <Text style={st.lbl}>CONFIRM</Text>
+                <Text style={styles.lbl}>CONFIRM</Text>
                 <TextInput value={conf} onChangeText={v => { setConf(v); setErr(''); }} placeholder="Confirm new password"
-                  placeholderTextColor={C.ph} secureTextEntry style={st.inp} />
+                  placeholderTextColor={C.ph} secureTextEntry style={styles.inp} />
               </View>
               <TouchableOpacity onPress={submit} disabled={!cur || !np || !conf || loading}
-                style={[st.submitBtn, (!cur || !np || !conf || loading) && { backgroundColor: C.dm }]}>
+                style={[styles.submitBtn, (!cur || !np || !conf || loading) && { backgroundColor: C.dm }]}>
                 <Text style={{ color: C.textBold, fontSize: 15, fontWeight: '700', textAlign: 'center' }}>
                   {loading ? 'Updating...' : 'Update Password'}
                 </Text>

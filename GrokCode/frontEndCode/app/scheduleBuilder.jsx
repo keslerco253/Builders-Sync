@@ -291,7 +291,7 @@ const buildFromTemplate = (template, startDate) => {
 const TemplatePicker = ({ onApply, existingCount }) => {
   const C = React.useContext(ThemeContext);
   const { user } = React.useContext(AuthContext);
-  const st = React.useMemo(() => getStyles(C), [C]);
+  const styles = React.useMemo(() => getStyles(C), [C]);
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState(null);
   const [startDate, setStartDate] = useState('');
@@ -336,12 +336,12 @@ const TemplatePicker = ({ onApply, existingCount }) => {
   };
 
   // Convert saved template to the same format as built-in TEMPLATES
-  const savedAsBuiltIn = savedTemplates.map(st => ({
-    name: st.name,
-    icon: st.icon || 'clipboard',
-    desc: st.description || `${st.tasks?.length || 0} tasks`,
-    tasks: st.tasks || [],
-    _savedId: st.id,
+  const savedAsBuiltIn = savedTemplates.map(styles => ({
+    name: styles.name,
+    icon: styles.icon || 'clipboard',
+    desc: styles.description || `${styles.tasks?.length || 0} tasks`,
+    tasks: styles.tasks || [],
+    _savedId: styles.id,
   }));
 
   const allTemplates = [...savedAsBuiltIn, ...TEMPLATES];
@@ -358,17 +358,17 @@ const TemplatePicker = ({ onApply, existingCount }) => {
 
   return (
     <>
-      <TouchableOpacity onPress={handleOpen} style={st.templateTrigger} activeOpacity={0.7}>
+      <TouchableOpacity onPress={handleOpen} style={styles.templateTrigger} activeOpacity={0.7}>
         <Feather name="layers" size={16} color={C.gd} />
-        <Text style={st.templateTriggerTxt}>Use Template</Text>
+        <Text style={styles.templateTriggerTxt}>Use Template</Text>
       </TouchableOpacity>
 
       <Modal visible={open} transparent animationType="fade">
-        <TouchableOpacity style={st.dropOverlay} activeOpacity={1} onPress={() => setOpen(false)}>
+        <TouchableOpacity style={styles.dropOverlay} activeOpacity={1} onPress={() => setOpen(false)}>
           <TouchableOpacity activeOpacity={1} onPress={e => e.stopPropagation()}>
-            <View style={st.templatePopup}>
-              <Text style={st.templatePopupTitle}>Schedule Templates</Text>
-              <Text style={st.templatePopupSub}>
+            <View style={styles.templatePopup}>
+              <Text style={styles.templatePopupTitle}>Schedule Templates</Text>
+              <Text style={styles.templatePopupSub}>
                 {existingCount > 0 ? 'This will replace existing tasks' : 'Choose a starting point'}
               </Text>
 
@@ -376,26 +376,26 @@ const TemplatePicker = ({ onApply, existingCount }) => {
                 {/* Saved templates */}
                 {savedAsBuiltIn.length > 0 && (
                   <>
-                    <Text style={st.sectionLabel}>SAVED TEMPLATES</Text>
+                    <Text style={styles.sectionLabel}>SAVED TEMPLATES</Text>
                     {savedAsBuiltIn.map((tmpl, i) => {
                       const isActive = selected === tmpl;
                       return (
                         <TouchableOpacity
                           key={`saved-${tmpl._savedId}`}
                           onPress={() => setSelected(tmpl)}
-                          style={[st.templateCard, isActive && st.templateCardOn]}
+                          style={[styles.templateCard, isActive && styles.templateCardOn]}
                           activeOpacity={0.7}
                         >
                           <Feather name={tmpl.icon} size={20} color={C.dm} />
                           <View style={{ flex: 1 }}>
-                            <Text style={[st.templateName, isActive && st.templateNameOn]}>{tmpl.name}</Text>
-                            <Text style={st.templateDesc}>
+                            <Text style={[styles.templateName, isActive && styles.templateNameOn]}>{tmpl.name}</Text>
+                            <Text style={styles.templateDesc}>
                               {tmpl.desc} · {tmpl.tasks.length || 0} tasks
                             </Text>
                           </View>
                           <TouchableOpacity
                             onPress={(e) => { e.stopPropagation(); handleDelete(tmpl._savedId); }}
-                            style={st.templateDeleteBtn}
+                            style={styles.templateDeleteBtn}
                           >
                             <Feather name="trash-2" size={14} color={C.rd} />
                           </TouchableOpacity>
@@ -407,20 +407,20 @@ const TemplatePicker = ({ onApply, existingCount }) => {
                 )}
 
                 {/* Built-in templates */}
-                <Text style={[st.sectionLabel, savedAsBuiltIn.length > 0 && { marginTop: 12 }]}>BUILT-IN TEMPLATES</Text>
+                <Text style={[styles.sectionLabel, savedAsBuiltIn.length > 0 && { marginTop: 12 }]}>BUILT-IN TEMPLATES</Text>
                 {TEMPLATES.map((tmpl, i) => {
                   const isActive = selected === tmpl;
                   return (
                     <TouchableOpacity
                       key={`builtin-${i}`}
                       onPress={() => setSelected(tmpl)}
-                      style={[st.templateCard, isActive && st.templateCardOn]}
+                      style={[styles.templateCard, isActive && styles.templateCardOn]}
                       activeOpacity={0.7}
                     >
                       <Feather name={tmpl.icon} size={20} color={C.dm} />
                       <View style={{ flex: 1 }}>
-                        <Text style={[st.templateName, isActive && st.templateNameOn]}>{tmpl.name}</Text>
-                        <Text style={st.templateDesc}>
+                        <Text style={[styles.templateName, isActive && styles.templateNameOn]}>{tmpl.name}</Text>
+                        <Text style={styles.templateDesc}>
                           {tmpl.desc} · {tmpl.tasks.length || 0} tasks
                         </Text>
                       </View>
@@ -435,7 +435,7 @@ const TemplatePicker = ({ onApply, existingCount }) => {
               </ScrollView>
 
               {selected && selected.tasks.length > 0 && (
-                <View style={st.templateDateRow}>
+                <View style={styles.templateDateRow}>
                   <DatePicker
                     label="PROJECT START DATE"
                     value={startDate}
@@ -446,17 +446,17 @@ const TemplatePicker = ({ onApply, existingCount }) => {
                 </View>
               )}
 
-              <View style={st.templateActions}>
-                <TouchableOpacity onPress={() => setOpen(false)} style={st.templateCancelBtn}>
-                  <Text style={st.templateCancelTxt}>Cancel</Text>
+              <View style={styles.templateActions}>
+                <TouchableOpacity onPress={() => setOpen(false)} style={styles.templateCancelBtn}>
+                  <Text style={styles.templateCancelTxt}>Cancel</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   onPress={handleApply}
                   disabled={!selected || (selected.tasks.length > 0 && !startDate)}
-                  style={[st.templateApplyBtn, (!selected || (selected.tasks.length > 0 && !startDate)) && st.templateApplyBtnOff]}
+                  style={[styles.templateApplyBtn, (!selected || (selected.tasks.length > 0 && !startDate)) && styles.templateApplyBtnOff]}
                   activeOpacity={0.7}
                 >
-                  <Text style={st.templateApplyTxt}>
+                  <Text style={styles.templateApplyTxt}>
                     {selected?.tasks.length ? `Apply ${selected.tasks.length} Tasks` : 'Start Blank'}
                   </Text>
                 </TouchableOpacity>
@@ -474,72 +474,72 @@ const TemplatePicker = ({ onApply, existingCount }) => {
 // ============================================================
 const PredecessorSelect = ({ tasks, currentIdx, value, relType, lag, onChangePred, onChangeRel, onChangeLag }) => {
   const C = React.useContext(ThemeContext);
-  const st = React.useMemo(() => getStyles(C), [C]);
+  const styles = React.useMemo(() => getStyles(C), [C]);
   const [open, setOpen] = useState(false);
   const available = tasks.filter((_, i) => i < currentIdx);
   const selected = available.find(t => t._id === value);
 
   return (
-    <View style={st.predRow}>
+    <View style={styles.predRow}>
       {/* Predecessor selector */}
       <TouchableOpacity
         onPress={() => available.length > 0 && setOpen(true)}
-        style={[st.predSelect, value && st.predSelectOn]}
+        style={[styles.predSelect, value && styles.predSelectOn]}
         activeOpacity={0.7}
       >
         <Feather name="link" size={14} color={C.dm} />
-        <Text style={[st.predSelectTxt, !value && { color: C.ph }]} numberOfLines={1}>
+        <Text style={[styles.predSelectTxt, !value && { color: C.ph }]} numberOfLines={1}>
           {selected ? selected.task || `Task ${tasks.indexOf(selected) + 1}` : 'Predecessor'}
         </Text>
-        <Text style={st.predChevron}>▾</Text>
+        <Text style={styles.predChevron}>▾</Text>
       </TouchableOpacity>
 
       {/* FS / SS toggle + Lag (only when predecessor is set) */}
       {value ? (
         <>
-          <View style={st.relWrap}>
+          <View style={styles.relWrap}>
             {['FS', 'SS'].map(r => (
               <TouchableOpacity
                 key={r}
                 onPress={() => onChangeRel(r)}
-                style={[st.relBtn, relType === r && st.relBtnOn]}
+                style={[styles.relBtn, relType === r && styles.relBtnOn]}
                 activeOpacity={0.7}
               >
-                <Text style={[st.relBtnTxt, relType === r && st.relBtnTxtOn]}>{r}</Text>
+                <Text style={[styles.relBtnTxt, relType === r && styles.relBtnTxtOn]}>{r}</Text>
               </TouchableOpacity>
             ))}
           </View>
 
-          <View style={st.lagWrap}>
-            <TouchableOpacity onPress={() => onChangeLag(String((parseInt(lag) || 0) - 1))} style={st.lagBtn}>
-              <Text style={st.lagBtnTxt}>−</Text>
+          <View style={styles.lagWrap}>
+            <TouchableOpacity onPress={() => onChangeLag(String((parseInt(lag) || 0) - 1))} style={styles.lagBtn}>
+              <Text style={styles.lagBtnTxt}>−</Text>
             </TouchableOpacity>
             <TextInput
               value={lag} onChangeText={onChangeLag}
               placeholder="0" placeholderTextColor={C.ph}
-              keyboardType="numeric" style={st.lagInp}
+              keyboardType="numeric" style={styles.lagInp}
             />
-            <TouchableOpacity onPress={() => onChangeLag(String((parseInt(lag) || 0) + 1))} style={st.lagBtn}>
-              <Text style={st.lagBtnTxt}>+</Text>
+            <TouchableOpacity onPress={() => onChangeLag(String((parseInt(lag) || 0) + 1))} style={styles.lagBtn}>
+              <Text style={styles.lagBtnTxt}>+</Text>
             </TouchableOpacity>
-            <Text style={st.lagLabel}>wd</Text>
+            <Text style={styles.lagLabel}>wd</Text>
           </View>
 
-          <TouchableOpacity onPress={() => onChangePred(null)} style={st.predClearBtn}>
-            <Text style={st.predClearTxt}>×</Text>
+          <TouchableOpacity onPress={() => onChangePred(null)} style={styles.predClearBtn}>
+            <Text style={styles.predClearTxt}>×</Text>
           </TouchableOpacity>
         </>
       ) : null}
 
       {/* Dropdown modal */}
       <Modal visible={open} transparent animationType="fade">
-        <TouchableOpacity style={st.dropOverlay} activeOpacity={1} onPress={() => setOpen(false)}>
+        <TouchableOpacity style={styles.dropOverlay} activeOpacity={1} onPress={() => setOpen(false)}>
           <TouchableOpacity activeOpacity={1} onPress={e => e.stopPropagation()}>
-            <View style={st.dropPopup}>
-              <Text style={st.dropTitle}>Select Predecessor</Text>
+            <View style={styles.dropPopup}>
+              <Text style={styles.dropTitle}>Select Predecessor</Text>
               <ScrollView style={{ maxHeight: 260 }}>
                 {available.length === 0 ? (
-                  <Text style={st.dropEmpty}>Add tasks above first</Text>
+                  <Text style={styles.dropEmpty}>Add tasks above first</Text>
                 ) : (
                   available.map((t) => {
                     const taskIdx = tasks.indexOf(t);
@@ -548,15 +548,15 @@ const PredecessorSelect = ({ tasks, currentIdx, value, relType, lag, onChangePre
                       <TouchableOpacity
                         key={t._id}
                         onPress={() => { onChangePred(t._id); setOpen(false); }}
-                        style={[st.dropItem, isActive && st.dropItemOn]}
+                        style={[styles.dropItem, isActive && styles.dropItemOn]}
                         activeOpacity={0.7}
                       >
-                        <View style={[st.dropDot, { backgroundColor: TASK_COLORS[taskIdx % TASK_COLORS.length] }]} />
-                        <Text style={[st.dropItemTxt, isActive && st.dropItemTxtOn]} numberOfLines={1}>
+                        <View style={[styles.dropDot, { backgroundColor: TASK_COLORS[taskIdx % TASK_COLORS.length] }]} />
+                        <Text style={[styles.dropItemTxt, isActive && styles.dropItemTxtOn]} numberOfLines={1}>
                           {taskIdx + 1}. {t.task || 'Untitled'}
                         </Text>
                         {t.end_date && (
-                          <Text style={st.dropItemDate}>ends {shortDate(t.end_date)}</Text>
+                          <Text style={styles.dropItemDate}>ends {shortDate(t.end_date)}</Text>
                         )}
                       </TouchableOpacity>
                     );
@@ -564,8 +564,8 @@ const PredecessorSelect = ({ tasks, currentIdx, value, relType, lag, onChangePre
                 )}
               </ScrollView>
               {value && (
-                <TouchableOpacity onPress={() => { onChangePred(null); setOpen(false); }} style={st.dropClear}>
-                  <Text style={st.dropClearTxt}>Remove Predecessor</Text>
+                <TouchableOpacity onPress={() => { onChangePred(null); setOpen(false); }} style={styles.dropClear}>
+                  <Text style={styles.dropClearTxt}>Remove Predecessor</Text>
                 </TouchableOpacity>
               )}
             </View>
@@ -582,7 +582,7 @@ const PredecessorSelect = ({ tasks, currentIdx, value, relType, lag, onChangePre
 const ContractorSelect = ({ value, onChange, subs }) => {
   // value is now an array of contractor names (backwards compat: string → [string])
   const C = React.useContext(ThemeContext);
-  const st = React.useMemo(() => getStyles(C), [C]);
+  const styles = React.useMemo(() => getStyles(C), [C]);
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
 
@@ -608,7 +608,7 @@ const ContractorSelect = ({ value, onChange, subs }) => {
     <View style={{ flex: 1 }}>
       <TouchableOpacity
         onPress={() => { setOpen(true); setSearch(''); }}
-        style={[st.inp, { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]}
+        style={[styles.inp, { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]}
         activeOpacity={0.7}
       >
         <Text style={[{ fontSize: 20, flex: 1 }, selected.length > 0 ? { color: C.text } : { color: C.ph }]} numberOfLines={1}>
@@ -618,10 +618,10 @@ const ContractorSelect = ({ value, onChange, subs }) => {
       </TouchableOpacity>
 
       <Modal visible={open} transparent animationType="fade">
-        <TouchableOpacity style={st.dropOverlay} activeOpacity={1} onPress={() => setOpen(false)}>
+        <TouchableOpacity style={styles.dropOverlay} activeOpacity={1} onPress={() => setOpen(false)}>
           <TouchableOpacity activeOpacity={1} onPress={e => e.stopPropagation()}>
-            <View style={st.dropPopup}>
-              <Text style={st.dropTitle}>Select Contractors</Text>
+            <View style={styles.dropPopup}>
+              <Text style={styles.dropTitle}>Select Contractors</Text>
               {selected.length > 0 && (
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginBottom: 8 }}>
                   {selected.map(name => (
@@ -639,12 +639,12 @@ const ContractorSelect = ({ value, onChange, subs }) => {
                 onChangeText={setSearch}
                 placeholder="Search subcontractors..."
                 placeholderTextColor={C.ph}
-                style={[st.inp, { marginBottom: 8 }]}
+                style={[styles.inp, { marginBottom: 8 }]}
                 autoFocus
               />
               <ScrollView style={{ maxHeight: 260 }}>
                 {filtered.length === 0 ? (
-                  <Text style={st.dropEmpty}>No subcontractors found</Text>
+                  <Text style={styles.dropEmpty}>No subcontractors found</Text>
                 ) : (
                   filtered.map(s => {
                     const isActive = selected.includes(s.name);
@@ -653,11 +653,11 @@ const ContractorSelect = ({ value, onChange, subs }) => {
                       <TouchableOpacity
                         key={s.id}
                         onPress={() => toggle(s.name)}
-                        style={[st.dropItem, isActive && st.dropItemOn]}
+                        style={[styles.dropItem, isActive && styles.dropItemOn]}
                         activeOpacity={0.7}
                       >
                         <View style={{ flex: 1 }}>
-                          <Text style={[st.dropItemTxt, isActive && st.dropItemTxtOn]} numberOfLines={1}>
+                          <Text style={[styles.dropItemTxt, isActive && styles.dropItemTxtOn]} numberOfLines={1}>
                             {s.name}
                           </Text>
                           {s.company_name ? (
@@ -680,8 +680,8 @@ const ContractorSelect = ({ value, onChange, subs }) => {
                 )}
               </ScrollView>
               {selected.length > 0 && (
-                <TouchableOpacity onPress={() => { onChange([]); setOpen(false); }} style={st.dropClear}>
-                  <Text style={st.dropClearTxt}>Remove All Contractors</Text>
+                <TouchableOpacity onPress={() => { onChange([]); setOpen(false); }} style={styles.dropClear}>
+                  <Text style={styles.dropClearTxt}>Remove All Contractors</Text>
                 </TouchableOpacity>
               )}
             </View>
@@ -707,7 +707,7 @@ export const TEMPLATE_TRADES = [
 const TradeSelect = ({ value, onChange, trades }) => {
   // value is now an array of trade names (backwards compat: string → [string])
   const C = React.useContext(ThemeContext);
-  const st = React.useMemo(() => getStyles(C), [C]);
+  const styles = React.useMemo(() => getStyles(C), [C]);
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
 
@@ -730,7 +730,7 @@ const TradeSelect = ({ value, onChange, trades }) => {
     <View style={{ flex: 1 }}>
       <TouchableOpacity
         onPress={() => { setOpen(true); setSearch(''); }}
-        style={[st.inp, { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]}
+        style={[styles.inp, { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]}
         activeOpacity={0.7}
       >
         <Text style={[{ fontSize: 20, flex: 1 }, selected.length > 0 ? { color: C.bl } : { color: C.ph }]} numberOfLines={1}>
@@ -740,10 +740,10 @@ const TradeSelect = ({ value, onChange, trades }) => {
       </TouchableOpacity>
 
       <Modal visible={open} transparent animationType="fade">
-        <TouchableOpacity style={st.dropOverlay} activeOpacity={1} onPress={() => setOpen(false)}>
+        <TouchableOpacity style={styles.dropOverlay} activeOpacity={1} onPress={() => setOpen(false)}>
           <TouchableOpacity activeOpacity={1} onPress={e => e.stopPropagation()}>
-            <View style={st.dropPopup}>
-              <Text style={st.dropTitle}>Select Trades</Text>
+            <View style={styles.dropPopup}>
+              <Text style={styles.dropTitle}>Select Trades</Text>
               {selected.length > 0 && (
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginBottom: 8 }}>
                   {selected.map(t => (
@@ -761,12 +761,12 @@ const TradeSelect = ({ value, onChange, trades }) => {
                 onChangeText={setSearch}
                 placeholder="Search trades..."
                 placeholderTextColor={C.ph}
-                style={[st.inp, { marginBottom: 8 }]}
+                style={[styles.inp, { marginBottom: 8 }]}
                 autoFocus
               />
               <ScrollView style={{ maxHeight: 300 }}>
                 {filtered.length === 0 ? (
-                  <Text style={st.dropEmpty}>No trades found</Text>
+                  <Text style={styles.dropEmpty}>No trades found</Text>
                 ) : (
                   filtered.map(trade => {
                     const isActive = selected.includes(trade);
@@ -774,10 +774,10 @@ const TradeSelect = ({ value, onChange, trades }) => {
                       <TouchableOpacity
                         key={trade}
                         onPress={() => toggle(trade)}
-                        style={[st.dropItem, isActive && { backgroundColor: 'rgba(59,130,246,0.12)' }]}
+                        style={[styles.dropItem, isActive && { backgroundColor: 'rgba(59,130,246,0.12)' }]}
                         activeOpacity={0.7}
                       >
-                        <Text style={[st.dropItemTxt, isActive && { color: C.bl, fontWeight: '600' }]} numberOfLines={1}>
+                        <Text style={[styles.dropItemTxt, isActive && { color: C.bl, fontWeight: '600' }]} numberOfLines={1}>
                           {trade}
                         </Text>
                         {isActive && <Feather name="check" size={21} color={C.bl} />}
@@ -787,8 +787,8 @@ const TradeSelect = ({ value, onChange, trades }) => {
                 )}
               </ScrollView>
               {selected.length > 0 && (
-                <TouchableOpacity onPress={() => { onChange([]); setOpen(false); }} style={st.dropClear}>
-                  <Text style={st.dropClearTxt}>Remove All Trades</Text>
+                <TouchableOpacity onPress={() => { onChange([]); setOpen(false); }} style={styles.dropClear}>
+                  <Text style={styles.dropClearTxt}>Remove All Trades</Text>
                 </TouchableOpacity>
               )}
             </View>
@@ -805,7 +805,7 @@ const TradeSelect = ({ value, onChange, trades }) => {
 export default function ScheduleBuilder({ tasks, onTasksChange, templateMode, collapsed, templateInfo, onReviewTemplate, onChangeTemplate, tradesList }) {
   const C = React.useContext(ThemeContext);
   const { user } = React.useContext(AuthContext);
-  const st = React.useMemo(() => getStyles(C), [C]);
+  const styles = React.useMemo(() => getStyles(C), [C]);
   const [year, setYear] = useState(() => new Date().getFullYear());
   const [month, setMonth] = useState(() => new Date().getMonth());
   const [subs, setSubs] = useState([]);
@@ -952,8 +952,8 @@ export default function ScheduleBuilder({ tasks, onTasksChange, templateMode, co
   // RENDER
   // ============================================================
   return (
-    <View style={st.container}>
-      <View style={st.header}>
+    <View style={styles.container}>
+      <View style={styles.header}>
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
           <View style={{ flex: 1 }}>
             {collapsed && templateInfo ? (
@@ -961,8 +961,8 @@ export default function ScheduleBuilder({ tasks, onTasksChange, templateMode, co
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 4 }}>
                   <Feather name={templateInfo.icon || 'clipboard'} size={28} color={C.gd} />
                   <View>
-                    <Text style={st.headerTitle}>{templateInfo.name}</Text>
-                    <Text style={st.headerSub}>
+                    <Text style={styles.headerTitle}>{templateInfo.name}</Text>
+                    <Text style={styles.headerSub}>
                       {tasks.length} task{tasks.length !== 1 ? 's' : ''} scheduled
                     </Text>
                   </View>
@@ -970,8 +970,8 @@ export default function ScheduleBuilder({ tasks, onTasksChange, templateMode, co
               </>
             ) : (
               <>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}><Feather name="calendar" size={18} color={C.textBold} /><Text style={st.headerTitle}>Build Schedule</Text></View>
-                <Text style={st.headerSub}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}><Feather name="calendar" size={18} color={C.textBold} /><Text style={styles.headerTitle}>Build Schedule</Text></View>
+                <Text style={styles.headerSub}>
                   {tasks.length} task{tasks.length !== 1 ? 's' : ''} · Set predecessors to chain tasks
                 </Text>
               </>
@@ -996,18 +996,18 @@ export default function ScheduleBuilder({ tasks, onTasksChange, templateMode, co
 
       {/* ========== TASK LIST (hidden in collapsed mode) ========== */}
       {!collapsed && (
-      <View style={st.taskListWrap}>
+      <View style={styles.taskListWrap}>
         {tasks.map((task, idx) => {
           const hasPred = !!task.predecessor;
           const predTask = hasPred ? tasks.find(t => t._id === task.predecessor) : null;
           const predIdx = predTask ? tasks.indexOf(predTask) : -1;
 
           return (
-            <View key={task._id} style={st.taskRow}>
+            <View key={task._id} style={styles.taskRow}>
               {/* Task number + color */}
-              <View style={st.taskNumCol}>
-                <View style={[st.colorDot, { backgroundColor: taskColor(idx) }]} />
-                <Text style={st.taskNum}>{idx + 1}</Text>
+              <View style={styles.taskNumCol}>
+                <View style={[styles.colorDot, { backgroundColor: taskColor(idx) }]} />
+                <Text style={styles.taskNum}>{idx + 1}</Text>
               </View>
 
               <View style={{ flex: 1, gap: 6 }}>
@@ -1016,7 +1016,7 @@ export default function ScheduleBuilder({ tasks, onTasksChange, templateMode, co
                   <TextInput
                     value={task.task} onChangeText={v => updateTask(idx, 'task', v)}
                     placeholder="Task name" placeholderTextColor={C.ph}
-                    style={[st.inp, { flex: 2 }]}
+                    style={[styles.inp, { flex: 2 }]}
                   />
                   <TradeSelect
                     value={task.trades || (task.trade ? [task.trade] : [])}
@@ -1069,12 +1069,12 @@ export default function ScheduleBuilder({ tasks, onTasksChange, templateMode, co
                 {/* Row 3: dates + workdays */}
                 <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
                   {hasPred ? (
-                    <View style={[st.autoDateBox, { flex: 1 }]}>
+                    <View style={[styles.autoDateBox, { flex: 1 }]}>
                       <Feather name="link" size={14} color={C.gd} />
-                      <Text style={st.autoDateTxt}>
+                      <Text style={styles.autoDateTxt}>
                         {task.start_date ? shortDate(task.start_date) : 'Waiting...'}
                       </Text>
-                      <Text style={st.autoDateHint}>
+                      <Text style={styles.autoDateHint}>
                         {task.relType || 'FS'}{(parseInt(task.lag) || 0) >= 0 ? '+' : ''}{task.lag || '0'}wd from #{predIdx + 1}
                       </Text>
                     </View>
@@ -1086,59 +1086,59 @@ export default function ScheduleBuilder({ tasks, onTasksChange, templateMode, co
                       style={{ flex: 1, marginBottom: 0 }}
                     />
                   )}
-                  <View style={st.wdWrap}>
+                  <View style={styles.wdWrap}>
                     <TextInput
                       value={task.workdays} onChangeText={v => updateTask(idx, 'workdays', v)}
                       placeholder="Days" placeholderTextColor={C.ph}
                       keyboardType="numeric"
-                      style={[st.inp, { width: 50, textAlign: 'center' }]}
+                      style={[styles.inp, { width: 50, textAlign: 'center' }]}
                     />
-                    <Text style={st.wdLabel}>days</Text>
+                    <Text style={styles.wdLabel}>days</Text>
                   </View>
-                  <Text style={st.arrow}>→</Text>
-                  <Text style={st.endDate}>{task.end_date ? shortDate(task.end_date) : '—'}</Text>
+                  <Text style={styles.arrow}>→</Text>
+                  <Text style={styles.endDate}>{task.end_date ? shortDate(task.end_date) : '—'}</Text>
                 </View>
               </View>
 
               {/* Remove button */}
-              <TouchableOpacity onPress={() => removeTask(idx)} style={st.removeBtn}>
-                <Text style={st.removeTxt}>×</Text>
+              <TouchableOpacity onPress={() => removeTask(idx)} style={styles.removeBtn}>
+                <Text style={styles.removeTxt}>×</Text>
               </TouchableOpacity>
             </View>
           );
         })}
 
-        <TouchableOpacity onPress={addTask} style={st.addBtn} activeOpacity={0.7}>
-          <Text style={st.addBtnTxt}>+ Add Task</Text>
+        <TouchableOpacity onPress={addTask} style={styles.addBtn} activeOpacity={0.7}>
+          <Text style={styles.addBtnTxt}>+ Add Task</Text>
         </TouchableOpacity>
       </View>
       )}
 
       {/* ========== MINI CALENDAR ========== */}
-      <View style={st.calWrap}>
-        <View style={st.calNav}>
-          <TouchableOpacity onPress={goToday} style={st.todayBtn}>
-            <Text style={st.todayBtnTxt}>Today</Text>
+      <View style={styles.calWrap}>
+        <View style={styles.calNav}>
+          <TouchableOpacity onPress={goToday} style={styles.todayBtn}>
+            <Text style={styles.todayBtnTxt}>Today</Text>
           </TouchableOpacity>
           {tasks.some(t => t.start_date) && (
-            <TouchableOpacity onPress={goToFirstTask} style={[st.todayBtn, { marginLeft: 6 }]}>
-              <Text style={st.todayBtnTxt}>Go to Schedule</Text>
+            <TouchableOpacity onPress={goToFirstTask} style={[styles.todayBtn, { marginLeft: 6 }]}>
+              <Text style={styles.todayBtnTxt}>Go to Schedule</Text>
             </TouchableOpacity>
           )}
           <View style={{ flex: 1 }} />
-          <TouchableOpacity onPress={prevMonth} style={st.arrowBtn}>
-            <Text style={st.arrowBtnTxt}>‹</Text>
+          <TouchableOpacity onPress={prevMonth} style={styles.arrowBtn}>
+            <Text style={styles.arrowBtnTxt}>‹</Text>
           </TouchableOpacity>
-          <Text style={st.monthLabel}>{MONTHS[month]} {year}</Text>
-          <TouchableOpacity onPress={nextMonth} style={st.arrowBtn}>
-            <Text style={st.arrowBtnTxt}>›</Text>
+          <Text style={styles.monthLabel}>{MONTHS[month]} {year}</Text>
+          <TouchableOpacity onPress={nextMonth} style={styles.arrowBtn}>
+            <Text style={styles.arrowBtnTxt}>›</Text>
           </TouchableOpacity>
         </View>
 
-        <View style={st.dayHeaderRow}>
+        <View style={styles.dayHeaderRow}>
           {DAYS.map(d => (
-            <View key={d} style={st.dayHeaderCell}>
-              <Text style={st.dayHeaderTxt}>{d}</Text>
+            <View key={d} style={styles.dayHeaderCell}>
+              <Text style={styles.dayHeaderTxt}>{d}</Text>
             </View>
           ))}
         </View>
@@ -1157,7 +1157,7 @@ export default function ScheduleBuilder({ tasks, onTasksChange, templateMode, co
           const rowH = Math.max(72, 26 + lanes.length * 22);
 
           return (
-            <View key={wi} style={[st.weekRow, { minHeight: rowH }]}>
+            <View key={wi} style={[styles.weekRow, { minHeight: rowH }]}>
               {week.map((day, di) => {
                 const isToday2 = isSameDay(day, today);
                 const isMonth = day.getMonth() === month;
@@ -1165,10 +1165,10 @@ export default function ScheduleBuilder({ tasks, onTasksChange, templateMode, co
                   <TouchableOpacity
                     key={di} activeOpacity={0.7}
                     onPress={() => handleDayPress(fmt(day))}
-                    style={[st.dayCell, di < 6 && st.dayCellBorder, (di === 0 || di === 6) && st.weekendCell]}
+                    style={[styles.dayCell, di < 6 && styles.dayCellBorder, (di === 0 || di === 6) && styles.weekendCell]}
                   >
-                    <View style={[st.dayNum, isToday2 && st.todayNum]}>
-                      <Text style={[st.dayNumTxt, !isMonth && { color: C.w15 }, isToday2 && { color: '#ffffff', fontWeight: '700' }]}>
+                    <View style={[styles.dayNum, isToday2 && styles.todayNum]}>
+                      <Text style={[styles.dayNumTxt, !isMonth && { color: C.w15 }, isToday2 && { color: '#ffffff', fontWeight: '700' }]}>
                         {day.getDate()}
                       </Text>
                     </View>
@@ -1179,7 +1179,7 @@ export default function ScheduleBuilder({ tasks, onTasksChange, templateMode, co
               {lanes.map((lane, li) => (
                 lane.map(t => (
                   <View key={`${t._id}-${wi}`} style={[
-                    st.taskBar,
+                    styles.taskBar,
                     {
                       left: `${(t.startCol / 7) * 100}%`,
                       width: `${(t.span / 7) * 100}%`,
@@ -1187,7 +1187,7 @@ export default function ScheduleBuilder({ tasks, onTasksChange, templateMode, co
                       backgroundColor: taskColor(t.idx),
                     },
                   ]}>
-                    <Text style={st.taskBarTxt} numberOfLines={1}>{t.task || 'Untitled'}</Text>
+                    <Text style={styles.taskBarTxt} numberOfLines={1}>{t.task || 'Untitled'}</Text>
                   </View>
                 ))
               ))}
