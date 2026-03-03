@@ -639,6 +639,8 @@ class ClientTask(db.Model):
     completed_at = db.Column(db.String(30), default='')
     created_by = db.Column(db.Integer, nullable=True)
     created_at = db.Column(db.String(30), default='')
+    linked_schedule_id = db.Column(db.Integer, nullable=True)  # FK to schedule.id
+    linked_date_type = db.Column(db.String(10), nullable=True)  # 'start' or 'end'
 
     def to_dict(self):
         return {
@@ -647,6 +649,8 @@ class ClientTask(db.Model):
             'image_url': self.image_url or '',
             'completed': self.completed, 'completed_at': self.completed_at,
             'created_by': self.created_by, 'created_at': self.created_at,
+            'linked_schedule_id': self.linked_schedule_id,
+            'linked_date_type': self.linked_date_type or '',
         }
 
 
@@ -1949,6 +1953,7 @@ def toggle_project_hold(project_id):
 
         # Return updated schedule with project
         all_tasks = Schedule.query.filter_by(job_id=project_id).order_by(Schedule.start_date).all()
+        sync_linked_client_tasks([t.id for t in all_tasks])
         return jsonify({'project': p.to_dict(), 'schedule': [t.to_dict() for t in all_tasks]})
 
     return jsonify({'error': 'Action must be "hold" or "release"'}), 400
@@ -2853,6 +2858,7 @@ def update_schedule_item(item_id):
         item.trade = data['trades'][0] if data['trades'] else ''
     db.session.commit()
     sync_project_dates(item.job_id)
+    sync_linked_client_tasks([item.id])
     return jsonify(item.to_dict())
 
 
@@ -2887,6 +2893,7 @@ def batch_update_schedule():
     job_ids = set(i.job_id for i in updated)
     for jid in job_ids:
         sync_project_dates(jid)
+    sync_linked_client_tasks([i.id for i in updated])
     return jsonify([i.to_dict() for i in updated])
 
 
@@ -3191,6 +3198,7 @@ def edit_schedule_with_reason(item_id):
 
     db.session.commit()
     sync_project_dates(item.job_id)
+    sync_linked_client_tasks([t.id for t in all_items])
     return jsonify([t.to_dict() for t in all_items])
 
 
@@ -3272,6 +3280,7 @@ def add_exception(pid):
 
     db.session.commit()
     sync_project_dates(pid)
+    sync_linked_client_tasks([t.id for t in all_items])
     return jsonify([t.to_dict() for t in all_items]), 201
 
 
@@ -3415,6 +3424,27 @@ def update_todo(todo_id):
 # CLIENT TASKS
 # ============================================================
 
+def sync_linked_client_tasks(schedule_ids):
+    """Update due_date on client tasks linked to any of the given schedule task IDs."""
+    if not schedule_ids:
+        return
+    linked = ClientTask.query.filter(
+        ClientTask.linked_schedule_id.in_(schedule_ids),
+        ClientTask.linked_date_type.isnot(None),
+    ).all()
+    if not linked:
+        return
+    # Build lookup of schedule tasks
+    sched_map = {s.id: s for s in Schedule.query.filter(Schedule.id.in_(schedule_ids)).all()}
+    for ct in linked:
+        sched = sched_map.get(ct.linked_schedule_id)
+        if not sched:
+            continue
+        new_date = sched.start_date if ct.linked_date_type == 'start' else sched.end_date
+        if new_date and new_date != ct.due_date:
+            ct.due_date = new_date
+    db.session.commit()
+
 @app.route('/projects/<int:pid>/client-tasks', methods=['GET'])
 def get_client_tasks(pid):
     items = ClientTask.query.filter_by(job_id=pid).order_by(ClientTask.due_date).all()
@@ -3425,14 +3455,24 @@ def get_client_tasks(pid):
 def add_client_task(pid):
     data = request.get_json()
     from datetime import datetime
+    # If linked to a schedule task, resolve the due_date from that task
+    linked_id = data.get('linked_schedule_id')
+    linked_type = data.get('linked_date_type', '')
+    due_date = data.get('due_date', '')
+    if linked_id and linked_type:
+        sched = Schedule.query.get(linked_id)
+        if sched:
+            due_date = sched.start_date if linked_type == 'start' else sched.end_date
     task = ClientTask(
         job_id=pid,
         title=data.get('title', ''),
         description=data.get('description', ''),
-        due_date=data.get('due_date', ''),
+        due_date=due_date,
         image_url=data.get('image_url', ''),
         created_by=data.get('created_by'),
         created_at=datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S'),
+        linked_schedule_id=linked_id,
+        linked_date_type=linked_type if linked_id else None,
     )
     db.session.add(task)
     db.session.commit()
@@ -3443,9 +3483,18 @@ def add_client_task(pid):
 def update_client_task(task_id):
     task = ClientTask.query.get_or_404(task_id)
     data = request.get_json()
-    for k in ('title', 'description', 'due_date', 'image_url', 'completed', 'completed_at'):
+    for k in ('title', 'description', 'due_date', 'image_url', 'completed', 'completed_at',
+              'linked_schedule_id', 'linked_date_type'):
         if k in data:
             setattr(task, k, data[k])
+    # If link was set/changed, resolve due_date from the schedule task
+    if 'linked_schedule_id' in data:
+        if data['linked_schedule_id'] and task.linked_date_type:
+            sched = Schedule.query.get(data['linked_schedule_id'])
+            if sched:
+                task.due_date = sched.start_date if task.linked_date_type == 'start' else sched.end_date
+        elif not data['linked_schedule_id']:
+            task.linked_date_type = None
     db.session.commit()
     return jsonify(task.to_dict())
 
