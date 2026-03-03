@@ -1152,6 +1152,22 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
                   <Text style={s.infoLbl}>PROJECT NUMBER</Text>
                   <Text style={s.infoVal}>{editInfo.number || '—'}</Text>
                 </View>
+                {(project.project_manager_name || project.superintendent_name) ? (
+                  <View style={{ flexDirection: 'row', gap: 12, marginBottom: 14 }}>
+                    {project.project_manager_name ? (
+                      <View style={{ flex: 1 }}>
+                        <Text style={s.infoLbl}>PROJECT MANAGER</Text>
+                        <Text style={s.infoVal}>{project.project_manager_name}</Text>
+                      </View>
+                    ) : null}
+                    {project.superintendent_name ? (
+                      <View style={{ flex: 1 }}>
+                        <Text style={s.infoLbl}>SUPERINTENDENT</Text>
+                        <Text style={s.infoVal}>{project.superintendent_name}</Text>
+                      </View>
+                    ) : null}
+                  </View>
+                ) : null}
                 <View style={{ flexDirection: 'row', gap: 12 }}>
                   <View style={{ flex: 1 }}>{infoField("FIRST NAME", "customer_first_name", undefined, "Jane")}</View>
                   <View style={{ flex: 1 }}>{infoField("LAST NAME", "customer_last_name", undefined, "Parker")}</View>

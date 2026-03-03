@@ -83,6 +83,10 @@ export default function Dashboard() {
   const [goLiveStepsDef, setGoLiveStepsDef] = useState([]);
   const [newGoLiveStep, setNewGoLiveStep] = useState('');
   const [goLiveStepsLoading, setGoLiveStepsLoading] = useState(false);
+  const [showPmManager, setShowPmManager] = useState(false);
+  const [pmBuilders, setPmBuilders] = useState([]);
+  const [pmLoading, setPmLoading] = useState(false);
+  const [companyBuilders, setCompanyBuilders] = useState([]); // for PM/superintendent dropdowns
   const [builderTrades, setBuilderTrades] = useState(DEFAULT_TRADES);
   const [newTradeName, setNewTradeName] = useState('');
   const [showFloorPlanManager, setShowFloorPlanManager] = useState(false);
@@ -479,6 +483,37 @@ export default function Dashboard() {
     } catch (e) { console.warn('Delete go-live step:', e); }
   };
 
+  const fetchPmBuilders = async () => {
+    if (!user?.company_id) return;
+    setPmLoading(true);
+    try {
+      const res = await apiFetch(`/company/${user.company_id}/builders`);
+      if (res.ok) { const data = await res.json(); setPmBuilders(Array.isArray(data) ? data : []); }
+    } catch (e) { console.warn('Fetch builders:', e); }
+    setPmLoading(false);
+  };
+
+  const togglePmStatus = async (uid, currentStatus) => {
+    try {
+      const res = await apiFetch(`/users/${uid}/project-manager`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_project_manager: !currentStatus }),
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setPmBuilders(prev => prev.map(b => b.id === uid ? { ...b, is_project_manager: updated.is_project_manager } : b));
+      }
+    } catch (e) { console.warn('Toggle PM:', e); }
+  };
+
+  const fetchCompanyBuilders = async () => {
+    if (!user?.company_id) return;
+    try {
+      const res = await apiFetch(`/company/${user.company_id}/builders`);
+      if (res.ok) { const data = await res.json(); setCompanyBuilders(Array.isArray(data) ? data : []); }
+    } catch (e) { console.warn('Fetch company builders:', e); }
+  };
+
   const createSubdivision = async (name) => {
     setNewSubdivSaving(true);
     try {
@@ -542,6 +577,7 @@ export default function Dashboard() {
         fetchSubdivisions();
         fetchCompanyTrades();
         fetchFloorPlans();
+        fetchCompanyBuilders();
       }
       fetchCustomerTasks();
     }
@@ -3977,6 +4013,8 @@ export default function Dashboard() {
           onClose={() => setModal(null)}
           subdivisions={subdivisions}
           builderTrades={builderTrades}
+          companyBuilders={companyBuilders}
+          currentUser={user}
           onCreated={(newProj) => {
             setProjects(prev => [newProj, ...prev]);
             setSelectedProject(newProj);
@@ -4325,6 +4363,73 @@ export default function Dashboard() {
                         hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                       >
                         <Feather name="trash-2" size={20} color="#ef4444" />
+                      </TouchableOpacity>
+                    </View>
+                  ))
+                )}
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
+      )}
+
+      {/* Project Managers Manager Modal (company admin only) */}
+      {showPmManager && (
+        <Modal visible animationType="fade" transparent>
+          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }}>
+            <View style={{ width: isWide ? 500 : '92%', maxHeight: '80%', backgroundColor: C.bg, borderRadius: 16, overflow: 'hidden' }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 18, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: C.bd }}>
+                <Text style={{ fontSize: 20, fontWeight: '700', color: C.textBold }}>Manage Project Managers</Text>
+                <TouchableOpacity onPress={() => setShowPmManager(false)} activeOpacity={0.7}>
+                  <Text style={{ fontSize: 28, color: C.dm, fontWeight: '300' }}>×</Text>
+                </TouchableOpacity>
+              </View>
+              <View style={{ paddingHorizontal: 18, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: C.bd }}>
+                <Text style={{ fontSize: 13, color: C.dm }}>
+                  Toggle which builders are project managers. Project managers and superintendents only see projects assigned to them.
+                </Text>
+              </View>
+              <ScrollView style={{ maxHeight: 500 }} contentContainerStyle={{ paddingVertical: 4 }}>
+                {pmLoading ? (
+                  <ActivityIndicator color={C.gd} style={{ marginVertical: 30 }} />
+                ) : pmBuilders.length === 0 ? (
+                  <View style={{ padding: 24, alignItems: 'center' }}>
+                    <Text style={{ fontSize: 16, color: C.dm }}>No builders found in company</Text>
+                  </View>
+                ) : (
+                  pmBuilders.map((b, idx) => (
+                    <View key={b.id} style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 18, paddingVertical: 14,
+                      borderBottomWidth: idx < pmBuilders.length - 1 ? 1 : 0, borderBottomColor: C.w04 }}>
+                      <View style={{
+                        width: 38, height: 38, borderRadius: 19,
+                        backgroundColor: b.is_project_manager ? C.bl + '20' : C.w06,
+                        alignItems: 'center', justifyContent: 'center', marginRight: 12,
+                      }}>
+                        <Text style={{ fontSize: 14, fontWeight: '700', color: b.is_project_manager ? C.bl : C.dm }}>
+                          {(b.first_name || '')[0]}{(b.last_name || '')[0]}
+                        </Text>
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 17, fontWeight: '600', color: C.textBold }}>{b.name}</Text>
+                        <Text style={{ fontSize: 13, color: C.dm }}>
+                          {b.role === 'company_admin' ? 'Company Admin' : 'Builder'} · {b.username}
+                        </Text>
+                      </View>
+                      <TouchableOpacity
+                        onPress={() => togglePmStatus(b.id, b.is_project_manager)}
+                        style={{
+                          width: 52, height: 30, borderRadius: 15,
+                          backgroundColor: b.is_project_manager ? C.bl : C.w10,
+                          justifyContent: 'center',
+                          paddingHorizontal: 3,
+                        }}
+                        activeOpacity={0.7}>
+                        <View style={{
+                          width: 24, height: 24, borderRadius: 12,
+                          backgroundColor: '#fff',
+                          alignSelf: b.is_project_manager ? 'flex-end' : 'flex-start',
+                          ...(Platform.OS === 'web' ? { boxShadow: '0 1px 3px rgba(0,0,0,0.2)' } : { elevation: 2 }),
+                        }} />
                       </TouchableOpacity>
                     </View>
                   ))
@@ -4836,6 +4941,16 @@ export default function Dashboard() {
                     >
                       <Feather name="zap" size={20} color={C.text} />
                       <Text style={st.settingsItemTxt}>Manage Go Live Steps</Text>
+                    </TouchableOpacity>
+                  )}
+                  {user?.role === 'company_admin' && (
+                    <TouchableOpacity
+                      onPress={() => { setShowSettings(false); fetchPmBuilders(); setShowPmManager(true); }}
+                      style={st.settingsItem}
+                      activeOpacity={0.7}
+                    >
+                      <Feather name="briefcase" size={20} color={C.text} />
+                      <Text style={st.settingsItemTxt}>Manage Project Managers</Text>
                     </TouchableOpacity>
                   )}
                 </View>
@@ -5729,7 +5844,7 @@ const TemplateManagerModal = ({ onClose, builderTrades = [] }) => {
   );
 };
 
-const NewProjectModal = ({ onClose, onCreated, subdivisions = [], builderTrades = [] }) => {
+const NewProjectModal = ({ onClose, onCreated, subdivisions = [], builderTrades = [], companyBuilders = [], currentUser }) => {
   const C = React.useContext(ThemeContext);
   const { user } = React.useContext(AuthContext);
   const st = React.useMemo(() => getStyles(C), [C]);
@@ -5753,6 +5868,10 @@ const NewProjectModal = ({ onClose, onCreated, subdivisions = [], builderTrades 
   const [selectionTemplates, setSelectionTemplates] = useState([]);
   const [selectedSelTmplId, setSelectedSelTmplId] = useState(null);
   const [showSelTmplPicker, setShowSelTmplPicker] = useState(false);
+  const [selectedPmId, setSelectedPmId] = useState(null);
+  const [selectedSuptId, setSelectedSuptId] = useState(currentUser?.id || null);
+  const [showPmPicker, setShowPmPicker] = useState(false);
+  const [showSuptPicker, setShowSuptPicker] = useState(false);
   const set = (key, val) => sF(prev => ({ ...prev, [key]: val }));
 
   React.useEffect(() => {
@@ -5781,6 +5900,8 @@ const NewProjectModal = ({ onClose, onCreated, subdivisions = [], builderTrades 
         subdivision_id: f.subdivision_id || null,
         selection_template_id: selectedSelTmplId || null,
         created_by: user.id,
+        project_manager_id: selectedPmId || null,
+        superintendent_id: selectedSuptId || null,
       };
       // Include second homeowner if enabled and email provided
       if (showHomeowner2 && f.homeowner2_email.trim()) {
@@ -5959,6 +6080,75 @@ const NewProjectModal = ({ onClose, onCreated, subdivisions = [], builderTrades 
                 <Inp2 label="ZIP" value={f.zip_code} onChange={v => set('zip_code', v)} type="number" placeholder="83616" style={{ flex: 1 }} />
               </View>
               <View style={st.divider} />
+
+              {/* Project Manager & Superintendent dropdowns */}
+              {companyBuilders.length > 0 && (
+                <View style={{ marginBottom: 16 }}>
+                  <View style={{ flexDirection: 'row', gap: 12 }}>
+                    {/* Project Manager */}
+                    <View style={{ flex: 1 }}>
+                      <Text style={st.formLbl}>PROJECT MANAGER</Text>
+                      <TouchableOpacity onPress={() => { setShowPmPicker(p => !p); setShowSuptPicker(false); }}
+                        style={{ backgroundColor: C.inputBg, borderWidth: 1, borderColor: C.w10, borderRadius: 8, padding: 12, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <Text style={{ fontSize: 18, color: selectedPmId ? C.text : C.ph }} numberOfLines={1}>
+                          {selectedPmId ? (companyBuilders.find(b => b.id === selectedPmId)?.name || 'Unknown') : 'Select PM'}
+                        </Text>
+                        <Text style={{ fontSize: 15, color: C.dm }}>▼</Text>
+                      </TouchableOpacity>
+                      {showPmPicker && (
+                        <View style={{ backgroundColor: C.cardBg || C.card, borderWidth: 1, borderColor: C.w10, borderRadius: 8, marginTop: 4, overflow: 'hidden', maxHeight: 200, zIndex: 20 }}>
+                          <ScrollView nestedScrollEnabled keyboardShouldPersistTaps="handled">
+                            <TouchableOpacity onPress={() => { setSelectedPmId(null); setShowPmPicker(false); }}
+                              style={{ paddingVertical: 10, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: C.w06, backgroundColor: !selectedPmId ? C.gd + '22' : 'transparent' }}>
+                              <Text style={{ fontSize: 17, color: !selectedPmId ? C.gd : C.dm }}>None</Text>
+                            </TouchableOpacity>
+                            {companyBuilders.filter(b => b.is_project_manager).map(b => (
+                              <TouchableOpacity key={b.id} onPress={() => { setSelectedPmId(b.id); setShowPmPicker(false); }}
+                                style={{ paddingVertical: 10, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: C.w06, backgroundColor: selectedPmId === b.id ? C.gd + '22' : 'transparent' }}>
+                                <Text style={{ fontSize: 17, color: selectedPmId === b.id ? C.gd : C.text }}>{b.name}</Text>
+                              </TouchableOpacity>
+                            ))}
+                            {companyBuilders.filter(b => b.is_project_manager).length === 0 && (
+                              <View style={{ padding: 14, alignItems: 'center' }}>
+                                <Text style={{ fontSize: 14, color: C.dm }}>No project managers configured</Text>
+                                <Text style={{ fontSize: 12, color: C.dm, marginTop: 2 }}>Use Settings to assign PMs</Text>
+                              </View>
+                            )}
+                          </ScrollView>
+                        </View>
+                      )}
+                    </View>
+                    {/* Superintendent */}
+                    <View style={{ flex: 1 }}>
+                      <Text style={st.formLbl}>SUPERINTENDENT</Text>
+                      <TouchableOpacity onPress={() => { setShowSuptPicker(p => !p); setShowPmPicker(false); }}
+                        style={{ backgroundColor: C.inputBg, borderWidth: 1, borderColor: C.w10, borderRadius: 8, padding: 12, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <Text style={{ fontSize: 18, color: selectedSuptId ? C.text : C.ph }} numberOfLines={1}>
+                          {selectedSuptId ? (companyBuilders.find(b => b.id === selectedSuptId)?.name || 'Unknown') : 'Select'}
+                        </Text>
+                        <Text style={{ fontSize: 15, color: C.dm }}>▼</Text>
+                      </TouchableOpacity>
+                      {showSuptPicker && (
+                        <View style={{ backgroundColor: C.cardBg || C.card, borderWidth: 1, borderColor: C.w10, borderRadius: 8, marginTop: 4, overflow: 'hidden', maxHeight: 200, zIndex: 20 }}>
+                          <ScrollView nestedScrollEnabled keyboardShouldPersistTaps="handled">
+                            <TouchableOpacity onPress={() => { setSelectedSuptId(null); setShowSuptPicker(false); }}
+                              style={{ paddingVertical: 10, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: C.w06, backgroundColor: !selectedSuptId ? C.gd + '22' : 'transparent' }}>
+                              <Text style={{ fontSize: 17, color: !selectedSuptId ? C.gd : C.dm }}>None</Text>
+                            </TouchableOpacity>
+                            {companyBuilders.map(b => (
+                              <TouchableOpacity key={b.id} onPress={() => { setSelectedSuptId(b.id); setShowSuptPicker(false); }}
+                                style={{ paddingVertical: 10, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: C.w06, backgroundColor: selectedSuptId === b.id ? C.gd + '22' : 'transparent' }}>
+                                <Text style={{ fontSize: 17, color: selectedSuptId === b.id ? C.gd : C.text }}>{b.name}</Text>
+                              </TouchableOpacity>
+                            ))}
+                          </ScrollView>
+                        </View>
+                      )}
+                    </View>
+                  </View>
+                </View>
+              )}
+
               <Inp2 label="CONTRACT PRICE ($)" value={f.original_price} onChange={v => set('original_price', v)} type="number" placeholder="485000" />
 
               {/* Selection Template picker */}
