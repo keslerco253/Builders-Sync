@@ -202,8 +202,12 @@ const SignConfirmModal = ({ visible, onClose, onSign, role, coTitle, coAmount })
   if (!visible) return null;
   const legalText = role === 'customer'
     ? 'By signing, you are approving this change order. This may adjust your contract price.'
-    : (role === 'builder' || role === 'company_admin')
-    ? 'By signing, you are approving this change order as the builder.'
+    : role === 'customer_review'
+    ? 'By signing, you are reviewing and confirming this change order as the customer.'
+    : role === 'pm'
+    ? 'By signing, you are approving this change order as the project manager.'
+    : (role === 'super' || role === 'builder' || role === 'company_admin')
+    ? 'By signing, you are approving this change order as the superintendent.'
     : 'By signing, you are electronically signing this change order as the subcontractor.';
   const canSign = typedName.trim().length > 0;
   return (
@@ -792,11 +796,11 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
     const pid = project.id;
 
     if ((tab === 'info' && sub === 'price') || (tab === 'schedule' && sub === 'progress')) {
-      api(`/projects/${pid}/change-orders`).then(d => d && setChangeOrders(d));
+      api(`/projects/${pid}/change-orders?user_id=${user?.id}&role=${user?.role}`).then(d => d && setChangeOrders(d));
       api(`/projects/${pid}/selections`).then(d => d && setSelections(d));
     }
     if (tab === 'changeorders') {
-      api(`/projects/${pid}/change-orders`).then(d => d && setChangeOrders(d));
+      api(`/projects/${pid}/change-orders?user_id=${user?.id}&role=${user?.role}`).then(d => d && setChangeOrders(d));
     }
     if (tab === 'selections' || (tab === 'info' && sub === 'specifications')) {
       api(`/projects/${pid}/selections`).then(d => d && setSelections(d));
@@ -943,7 +947,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
       const res = await apiFetch(`/change-orders/${coId}/sign`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ role, initials, signer_name: signerName }),
+        body: JSON.stringify({ role, initials, signer_name: signerName, user_id: user?.id }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -957,6 +961,23 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
       setModal(null);
     } catch (e) {
       Alert.alert('Error', e.message || 'Failed to sign change order');
+    }
+  };
+  const declineCO = async (coId, reason) => {
+    try {
+      const res = await apiFetch(`/change-orders/${coId}/decline`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ declined_by: user?.name, reason }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setChangeOrders(prev => prev.map(c => c.id === coId ? data : c));
+        Alert.alert('Declined', 'Change order has been declined.');
+      }
+      setModal(null);
+    } catch (e) {
+      Alert.alert('Error', e.message || 'Failed to decline');
     }
   };
 
@@ -2994,62 +3015,78 @@ ${sectionsHtml}
 
     // --- CHANGE ORDERS ---
     if (tab === 'changeorders') {
+      const coStatusLabel = (status) => {
+        const map = { draft: 'Draft', pending_super: 'Pending Super', pending_customer: 'Pending Customer',
+          pending_customer_review: 'Customer Review', pending_subs: 'Pending Subs', pending_pm: 'Pending PM',
+          approved: 'Approved', declined: 'Declined', expired: 'Expired' };
+        return map[status] || status;
+      };
+      const coStatusColor = (status) => {
+        if (status === 'approved') return C.gn;
+        if (status === 'declined' || status === 'expired') return C.rd;
+        if (status === 'draft') return C.dm;
+        return C.yl;
+      };
+
       const renderCOCard = (co) => {
         const isApproved = co.status === 'approved';
+        const sigCount = (co.signatures || []).length;
+        const totalSteps = (co.sign_order || []).length;
+        const lineItemCount = (co.line_items || []).length;
         return (
           <Card key={co.id} onPress={() => setModal({ type: 'co', data: co })} style={{ marginBottom: 10 }}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
-              <Text style={{ fontSize: 22, fontWeight: '600', color: C.text, flex: 1 }} numberOfLines={1}>{co.title}</Text>
-              <Badge status={co.status} />
-            </View>
-            <Text style={{ fontSize: 20, color: C.mt, marginBottom: 8 }} numberOfLines={2}>{co.description}</Text>
-            {isApproved ? (
-              <View style={{ alignItems: 'flex-end' }}>
-                <Text style={{ fontSize: 24, fontWeight: '700', color: co.amount >= 0 ? C.yl : C.gn }}>
-                  {co.amount >= 0 ? '+' : ''}{f$(co.amount)}
-                </Text>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+              <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <View style={{ backgroundColor: C.w10, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 }}>
+                  <Text style={{ fontSize: 13, fontWeight: '700', color: C.dm }}>#{co.co_number || '—'}</Text>
+                </View>
+                <Text style={{ fontSize: 20, fontWeight: '600', color: C.text, flexShrink: 1 }} numberOfLines={1}>{co.title}</Text>
               </View>
-            ) : (
-              <>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <View>
-                    {co.due_date && (
-                      <Text style={{ fontSize: 18, color: C.yl }}>Due {fD(co.due_date)}</Text>
-                    )}
-                  </View>
-                  <Text style={{ fontSize: 24, fontWeight: '700', color: co.amount >= 0 ? C.yl : C.gn }}>
-                    {co.amount >= 0 ? '+' : ''}{f$(co.amount)}
-                  </Text>
-                </View>
-                <View style={{ flexDirection: 'row', gap: 14, marginTop: 10 }}>
-                  {[['Builder', co.builder_sig, co.builder_sig_initials], ['Customer', co.customer_sig, co.customer_sig_initials], ...(co.sub_id ? [['Sub', co.sub_sig, co.sub_sig_initials]] : [])].map(([l, signed, initials]) => (
-                    <View key={l} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                      <View style={[s.sigDot, signed && s.sigDotOn]}>
-                        {signed && <Text style={{ color: C.textBold, fontSize: 10, fontWeight: '700' }}>{initials || '✓'}</Text>}
-                      </View>
-                      <Text style={{ fontSize: 18, color: C.mt }}>{l}</Text>
-                    </View>
-                  ))}
-                </View>
-              </>
-            )}
+              <View style={{ backgroundColor: coStatusColor(co.status) + '18', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, marginLeft: 8 }}>
+                <Text style={{ fontSize: 12, fontWeight: '700', color: coStatusColor(co.status) }}>{coStatusLabel(co.status)}</Text>
+              </View>
+            </View>
+            {co.description ? <Text style={{ fontSize: 17, color: C.mt, marginBottom: 6 }} numberOfLines={2}>{co.description}</Text> : null}
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                {lineItemCount > 0 && (
+                  <Text style={{ fontSize: 14, color: C.dm }}>{lineItemCount} item{lineItemCount > 1 ? 's' : ''}</Text>
+                )}
+                {co.due_date && <Text style={{ fontSize: 14, color: C.yl }}>Due {fD(co.due_date)}</Text>}
+                {!isApproved && totalSteps > 0 && (
+                  <Text style={{ fontSize: 14, color: C.dm }}>{sigCount}/{totalSteps} signed</Text>
+                )}
+              </View>
+              <Text style={{ fontSize: 22, fontWeight: '700', color: co.amount >= 0 ? C.yl : C.gn }}>
+                {co.amount >= 0 ? '+' : ''}{f$(co.amount)}
+              </Text>
+            </View>
           </Card>
         );
       };
 
-      const approvedCOs = changeOrders.filter(co => co.status === 'approved');
-      const pendingCOs = changeOrders.filter(co => co.status !== 'approved');
+      // 3 columns: Pending Builder | Pending Others | Completed
+      const pendingBuilderCOs = changeOrders.filter(co =>
+        co.status === 'draft' || co.status === 'pending_super' ||
+        (co.status === 'pending_customer' && co.initiated_by === 'customer')
+      );
+      const completedCOs = changeOrders.filter(co => co.status === 'approved' || co.status === 'declined' || co.status === 'expired');
+      const pendingOtherCOs = changeOrders.filter(co =>
+        !pendingBuilderCOs.includes(co) && !completedCOs.includes(co)
+      );
 
       return (
-        <ScrollView style={{ flex: 1 }} contentContainerStyle={[s.scroll, { maxWidth: windowWidth * 0.9 }]}>
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={[s.scroll, { maxWidth: windowWidth * 0.95 }]}>
           <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
             <View style={{ flex: 1 }} />
             <Text style={[s.sectionTitle, { textAlign: 'center' }]}>Change Orders</Text>
             <View style={{ flex: 1, alignItems: 'flex-end' }}>
-              {(isB || isCon) && (
+              {(isB || isCon || isC) && (
                 <TouchableOpacity onPress={() => {
                   if (isCon) {
                     setModal({ type: 'subco', task: { id: null, task: '' } });
+                  } else if (isC) {
+                    setModal({ type: 'customerco' });
                   } else {
                     setModal('coTypePicker');
                   }
@@ -3060,22 +3097,24 @@ ${sectionsHtml}
               )}
             </View>
           </View>
-          {changeOrders.length === 0 ? <Empty icon="file-text" text="No change orders" /> : (
-            <View style={s.twoColRow}>
-              <View style={s.twoColLeft}>
-                {approvedCOs.length > 0 && (
-                  <>
-                    <Text style={s.groupSubtitle}>Approved</Text>
-                    {approvedCOs.map(renderCOCard)}
-                  </>
+          {changeOrders.length === 0 ? <Empty icon="file-text" text="No change orders" sub={isC ? "You can request a change order using the + button" : undefined} /> : (
+            <View style={s.threeColRow}>
+              <View style={s.threeColCell}>
+                <Text style={s.groupSubtitle}>Pending Builder ({pendingBuilderCOs.length})</Text>
+                {pendingBuilderCOs.length > 0 ? pendingBuilderCOs.map(renderCOCard) : (
+                  <Text style={{ fontSize: 15, color: C.dm, fontStyle: 'italic', marginTop: 6 }}>None</Text>
                 )}
               </View>
-              <View style={s.twoColRight}>
-                {pendingCOs.length > 0 && (
-                  <>
-                    <Text style={s.groupSubtitle}>Awaiting Approval</Text>
-                    {pendingCOs.map(renderCOCard)}
-                  </>
+              <View style={s.threeColCell}>
+                <Text style={s.groupSubtitle}>Pending Others ({pendingOtherCOs.length})</Text>
+                {pendingOtherCOs.length > 0 ? pendingOtherCOs.map(renderCOCard) : (
+                  <Text style={{ fontSize: 15, color: C.dm, fontStyle: 'italic', marginTop: 6 }}>None</Text>
+                )}
+              </View>
+              <View style={s.threeColCell}>
+                <Text style={s.groupSubtitle}>Completed ({completedCOs.length})</Text>
+                {completedCOs.length > 0 ? completedCOs.map(renderCOCard) : (
+                  <Text style={{ fontSize: 15, color: C.dm, fontStyle: 'italic', marginTop: 6 }}>None</Text>
                 )}
               </View>
             </View>
@@ -3948,7 +3987,7 @@ ${sectionsHtml}
   const renderModal = () => {
     // --- Change Order Detail with Digital Signatures ---
     if (modal?.type === 'co') {
-      return <ChangeOrderDetailModal co={modal.data} isB={isB} isC={isC} isCon={isCon} signCO={signCO} onClose={() => setModal(null)} user={user} />;
+      return <ChangeOrderDetailModal co={modal.data} isB={isB} isC={isC} isCon={isCon} signCO={signCO} declineCO={declineCO} onClose={() => setModal(null)} user={user} project={project} api={api} onUpdated={(updated) => setChangeOrders(prev => prev.map(c => c.id === updated.id ? updated : c))} />;
     }
 
     // --- Change Order Type Picker ---
@@ -3993,9 +4032,12 @@ ${sectionsHtml}
     // --- New Change Order ---
     if (modal === 'newco') {
       return <NewChangeOrderModal project={project} api={api} user={user} schedule={schedule} onClose={() => setModal(null)} onCreated={(co) => {
-        setChangeOrders(prev => [co, ...prev]);
+        setChangeOrders(prev => {
+          const exists = prev.some(c => c.id === co.id);
+          return exists ? prev.map(c => c.id === co.id ? co : c) : [co, ...prev];
+        });
         setModal(null);
-        Alert.alert('Success', 'Change order created & signed as builder');
+        Alert.alert('Success', co.status === 'draft' ? 'Change order saved as draft' : 'Change order created & signed');
       }} />;
     }
 
@@ -4019,6 +4061,18 @@ ${sectionsHtml}
           setChangeOrders(prev => [co, ...prev]);
           setModal(null);
           Alert.alert('Success', 'Change order submitted — awaiting builder & customer signatures');
+        }}
+      />;
+    }
+
+    // --- Customer Change Order Request ---
+    if (modal?.type === 'customerco') {
+      return <CustomerChangeOrderModal project={project} api={api} user={user}
+        onClose={() => setModal(null)}
+        onCreated={(co) => {
+          setChangeOrders(prev => [co, ...prev]);
+          setModal(null);
+          Alert.alert('Submitted', 'Your change order request has been sent to the builder for review.');
         }}
       />;
     }
@@ -4263,7 +4317,7 @@ ${sectionsHtml}
 // ISOLATED MODAL COMPONENTS
 // ============================================================
 
-const ChangeOrderDetailModal = ({ co, isB, isC, isCon, signCO, onClose, user }) => {
+const ChangeOrderDetailModal = ({ co, isB, isC, isCon, signCO, declineCO, onClose, user, project, api, onUpdated }) => {
   const C = React.useContext(ThemeContext);
   const s = React.useMemo(() => getStyles(C), [C]);
   const [coDocs, setCoDocs] = useState([]);
@@ -4273,10 +4327,41 @@ const ChangeOrderDetailModal = ({ co, isB, isC, isCon, signCO, onClose, user }) 
   const [fileData, setFileData] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [signConfirmRole, setSignConfirmRole] = useState(null);
+  const [declineReason, setDeclineReason] = useState('');
+  const [showDecline, setShowDecline] = useState(false);
+  // Edit mode for builder (editing a draft or adding markup to sub-created CO)
+  const [editMode, setEditMode] = useState(false);
+  const [editItems, setEditItems] = useState(co.line_items || []);
+  const [editSaving, setEditSaving] = useState(false);
 
   const isExpired = co.due_date && new Date(co.due_date + 'T23:59:59') < new Date();
-  const canBuilderSign = isB && !co.builder_sig;
-  const canCustomerSign = isC && !co.customer_sig && !isExpired;
+  const signOrder = co.sign_order || [];
+  const currentStep = co.current_sign_step || 0;
+  const currentSignRole = signOrder[currentStep] || '';
+  const sigs = co.signatures || [];
+
+  // Determine if current user can sign at this step
+  const canSign = (() => {
+    if (co.status === 'draft' || co.status === 'approved' || co.status === 'declined' || co.status === 'expired') return false;
+    if (currentSignRole === 'super' && isB) return !sigs.some(s => s.role === 'super');
+    if (currentSignRole === 'customer' && isC) return !sigs.some(s => s.role === 'customer');
+    if (currentSignRole === 'customer_review' && isC) return !sigs.some(s => s.role === 'customer_review');
+    if (currentSignRole === 'pm' && isB) return !sigs.some(s => s.role === 'pm');
+    if (currentSignRole.startsWith('sub:') && isCon) {
+      const subId = parseInt(currentSignRole.split(':')[1]);
+      return subId === user?.id && !sigs.some(s => s.role === 'sub' && s.user_id === user?.id);
+    }
+    if (currentSignRole === 'sub' && isCon) return !sigs.some(s => s.role === 'sub');
+    return false;
+  })();
+
+  const signRoleForApi = currentSignRole === 'customer_review' ? 'customer_review'
+    : currentSignRole === 'super' ? 'super'
+    : currentSignRole === 'pm' ? 'pm'
+    : currentSignRole.startsWith('sub:') ? 'sub'
+    : currentSignRole;
+  const canDecline = co.status !== 'draft' && co.status !== 'approved' && co.status !== 'declined' && co.status !== 'expired' && canSign;
+  const canEdit = isB && (co.status === 'draft' || (co.status === 'pending_super' && co.initiated_by !== 'super'));
 
   useEffect(() => {
     apiFetch(`/change-orders/${co.id}/documents`)
@@ -4399,6 +4484,92 @@ const ChangeOrderDetailModal = ({ co, isB, isC, isCon, signCO, onClose, user }) 
         </View>
       )}
 
+      {/* Line Items */}
+      {(co.line_items || []).length > 0 && (
+        <View style={{ marginBottom: 16 }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+            <Text style={{ fontSize: 21, fontWeight: '600', color: C.text }}>Line Items</Text>
+            {canEdit && !editMode && (
+              <TouchableOpacity onPress={() => { setEditMode(true); setEditItems((co.line_items || []).map(li => ({ ...li }))); }}
+                style={{ paddingHorizontal: 12, paddingVertical: 5, borderRadius: 7, backgroundColor: C.gd }}
+                activeOpacity={0.7}>
+                <Text style={{ fontSize: 14, fontWeight: '600', color: C.chromeTxt }}>Edit</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+          {editMode ? (
+            <View>
+              {editItems.map((li, idx) => (
+                <View key={li.id || idx} style={{ backgroundColor: C.w04, borderRadius: 10, padding: 12, marginBottom: 8, borderWidth: 1, borderColor: C.w08 }}>
+                  <Inp label="ITEM" value={li.item_name} onChange={(v) => setEditItems(prev => prev.map((item, i) => i === idx ? { ...item, item_name: v } : item))} />
+                  <View style={{ flexDirection: 'row', gap: 10 }}>
+                    <Inp label="COST ($)" value={String(li.cost || '')} onChange={(v) => setEditItems(prev => prev.map((item, i) => i === idx ? { ...item, cost: parseFloat(v) || 0 } : item))} type="number" style={{ flex: 1 }} />
+                    <Inp label="MARKUP (%)" value={String(li.markup_percent || '')} onChange={(v) => setEditItems(prev => prev.map((item, i) => i === idx ? { ...item, markup_percent: parseFloat(v) || 0 } : item))} type="number" style={{ flex: 1 }} />
+                  </View>
+                  {li.sub_name && <Text style={{ fontSize: 14, color: C.bl, marginTop: 2 }}>Sub: {li.sub_name}</Text>}
+                </View>
+              ))}
+              <View style={{ flexDirection: 'row', gap: 10, marginTop: 8 }}>
+                <Btn onPress={() => setEditMode(false)} bg={C.w10} style={{ flex: 1 }}>
+                  <Text style={[s.btnTxt, { color: C.mt }]}>Cancel</Text>
+                </Btn>
+                <Btn onPress={async () => {
+                  setEditSaving(true);
+                  try {
+                    const res = await apiFetch(`/change-orders/${co.id}`, {
+                      method: 'PUT',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ line_items: editItems }),
+                    });
+                    if (res.ok) {
+                      const updated = await res.json();
+                      onUpdated(updated);
+                      setEditMode(false);
+                      Alert.alert('Saved', 'Line items updated');
+                    }
+                  } catch (e) { Alert.alert('Error', e.message); }
+                  finally { setEditSaving(false); }
+                }} disabled={editSaving} style={{ flex: 1 }}>
+                  <Text style={s.btnTxt}>{editSaving ? 'Saving...' : 'Save Changes'}</Text>
+                </Btn>
+              </View>
+            </View>
+          ) : (
+            (co.line_items || []).map((li, idx) => (
+              <View key={li.id || idx} style={{
+                flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+                backgroundColor: C.w04, borderRadius: 10, padding: 12, marginBottom: 6,
+                borderWidth: 1, borderColor: C.w08,
+              }}>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 18, fontWeight: '600', color: C.text }}>{li.item_name}</Text>
+                  {li.sub_name && (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 3 }}>
+                      <Feather name="user" size={13} color={C.dm} />
+                      <Text style={{ fontSize: 14, color: C.bl }}>{li.sub_name}</Text>
+                    </View>
+                  )}
+                </View>
+                <View style={{ alignItems: 'flex-end' }}>
+                  {isCon ? (
+                    <Text style={{ fontSize: 18, fontWeight: '700', color: C.yl }}>{f$(li.cost)}</Text>
+                  ) : isB ? (
+                    <>
+                      <Text style={{ fontSize: 18, fontWeight: '700', color: C.yl }}>{f$(li.total)}</Text>
+                      {li.markup_percent > 0 && (
+                        <Text style={{ fontSize: 13, color: C.dm }}>{f$(li.cost)} + {li.markup_percent}%</Text>
+                      )}
+                    </>
+                  ) : (
+                    <Text style={{ fontSize: 18, fontWeight: '700', color: C.yl }}>{f$(li.total)}</Text>
+                  )}
+                </View>
+              </View>
+            ))
+          )}
+        </View>
+      )}
+
       {/* Documents section */}
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
         <Text style={{ fontSize: 21, fontWeight: '600', color: C.text }}>Documents</Text>
@@ -4475,101 +4646,144 @@ const ChangeOrderDetailModal = ({ co, isB, isC, isCon, signCO, onClose, user }) 
         </View>
       )}
 
-      <Text style={{ fontSize: 21, fontWeight: '600', color: C.text, marginTop: 8, marginBottom: 14 }}>Digital Signatures</Text>
+      {/* Signing Progress */}
+      <Text style={{ fontSize: 21, fontWeight: '600', color: C.text, marginTop: 8, marginBottom: 14 }}>Signing Progress</Text>
 
-      <View style={[s.card, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }]}>
-        <View>
-          <Text style={{ fontSize: 21, fontWeight: '600', color: C.text }}>Builder</Text>
-          {co.builder_sig_name ? <Text style={{ fontSize: 16, color: C.bl, marginTop: 1 }}>{co.builder_sig_name}</Text> : null}
-          <Text style={{ fontSize: 18, color: C.dm, marginTop: 2 }}>
-            {co.builder_sig ? `Signed ${fDT(co.builder_sig_date)}` : 'Not yet signed'}
-          </Text>
-        </View>
-        {co.builder_sig ? (
-          <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: C.gn, alignItems: 'center', justifyContent: 'center' }}>
-            <Text style={{ color: C.textBold, fontSize: 18, fontWeight: '700' }}>{co.builder_sig_initials || '✓'}</Text>
-          </View>
-        ) : canBuilderSign ? (
-          <Btn onPress={() => setSignConfirmRole('builder')} style={{ paddingVertical: 8, paddingHorizontal: 14 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}><Feather name="edit" size={14} color={C.chromeTxt} /><Text style={s.btnTxt}>Sign</Text></View>
-          </Btn>
-        ) : (
-          <Text style={{ color: C.dm, fontSize: 18 }}>Awaiting</Text>
-        )}
-      </View>
-
-      <View style={[s.card, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }]}>
-        <View>
-          <Text style={{ fontSize: 21, fontWeight: '600', color: C.text }}>Customer</Text>
-          {co.customer_sig_name ? <Text style={{ fontSize: 16, color: C.bl, marginTop: 1 }}>{co.customer_sig_name}</Text> : null}
-          <Text style={{ fontSize: 18, color: C.dm, marginTop: 2 }}>
-            {co.customer_sig ? `Signed ${fDT(co.customer_sig_date)}` : 'Not yet signed'}
-          </Text>
-        </View>
-        {co.customer_sig ? (
-          <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: C.gn, alignItems: 'center', justifyContent: 'center' }}>
-            <Text style={{ color: C.textBold, fontSize: 18, fontWeight: '700' }}>{co.customer_sig_initials || '✓'}</Text>
-          </View>
-        ) : canCustomerSign ? (
-          <Btn onPress={() => setSignConfirmRole('customer')} bg={C.gn} style={{ paddingVertical: 8, paddingHorizontal: 14 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}><Feather name="edit" size={14} color={C.chromeTxt} /><Text style={s.btnTxt}>Sign</Text></View>
-          </Btn>
-        ) : isExpired && isC && !co.customer_sig ? (
-          <Text style={{ color: C.rd, fontSize: 18, fontWeight: '600' }}>Expired</Text>
-        ) : (
-          <Text style={{ color: C.dm, fontSize: 18 }}>Awaiting</Text>
-        )}
-      </View>
-
-      {co.sub_id && (
-        <View style={[s.card, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }]}>
-          <View>
-            <Text style={{ fontSize: 21, fontWeight: '600', color: C.text }}>Subcontractor</Text>
-            <Text style={{ fontSize: 16, color: C.bl, marginTop: 1 }}>{co.sub_sig_name || co.sub_name}</Text>
-            <Text style={{ fontSize: 18, color: C.dm, marginTop: 2 }}>
-              {co.sub_sig ? `Signed ${fDT(co.sub_sig_date)}` : 'Not yet signed'}
-            </Text>
-          </View>
-          {co.sub_sig ? (
-            <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: C.gn, alignItems: 'center', justifyContent: 'center' }}>
-              <Text style={{ color: C.textBold, fontSize: 18, fontWeight: '700' }}>{co.sub_sig_initials || '✓'}</Text>
-            </View>
-          ) : isCon && !co.sub_sig ? (
-            <Btn onPress={() => setSignConfirmRole('sub')} bg={C.bl} style={{ paddingVertical: 8, paddingHorizontal: 14 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}><Feather name="edit" size={14} color={C.chromeTxt} /><Text style={s.btnTxt}>Sign</Text></View>
+      {co.status === 'draft' && (
+        <View style={[s.card, { marginBottom: 10, padding: 14 }]}>
+          <Text style={{ fontSize: 18, color: C.dm, fontStyle: 'italic' }}>Draft — not yet submitted for signatures</Text>
+          {isB && (
+            <Btn onPress={() => setSignConfirmRole('super')} style={{ marginTop: 10 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                <Feather name="send" size={14} color={C.chromeTxt} />
+                <Text style={s.btnTxt}>Sign & Send</Text>
+              </View>
             </Btn>
-          ) : (
-            <Text style={{ color: C.dm, fontSize: 18 }}>Awaiting</Text>
           )}
         </View>
       )}
 
+      {co.status !== 'draft' && signOrder.map((step, idx) => {
+        const displayName = step === 'super' ? 'Superintendent'
+          : step === 'customer' ? 'Customer'
+          : step === 'customer_review' ? 'Customer (Review)'
+          : step === 'pm' ? 'Project Manager'
+          : step.startsWith('sub:') ? (() => { const li = (co.line_items || []).find(l => l.sub_id === parseInt(step.split(':')[1])); return li?.sub_name || 'Subcontractor'; })()
+          : step === 'sub' ? 'Subcontractor'
+          : step;
+
+        let sig = null;
+        if (step === 'customer_review') {
+          sig = sigs.find(sg => sg.role === 'customer_review');
+        } else if (step.startsWith('sub:')) {
+          const subId = parseInt(step.split(':')[1]);
+          sig = sigs.find(sg => sg.role === 'sub' && sg.user_id === subId);
+        } else {
+          sig = sigs.find(sg => sg.role === step);
+        }
+
+        const isSigned = !!sig;
+        const isCurrent = idx === currentStep;
+
+        return (
+          <View key={`${step}-${idx}`} style={[s.card, {
+            flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8,
+            borderColor: isCurrent ? C.gd + '40' : C.w08,
+            backgroundColor: isCurrent ? C.gd + '08' : undefined,
+          }]}>
+            <View style={{ flex: 1 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <View style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: isSigned ? C.gn : isCurrent ? C.gd : C.w10, alignItems: 'center', justifyContent: 'center' }}>
+                  {isSigned ? (
+                    <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>{sig.initials || '✓'}</Text>
+                  ) : (
+                    <Text style={{ color: C.dm, fontSize: 12, fontWeight: '700' }}>{idx + 1}</Text>
+                  )}
+                </View>
+                <Text style={{ fontSize: 19, fontWeight: '600', color: C.text }}>{displayName}</Text>
+              </View>
+              {isSigned && sig.signer_name && (
+                <Text style={{ fontSize: 15, color: C.bl, marginTop: 2, marginLeft: 32 }}>{sig.signer_name}</Text>
+              )}
+              <Text style={{ fontSize: 15, color: C.dm, marginTop: 2, marginLeft: 32 }}>
+                {isSigned ? `Signed ${fDT(sig.signed_at)}` : isCurrent ? 'Awaiting signature' : 'Pending'}
+              </Text>
+            </View>
+            {isSigned ? null : isCurrent && canSign ? (
+              <Btn onPress={() => setSignConfirmRole(signRoleForApi)} style={{ paddingVertical: 8, paddingHorizontal: 14 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                  <Feather name="edit" size={14} color={C.chromeTxt} />
+                  <Text style={s.btnTxt}>Sign</Text>
+                </View>
+              </Btn>
+            ) : null}
+          </View>
+        );
+      })}
+
+      {/* Decline button */}
+      {canDecline && (
+        <View style={{ marginTop: 8, marginBottom: 12 }}>
+          {showDecline ? (
+            <View style={{ backgroundColor: C.rd + '08', borderRadius: 10, padding: 14, borderWidth: 1, borderColor: C.rd + '25' }}>
+              <Inp label="REASON FOR DECLINING" value={declineReason} onChange={setDeclineReason} placeholder="Why are you declining?" rows={2} />
+              <View style={{ flexDirection: 'row', gap: 10, marginTop: 8 }}>
+                <Btn onPress={() => setShowDecline(false)} bg={C.w10} style={{ flex: 1 }}>
+                  <Text style={[s.btnTxt, { color: C.mt }]}>Cancel</Text>
+                </Btn>
+                <Btn onPress={() => { declineCO(co.id, declineReason); setShowDecline(false); }} bg={C.rd} style={{ flex: 1 }}>
+                  <Text style={s.btnTxt}>Confirm Decline</Text>
+                </Btn>
+              </View>
+            </View>
+          ) : (
+            <TouchableOpacity onPress={() => setShowDecline(true)} activeOpacity={0.7}
+              style={{ paddingVertical: 10, borderRadius: 8, borderWidth: 1, borderColor: C.rd + '40', alignItems: 'center' }}>
+              <Text style={{ fontSize: 18, fontWeight: '600', color: C.rd }}>Decline Change Order</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
+
+      {/* Declined info */}
+      {co.status === 'declined' && (
+        <View style={{ backgroundColor: C.rd + '08', borderRadius: 10, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: C.rd + '25' }}>
+          <Text style={{ fontSize: 16, fontWeight: '700', color: C.rd, marginBottom: 4 }}>Declined</Text>
+          {co.declined_by && <Text style={{ fontSize: 15, color: C.mt }}>By: {co.declined_by}</Text>}
+          {co.declined_reason && <Text style={{ fontSize: 15, color: C.mt, marginTop: 4 }}>{co.declined_reason}</Text>}
+        </View>
+      )}
+
+      {/* Status banner */}
       <View style={[s.warnBox, {
         backgroundColor: co.status === 'approved' ? 'rgba(16,185,129,0.08)'
+          : co.status === 'declined' ? 'rgba(239,68,68,0.08)'
           : isExpired && co.status !== 'approved' ? 'rgba(239,68,68,0.08)' : undefined,
         borderColor: co.status === 'approved' ? 'rgba(16,185,129,0.2)'
+          : co.status === 'declined' ? 'rgba(239,68,68,0.2)'
           : isExpired && co.status !== 'approved' ? 'rgba(239,68,68,0.2)' : undefined,
       }]}>
         <Text style={[s.warnTxt, {
           color: co.status === 'approved' ? C.gnB
+            : co.status === 'declined' ? C.rd
             : isExpired && co.status !== 'approved' ? C.rd : C.yl
         }]}>
           {co.status === 'approved'
             ? 'Approved — reflected in Price Summary'
-            : isExpired && co.status !== 'approved'
-              ? 'This change order has expired — the due date has passed'
-              : co.sub_id
-                ? 'Requires all signatures (builder, customer, sub) to update Price Summary'
-                : 'Requires both signatures to update Price Summary'}
+            : co.status === 'declined'
+              ? 'This change order has been declined'
+              : isExpired && co.status !== 'approved'
+                ? 'This change order has expired — the due date has passed'
+                : `Requires all signatures to update Price Summary (${sigs.length}/${signOrder.length} signed)`}
         </Text>
       </View>
       <SignConfirmModal
         visible={!!signConfirmRole}
         onClose={() => setSignConfirmRole(null)}
         onSign={(initials, name) => {
-          const role = signConfirmRole;
+          const r = signConfirmRole;
           setSignConfirmRole(null);
-          signCO(co.id, role, initials, name);
+          signCO(co.id, r, initials, name);
         }}
         role={signConfirmRole || 'customer'}
         coTitle={co.title}
@@ -4585,8 +4799,6 @@ const NewChangeOrderModal = ({ project, api, onClose, onCreated, user, schedule 
   const s = React.useMemo(() => getStyles(C), [C]);
   const [title, setTitle] = useState('');
   const [desc, setDesc] = useState('');
-  const [amount, setAmount] = useState('');
-  const [isCredit, setIsCredit] = useState(false);
   const [dueDate, setDueDate] = useState('');
   const [loading, setLoading] = useState(false);
   const [signStep, setSignStep] = useState(false);
@@ -4594,24 +4806,22 @@ const NewChangeOrderModal = ({ project, api, onClose, onCreated, user, schedule 
   const [selectedTask, setSelectedTask] = useState(null);
   const [showTaskPicker, setShowTaskPicker] = useState(false);
   const [extensionDays, setExtensionDays] = useState('');
-  const [subInfo, setSubInfo] = useState(null); // { id, name }
-  const [showSubPicker, setShowSubPicker] = useState(false);
+  const [attachments, setAttachments] = useState([]);
   const [subsList, setSubsList] = useState([]);
   const [subsLoading, setSubsLoading] = useState(false);
-  const [attachments, setAttachments] = useState([]); // [{ b64, ext, originalName, size, docName, docDesc }]
+  const [lineItems, setLineItems] = useState([{ item_name: '', cost: '', markup_percent: '', sub_id: null, sub_name: '' }]);
+  const [showSubPickerIdx, setShowSubPickerIdx] = useState(null);
 
-  // Helper: get display name from user object, handling both camelCase and snake_case API formats
   const getSubDisplayName = (u) => {
     return u.company_name || u.companyName || u.name || `${u.first_name || u.firstName || ''} ${u.last_name || u.lastName || ''}`.trim() || 'Unknown';
   };
 
-  // Fetch subcontractors list on mount
   useEffect(() => {
     setSubsLoading(true);
     apiFetch(`/users${user?.company_id ? `?company_id=${user.company_id}` : ''}`)
       .then(r => r.json())
       .then(data => {
-        if (Array.isArray(data)) setSubsList(data.filter(u => (u.role === 'contractor' || u.role === 'builder') && u.active !== false));
+        if (Array.isArray(data)) setSubsList(data.filter(u => u.role === 'contractor' && u.active !== false));
       })
       .catch(() => {})
       .finally(() => setSubsLoading(false));
@@ -4637,49 +4847,69 @@ const NewChangeOrderModal = ({ project, api, onClose, onCreated, user, schedule 
     input.click();
   };
 
-  // When a task is selected, look up the subcontractor from already-fetched list
-  const onTaskSelect = (task) => {
-    setSelectedTask(task);
-    setShowTaskPicker(false);
-    if (task.contractor && task.contractor.trim()) {
-      const match = subsList.find(u => {
-        const fullName = u.name || `${u.first_name || u.firstName || ''} ${u.last_name || u.lastName || ''}`.trim();
-        const compName = u.company_name || u.companyName || '';
-        return fullName === task.contractor || compName === task.contractor;
-      });
-      if (match) setSubInfo({ id: match.id, name: getSubDisplayName(match) });
-      else setSubInfo(null);
-    } else {
-      // Don't clear sub if user manually selected one
-      // Only clear if task had no contractor
-    }
+  const updateItem = (idx, field, value) => {
+    setLineItems(prev => prev.map((li, i) => i === idx ? { ...li, [field]: value } : li));
   };
 
-  const create = async () => {
-    const amt = isCredit ? -Math.abs(parseFloat(amount)) : Math.abs(parseFloat(amount));
+  const addItem = () => {
+    setLineItems(prev => [...prev, { item_name: '', cost: '', markup_percent: '', sub_id: null, sub_name: '' }]);
+  };
+
+  const removeItem = (idx) => {
+    if (lineItems.length <= 1) return;
+    setLineItems(prev => prev.filter((_, i) => i !== idx));
+  };
+
+  const totalAmount = lineItems.reduce((sum, li) => {
+    const cost = parseFloat(li.cost) || 0;
+    const markup = parseFloat(li.markup_percent) || 0;
+    return sum + cost * (1 + markup / 100);
+  }, 0);
+
+  const hasValidItems = lineItems.some(li => li.item_name.trim() && (parseFloat(li.cost) || 0) !== 0);
+
+  const create = async (isDraft) => {
     setLoading(true);
     try {
-      const body = { title, description: desc, amount: amt, due_date: dueDate || null, builder_initials: getInitials(signerName.trim()), builder_signer_name: signerName.trim() };
+      const items = lineItems.filter(li => li.item_name.trim()).map(li => ({
+        item_name: li.item_name,
+        cost: parseFloat(li.cost) || 0,
+        markup_percent: parseFloat(li.markup_percent) || 0,
+        sub_id: li.sub_id || null,
+        sub_name: li.sub_name || '',
+      }));
+      const body = {
+        title, description: desc, due_date: dueDate || null,
+        initiated_by: 'super', user_id: user?.id,
+        draft: isDraft,
+        line_items: items,
+      };
       if (selectedTask) {
         body.task_id = selectedTask.id;
         body.task_name = selectedTask.task;
       }
-      if (subInfo) {
-        body.sub_id = subInfo.id;
-        body.sub_name = subInfo.name;
-      }
       if (extensionDays && parseInt(extensionDays) > 0) {
         body.task_extension_days = parseInt(extensionDays);
       }
-      const res = await api(`/projects/${project.id}/change-orders`, {
-        method: 'POST',
-        body,
-      });
+      if (!isDraft) {
+        body.initials = getInitials(signerName.trim());
+        body.signer_name = signerName.trim();
+      }
+      const res = await api(`/projects/${project.id}/change-orders`, { method: 'POST', body });
       if (!res) {
-        Alert.alert('Error', 'Failed to create change order. Please try again.');
+        Alert.alert('Error', 'Failed to create change order.');
         return;
       }
-      // Upload any attached documents
+      let finalCo = res;
+      // If signing (not draft), sign as super
+      if (!isDraft && res.id) {
+        const signRes = await apiFetch(`/change-orders/${res.id}/sign`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ role: 'super', initials: getInitials(signerName.trim()), signer_name: signerName.trim(), user_id: user?.id }),
+        });
+        if (signRes.ok) finalCo = await signRes.json();
+      }
       for (const att of attachments) {
         try {
           const upRes = await apiFetch(`/upload-file`, {
@@ -4701,7 +4931,7 @@ const NewChangeOrderModal = ({ project, api, onClose, onCreated, user, schedule 
           }
         } catch {}
       }
-      onCreated(res);
+      onCreated(finalCo);
     } catch (e) { Alert.alert('Error', e.message); } finally { setLoading(false); }
   };
 
@@ -4718,21 +4948,8 @@ const NewChangeOrderModal = ({ project, api, onClose, onCreated, user, schedule 
               Sign Change Order
             </Text>
             <Text style={{ fontSize: 22, fontWeight: '600', color: C.gd, textAlign: 'center', marginBottom: 16 }}>
-              {title} — {isCredit ? '-' : '+'}{f$(Math.abs(parseFloat(amount || 0)))}
+              {title} — {totalAmount >= 0 ? '+' : ''}{f$(totalAmount)}
             </Text>
-
-            {selectedTask && (
-              <View style={{ backgroundColor: C.w04, borderRadius: 8, padding: 12, marginBottom: 12 }}>
-                <Text style={{ fontSize: 16, color: C.dm, marginBottom: 2 }}>Linked Task</Text>
-                <Text style={{ fontSize: 18, fontWeight: '600', color: C.text }}>{selectedTask.task}</Text>
-                {extensionDays && parseInt(extensionDays) > 0 ? (
-                  <Text style={{ fontSize: 16, color: C.yl, marginTop: 4 }}>+{extensionDays} day extension</Text>
-                ) : null}
-                {subInfo && (
-                  <Text style={{ fontSize: 16, color: C.bl, marginTop: 4 }}>Sub: {subInfo.name} (signature required)</Text>
-                )}
-              </View>
-            )}
 
             <View style={{
               backgroundColor: C.mode === 'dark' ? C.bH08 : C.bH05,
@@ -4740,8 +4957,7 @@ const NewChangeOrderModal = ({ project, api, onClose, onCreated, user, schedule 
               borderRadius: 10, padding: 16, marginBottom: 24,
             }}>
               <Text style={{ fontSize: 21, lineHeight: 33, color: C.mt, textAlign: 'center' }}>
-                By signing, you are submitting this change order to the customer for approval.
-                {subInfo ? '\nThe subcontractor will also need to sign.' : ''}
+                By signing as superintendent, you are submitting this change order for approval.
                 {dueDate ? `\nDue date: ${fD(dueDate)}` : ''}
               </Text>
             </View>
@@ -4767,7 +4983,7 @@ const NewChangeOrderModal = ({ project, api, onClose, onCreated, user, schedule 
                 activeOpacity={0.7}>
                 <Text style={{ fontSize: 21, fontWeight: '600', color: C.mt }}>Cancel</Text>
               </TouchableOpacity>
-              <TouchableOpacity onPress={create} disabled={loading || !signerName.trim()}
+              <TouchableOpacity onPress={() => create(false)} disabled={loading || !signerName.trim()}
                 style={{ flex: 1, paddingVertical: 13, borderRadius: 8, backgroundColor: C.gd, alignItems: 'center', opacity: (loading || !signerName.trim()) ? 0.4 : 1 }}
                 activeOpacity={0.8}>
                 <Text style={{ fontSize: 21, fontWeight: '700', color: C.textBold }}>
@@ -4785,32 +5001,94 @@ const NewChangeOrderModal = ({ project, api, onClose, onCreated, user, schedule 
     <ModalSheet visible title="New Change Order" onClose={onClose}>
       <Inp label="TITLE" value={title} onChange={setTitle} placeholder="e.g., Upgrade master bath tile" />
       <Inp label="DESCRIPTION" value={desc} onChange={setDesc} placeholder="Describe the change..." rows={3} />
-      <View style={{ flexDirection: 'row', gap: 12 }}>
-        <Inp label="AMOUNT ($)" value={amount} onChange={setAmount} type="number" placeholder="0" style={{ flex: 1 }} />
-        <View style={{ marginBottom: 14 }}>
-          <Lbl>TYPE</Lbl>
-          <View style={{ flexDirection: 'row', borderRadius: 8, overflow: 'hidden', borderWidth: 1, borderColor: C.bd }}>
-            <TouchableOpacity onPress={() => setIsCredit(false)} style={[s.typeBtn, !isCredit && { backgroundColor: C.yl + '22' }]}>
-              <Text style={[s.typeBtnTxt, !isCredit && { color: C.yl }]}>Add</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => setIsCredit(true)} style={[s.typeBtn, isCredit && { backgroundColor: C.gn + '22' }]}>
-              <Text style={[s.typeBtnTxt, isCredit && { color: C.gnB }]}>Credit</Text>
-            </TouchableOpacity>
-          </View>
+
+      {/* Line Items */}
+      <View style={{ marginBottom: 14 }}>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+          <Lbl style={{ marginBottom: 0 }}>LINE ITEMS</Lbl>
+          <TouchableOpacity onPress={addItem}
+            style={{ paddingHorizontal: 12, paddingVertical: 5, borderRadius: 7, backgroundColor: C.gd }}
+            activeOpacity={0.7}>
+            <Text style={{ fontSize: 14, fontWeight: '600', color: C.chromeTxt }}>+ Add Item</Text>
+          </TouchableOpacity>
         </View>
+        {lineItems.map((li, idx) => (
+          <View key={idx} style={{ backgroundColor: C.w04, borderRadius: 10, padding: 12, marginBottom: 8, borderWidth: 1, borderColor: C.w08 }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+              <Text style={{ fontSize: 14, fontWeight: '700', color: C.dm }}>Item {idx + 1}</Text>
+              {lineItems.length > 1 && (
+                <TouchableOpacity onPress={() => removeItem(idx)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                  <Feather name="x" size={16} color={C.rd} />
+                </TouchableOpacity>
+              )}
+            </View>
+            <Inp label="NAME" value={li.item_name} onChange={(v) => updateItem(idx, 'item_name', v)} placeholder="Item description" />
+            <View style={{ flexDirection: 'row', gap: 10 }}>
+              <Inp label="COST ($)" value={li.cost} onChange={(v) => updateItem(idx, 'cost', v)} type="number" placeholder="0" style={{ flex: 1 }} />
+              <Inp label="MARKUP (%)" value={li.markup_percent} onChange={(v) => updateItem(idx, 'markup_percent', v)} type="number" placeholder="0" style={{ flex: 1 }} />
+            </View>
+            {/* Sub picker per item */}
+            <TouchableOpacity onPress={() => setShowSubPickerIdx(showSubPickerIdx === idx ? null : idx)}
+              style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+                backgroundColor: C.w03, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10,
+                borderWidth: 1, borderColor: li.sub_id ? 'rgba(59,130,246,0.4)' : C.bd,
+              }} activeOpacity={0.7}>
+              <Text style={{ fontSize: 16, color: li.sub_id ? C.text : C.dm }} numberOfLines={1}>
+                {li.sub_name || 'Subcontractor (optional)'}
+              </Text>
+              {li.sub_id ? (
+                <TouchableOpacity onPress={() => updateItem(idx, 'sub_id', null) || updateItem(idx, 'sub_name', '')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                  <Feather name="x" size={16} color={C.dm} />
+                </TouchableOpacity>
+              ) : (
+                <Text style={{ fontSize: 14, color: C.dm }}>▼</Text>
+              )}
+            </TouchableOpacity>
+            {showSubPickerIdx === idx && (
+              <View style={{ marginTop: 6, backgroundColor: C.w04, borderRadius: 8, borderWidth: 1, borderColor: C.w08, maxHeight: 160, overflow: 'hidden' }}>
+                <ScrollView>
+                  {subsLoading ? (
+                    <View style={{ padding: 12, alignItems: 'center' }}><Text style={{ fontSize: 15, color: C.dm }}>Loading...</Text></View>
+                  ) : subsList.length === 0 ? (
+                    <View style={{ padding: 12, alignItems: 'center' }}><Text style={{ fontSize: 15, color: C.dm }}>No subcontractors</Text></View>
+                  ) : subsList.map(u => (
+                    <TouchableOpacity key={u.id} onPress={() => {
+                      updateItem(idx, 'sub_id', u.id);
+                      updateItem(idx, 'sub_name', getSubDisplayName(u));
+                      setShowSubPickerIdx(null);
+                    }} style={{ paddingVertical: 9, paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: C.w04 }} activeOpacity={0.7}>
+                      <Text style={{ fontSize: 16, fontWeight: '500', color: C.text }}>{getSubDisplayName(u)}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+            )}
+            {(parseFloat(li.cost) || 0) !== 0 && (parseFloat(li.markup_percent) || 0) > 0 && (
+              <Text style={{ fontSize: 14, color: C.dm, marginTop: 6, textAlign: 'right' }}>
+                Total: {f$((parseFloat(li.cost) || 0) * (1 + (parseFloat(li.markup_percent) || 0) / 100))}
+              </Text>
+            )}
+          </View>
+        ))}
+        {totalAmount !== 0 && (
+          <View style={{ flexDirection: 'row', justifyContent: 'flex-end', paddingVertical: 6 }}>
+            <Text style={{ fontSize: 20, fontWeight: '700', color: totalAmount >= 0 ? C.yl : C.gn }}>
+              Total: {totalAmount >= 0 ? '+' : ''}{f$(totalAmount)}
+            </Text>
+          </View>
+        )}
       </View>
 
       {/* Link to Task */}
       <View style={{ marginBottom: 14 }}>
         <Lbl>LINK TO TASK (OPTIONAL)</Lbl>
         <TouchableOpacity
-          onPress={() => setShowTaskPicker(true)}
+          onPress={() => setShowTaskPicker(p => !p)}
           style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
             backgroundColor: C.w04, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 12,
             borderWidth: 1, borderColor: selectedTask ? C.gd + '40' : C.bd,
           }}
-          activeOpacity={0.7}
-        >
+          activeOpacity={0.7}>
           <Text style={{ fontSize: 18, color: selectedTask ? C.text : C.dm }} numberOfLines={1}>
             {selectedTask ? selectedTask.task : 'Select a task...'}
           </Text>
@@ -4824,98 +5102,24 @@ const NewChangeOrderModal = ({ project, api, onClose, onCreated, user, schedule 
         </TouchableOpacity>
       </View>
 
-      {/* Task picker dropdown */}
       {showTaskPicker && (
         <View style={{ marginBottom: 14, backgroundColor: C.w04, borderRadius: 10, borderWidth: 1, borderColor: C.w08, maxHeight: 220, overflow: 'hidden' }}>
           <ScrollView>
             {(schedule || []).length === 0 ? (
-              <View style={{ padding: 16, alignItems: 'center' }}>
-                <Text style={{ fontSize: 16, color: C.dm }}>No tasks in schedule</Text>
-              </View>
+              <View style={{ padding: 16, alignItems: 'center' }}><Text style={{ fontSize: 16, color: C.dm }}>No tasks in schedule</Text></View>
             ) : (schedule || []).map(t => (
-              <TouchableOpacity key={t.id} onPress={() => onTaskSelect(t)}
-                style={{ paddingVertical: 10, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: C.w04 }}
-                activeOpacity={0.7}
-              >
+              <TouchableOpacity key={t.id} onPress={() => { setSelectedTask(t); setShowTaskPicker(false); }}
+                style={{ paddingVertical: 10, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: C.w04 }} activeOpacity={0.7}>
                 <Text style={{ fontSize: 17, fontWeight: '500', color: C.text }}>{t.task}</Text>
-                {((t.contractors || []).length > 0 || t.contractor) ? (
+                {((t.contractors || []).length > 0 || t.contractor) && (
                   <Text style={{ fontSize: 14, color: C.dm, marginTop: 2 }}>Sub: {(t.contractors || []).length > 0 ? t.contractors.join(', ') : t.contractor}</Text>
-                ) : null}
+                )}
               </TouchableOpacity>
             ))}
           </ScrollView>
         </View>
       )}
 
-      {/* Subcontractor dropdown */}
-      <View style={{ marginBottom: 14 }}>
-        <Lbl>SUBCONTRACTOR (OPTIONAL)</Lbl>
-        <TouchableOpacity
-          onPress={() => setShowSubPicker(true)}
-          style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-            backgroundColor: C.w04, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 12,
-            borderWidth: 1, borderColor: subInfo ? 'rgba(59,130,246,0.4)' : C.bd,
-          }}
-          activeOpacity={0.7}
-        >
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
-            {subInfo && <Feather name="hard-hat" size={18} color={C.dm} />}
-            <Text style={{ fontSize: 18, color: subInfo ? C.text : C.dm }} numberOfLines={1}>
-              {subInfo ? subInfo.name : 'Select a subcontractor...'}
-            </Text>
-          </View>
-          {subInfo ? (
-            <TouchableOpacity onPress={() => setSubInfo(null)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-              <Feather name="x" size={18} color={C.dm} />
-            </TouchableOpacity>
-          ) : (
-            <Text style={{ fontSize: 16, color: C.dm }}>▼</Text>
-          )}
-        </TouchableOpacity>
-      </View>
-
-      {/* Sub picker dropdown */}
-      {showSubPicker && (
-        <View style={{ marginBottom: 14, backgroundColor: C.w04, borderRadius: 10, borderWidth: 1, borderColor: C.w08, maxHeight: 220, overflow: 'hidden' }}>
-          <ScrollView>
-            {subsLoading ? (
-              <View style={{ padding: 16, alignItems: 'center' }}>
-                <Text style={{ fontSize: 16, color: C.dm }}>Loading...</Text>
-              </View>
-            ) : subsList.length === 0 ? (
-              <View style={{ padding: 16, alignItems: 'center' }}>
-                <Text style={{ fontSize: 16, color: C.dm }}>No subcontractors found</Text>
-              </View>
-            ) : subsList.map(u => (
-              <TouchableOpacity key={u.id} onPress={() => {
-                setSubInfo({ id: u.id, name: getSubDisplayName(u) });
-                setShowSubPicker(false);
-              }}
-                style={{ paddingVertical: 10, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: C.w04,
-                  backgroundColor: subInfo?.id === u.id ? 'rgba(59,130,246,0.1)' : 'transparent',
-                }}
-                activeOpacity={0.7}
-              >
-                <Text style={{ fontSize: 17, fontWeight: '500', color: C.text }}>
-                  {getSubDisplayName(u)}
-                </Text>
-                {(u.company_name || u.companyName) && (u.name || u.first_name || u.firstName) ? (
-                  <Text style={{ fontSize: 14, color: C.dm, marginTop: 2 }}>{u.name || `${u.first_name || u.firstName || ''} ${u.last_name || u.lastName || ''}`.trim()}</Text>
-                ) : null}
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
-      )}
-
-      {/* Sub assignment info */}
-      {subInfo && (
-        <View style={{ marginBottom: 14, backgroundColor: 'rgba(59,130,246,0.08)', borderRadius: 10, padding: 14, borderWidth: 1, borderColor: 'rgba(59,130,246,0.2)' }}>
-          <Text style={{ fontSize: 15, color: C.dm }}>This subcontractor will be required to sign the change order</Text>
-        </View>
-      )}
-
-      {/* Task extension */}
       {selectedTask && (
         <Inp label="EXTEND TASK (DAYS)" value={extensionDays} onChange={setExtensionDays} type="number" placeholder="0 (no extension)" />
       )}
@@ -4931,10 +5135,7 @@ const NewChangeOrderModal = ({ project, api, onClose, onCreated, user, schedule 
           </TouchableOpacity>
         </View>
         {attachments.map((att, idx) => (
-          <View key={idx} style={{
-            backgroundColor: C.w04, borderRadius: 10, padding: 12, marginBottom: 8,
-            borderWidth: 1, borderColor: C.w08,
-          }}>
+          <View key={idx} style={{ backgroundColor: C.w04, borderRadius: 10, padding: 12, marginBottom: 8, borderWidth: 1, borderColor: C.w08 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
               <Feather name="paperclip" size={18} color={C.dm} />
               <Text style={{ flex: 1, fontSize: 15, fontWeight: '500', color: C.text }} numberOfLines={1}>{att.originalName}</Text>
@@ -4946,23 +5147,26 @@ const NewChangeOrderModal = ({ project, api, onClose, onCreated, user, schedule 
             <Inp label="NAME" value={att.docName}
               onChange={(v) => setAttachments(prev => prev.map((a, i) => i === idx ? { ...a, docName: v } : a))}
               placeholder="Document name" />
-            <Inp label="DESCRIPTION" value={att.docDesc}
-              onChange={(v) => setAttachments(prev => prev.map((a, i) => i === idx ? { ...a, docDesc: v } : a))}
-              placeholder="Brief description..." rows={2} />
           </View>
         ))}
-        {attachments.length === 0 && (
-          <Text style={{ fontSize: 14, color: C.dm, textAlign: 'center', paddingVertical: 6 }}>No documents attached</Text>
-        )}
       </View>
 
       <DatePicker value={dueDate} onChange={setDueDate} label="DUE DATE" placeholder="Select due date" />
-      <Btn onPress={() => {
-        if (!title || !amount) return Alert.alert('Error', 'Title and amount are required');
-        setSignStep(true);
-      }} disabled={!title || !amount}>
-        <Text style={s.btnTxt}>Sign & Send</Text>
-      </Btn>
+
+      <View style={{ flexDirection: 'row', gap: 12, marginTop: 4 }}>
+        <Btn onPress={() => {
+          if (!title || !hasValidItems) return Alert.alert('Error', 'Title and at least one line item are required');
+          create(true);
+        }} disabled={!title || !hasValidItems || loading} bg={C.w10} style={{ flex: 1 }}>
+          <Text style={[s.btnTxt, { color: C.mt }]}>{loading ? 'Saving...' : 'Save as Draft'}</Text>
+        </Btn>
+        <Btn onPress={() => {
+          if (!title || !hasValidItems) return Alert.alert('Error', 'Title and at least one line item are required');
+          setSignStep(true);
+        }} disabled={!title || !hasValidItems} style={{ flex: 1 }}>
+          <Text style={s.btnTxt}>Sign & Send</Text>
+        </Btn>
+      </View>
     </ModalSheet>
   );
 };
@@ -4972,8 +5176,6 @@ const SubChangeOrderModal = ({ project, api, user, task: initialTask, schedule, 
   const s = React.useMemo(() => getStyles(C), [C]);
   const [title, setTitle] = useState('');
   const [desc, setDesc] = useState('');
-  const [amount, setAmount] = useState('');
-  const [isCredit, setIsCredit] = useState(false);
   const [dueDate, setDueDate] = useState('');
   const [loading, setLoading] = useState(false);
   const [signStep, setSignStep] = useState(false);
@@ -4981,7 +5183,7 @@ const SubChangeOrderModal = ({ project, api, user, task: initialTask, schedule, 
   const [attachments, setAttachments] = useState([]);
   const [selectedTask, setSelectedTask] = useState(initialTask?.id ? initialTask : null);
   const [showTaskPicker, setShowTaskPicker] = useState(false);
-  const task = selectedTask || { id: null, task: '' };
+  const [lineItems, setLineItems] = useState([{ item_name: '', cost: '' }]);
 
   const pickAttachment = () => {
     if (Platform.OS !== 'web') return;
@@ -5003,19 +5205,27 @@ const SubChangeOrderModal = ({ project, api, user, task: initialTask, schedule, 
     input.click();
   };
 
+  const totalCost = lineItems.reduce((sum, li) => sum + (parseFloat(li.cost) || 0), 0);
+  const hasValidItems = lineItems.some(li => li.item_name.trim() && (parseFloat(li.cost) || 0) !== 0);
+
   const create = async () => {
-    const amt = isCredit ? -Math.abs(parseFloat(amount)) : Math.abs(parseFloat(amount));
     setLoading(true);
     try {
-      const body = {
-        title, description: desc, amount: amt, due_date: dueDate || null,
-        created_by: 'sub',
+      const items = lineItems.filter(li => li.item_name.trim()).map(li => ({
+        item_name: li.item_name,
+        cost: parseFloat(li.cost) || 0,
+        markup_percent: 0,
         sub_id: user?.id || null,
         sub_name: user?.company_name || user?.name || '',
-        sub_initials: getInitials(signerName.trim()),
-        sub_signer_name: signerName.trim(),
-        task_id: task.id,
-        task_name: task.task || null,
+      }));
+      const body = {
+        title, description: desc, due_date: dueDate || null,
+        initiated_by: 'sub', user_id: user?.id,
+        initials: getInitials(signerName.trim()),
+        signer_name: signerName.trim(),
+        line_items: items,
+        task_id: selectedTask?.id || null,
+        task_name: selectedTask?.task || null,
       };
       const res = await api(`/projects/${project.id}/change-orders`, { method: 'POST', body });
       if (!res) {
@@ -5053,14 +5263,20 @@ const SubChangeOrderModal = ({ project, api, user, task: initialTask, schedule, 
         <View style={{ backgroundColor: C.w04, borderRadius: 10, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: C.w08 }}>
           <Text style={{ fontSize: 20, fontWeight: '600', color: C.text, marginBottom: 4 }}>{title}</Text>
           <Text style={{ fontSize: 17, color: C.mt, marginBottom: 8 }}>{desc}</Text>
-          <Text style={{ fontSize: 24, fontWeight: '700', color: isCredit ? C.gn : C.yl }}>
-            {isCredit ? '' : '+'}{isCredit ? '-' : ''}{f$(Math.abs(parseFloat(amount) || 0))}
-          </Text>
+          {lineItems.filter(li => li.item_name.trim()).map((li, idx) => (
+            <View key={idx} style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+              <Text style={{ fontSize: 16, color: C.text }}>{li.item_name}</Text>
+              <Text style={{ fontSize: 16, fontWeight: '600', color: C.yl }}>{f$(parseFloat(li.cost) || 0)}</Text>
+            </View>
+          ))}
+          <View style={{ borderTopWidth: 1, borderTopColor: C.w08, marginTop: 6, paddingTop: 6 }}>
+            <Text style={{ fontSize: 20, fontWeight: '700', color: C.yl, textAlign: 'right' }}>Total: {f$(totalCost)}</Text>
+          </View>
           {selectedTask && <Text style={{ fontSize: 15, color: C.dm, marginTop: 6 }}>Task: {selectedTask.task}</Text>}
         </View>
         <View style={{ backgroundColor: C.yl + '10', borderRadius: 10, padding: 14, marginBottom: 16, borderWidth: 1, borderColor: C.yl + '30' }}>
           <Text style={{ fontSize: 16, color: C.yl, fontWeight: '500' }}>
-            By signing below, you are electronically signing this change order as the subcontractor. The builder and customer will also need to sign.
+            By signing below, you are submitting this change order. The superintendent, customer, and project manager will also need to sign.
           </Text>
         </View>
         <Text style={{ fontSize: 14, fontWeight: '700', color: C.dm, letterSpacing: 0.8, marginBottom: 6 }}>TYPE YOUR FULL NAME TO SIGN</Text>
@@ -5088,7 +5304,7 @@ const SubChangeOrderModal = ({ project, api, user, task: initialTask, schedule, 
     <ModalSheet visible title="New Change Order" onClose={onClose}>
       {/* Task selector / display */}
       <View style={{ marginBottom: 14 }}>
-        <Lbl>LINKED TASK</Lbl>
+        <Lbl>LINKED TASK (OPTIONAL)</Lbl>
         {selectedTask ? (
           <View style={{ backgroundColor: C.w04, borderRadius: 10, padding: 12, borderWidth: 1, borderColor: C.gd + '40' }}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -5119,15 +5335,14 @@ const SubChangeOrderModal = ({ project, api, user, task: initialTask, schedule, 
               <View style={{ marginTop: 6, backgroundColor: C.w04, borderRadius: 10, borderWidth: 1, borderColor: C.w08, maxHeight: 220, overflow: 'hidden' }}>
                 <ScrollView>
                   {(schedule || []).length === 0 ? (
-                    <View style={{ padding: 16, alignItems: 'center' }}>
-                      <Text style={{ fontSize: 16, color: C.dm }}>No tasks in schedule</Text>
-                    </View>
+                    <View style={{ padding: 16, alignItems: 'center' }}><Text style={{ fontSize: 16, color: C.dm }}>No tasks in schedule</Text></View>
                   ) : (schedule || []).map(t => (
                     <TouchableOpacity key={t.id} onPress={() => { setSelectedTask(t); setShowTaskPicker(false); }}
-                      style={{ paddingVertical: 10, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: C.w04 }}
-                      activeOpacity={0.7}>
+                      style={{ paddingVertical: 10, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: C.w04 }} activeOpacity={0.7}>
                       <Text style={{ fontSize: 17, fontWeight: '500', color: C.text }}>{t.task}</Text>
-                      {((t.contractors || []).length > 0 || t.contractor) ? <Text style={{ fontSize: 14, color: C.dm, marginTop: 2 }}>{(t.contractors || []).length > 0 ? t.contractors.join(', ') : t.contractor}</Text> : null}
+                      {((t.contractors || []).length > 0 || t.contractor) && (
+                        <Text style={{ fontSize: 14, color: C.dm, marginTop: 2 }}>{(t.contractors || []).length > 0 ? t.contractors.join(', ') : t.contractor}</Text>
+                      )}
                     </TouchableOpacity>
                   ))}
                 </ScrollView>
@@ -5138,19 +5353,40 @@ const SubChangeOrderModal = ({ project, api, user, task: initialTask, schedule, 
       </View>
       <Inp label="TITLE" value={title} onChange={setTitle} placeholder="e.g., Additional framing labor" />
       <Inp label="DESCRIPTION" value={desc} onChange={setDesc} placeholder="Describe the change..." rows={3} />
-      <View style={{ flexDirection: 'row', gap: 12 }}>
-        <Inp label="AMOUNT ($)" value={amount} onChange={setAmount} type="number" placeholder="0" style={{ flex: 1 }} />
-        <View style={{ marginBottom: 14 }}>
-          <Lbl>TYPE</Lbl>
-          <View style={{ flexDirection: 'row', borderRadius: 8, overflow: 'hidden', borderWidth: 1, borderColor: C.bd }}>
-            <TouchableOpacity onPress={() => setIsCredit(false)} style={[s.typeBtn, !isCredit && { backgroundColor: C.yl + '22' }]}>
-              <Text style={[s.typeBtnTxt, !isCredit && { color: C.yl }]}>Add</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => setIsCredit(true)} style={[s.typeBtn, isCredit && { backgroundColor: C.gn + '22' }]}>
-              <Text style={[s.typeBtnTxt, isCredit && { color: C.gnB }]}>Credit</Text>
-            </TouchableOpacity>
-          </View>
+
+      {/* Line Items (cost only, no markup for subs) */}
+      <View style={{ marginBottom: 14 }}>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+          <Lbl style={{ marginBottom: 0 }}>LINE ITEMS</Lbl>
+          <TouchableOpacity onPress={() => setLineItems(prev => [...prev, { item_name: '', cost: '' }])}
+            style={{ paddingHorizontal: 12, paddingVertical: 5, borderRadius: 7, backgroundColor: C.gd }}
+            activeOpacity={0.7}>
+            <Text style={{ fontSize: 14, fontWeight: '600', color: C.chromeTxt }}>+ Add Item</Text>
+          </TouchableOpacity>
         </View>
+        {lineItems.map((li, idx) => (
+          <View key={idx} style={{ backgroundColor: C.w04, borderRadius: 10, padding: 12, marginBottom: 8, borderWidth: 1, borderColor: C.w08 }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+              <Text style={{ fontSize: 14, fontWeight: '700', color: C.dm }}>Item {idx + 1}</Text>
+              {lineItems.length > 1 && (
+                <TouchableOpacity onPress={() => setLineItems(prev => prev.filter((_, i) => i !== idx))} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                  <Feather name="x" size={16} color={C.rd} />
+                </TouchableOpacity>
+              )}
+            </View>
+            <Inp label="NAME" value={li.item_name} onChange={(v) => setLineItems(prev => prev.map((item, i) => i === idx ? { ...item, item_name: v } : item))} placeholder="Item description" />
+            <Inp label="COST ($)" value={li.cost} onChange={(v) => setLineItems(prev => prev.map((item, i) => i === idx ? { ...item, cost: v } : item))} type="number" placeholder="0" />
+          </View>
+        ))}
+        {totalCost !== 0 && (
+          <View style={{ flexDirection: 'row', justifyContent: 'flex-end', paddingVertical: 6 }}>
+            <Text style={{ fontSize: 20, fontWeight: '700', color: C.yl }}>Total: {f$(totalCost)}</Text>
+          </View>
+        )}
+      </View>
+
+      <View style={{ backgroundColor: 'rgba(59,130,246,0.08)', borderRadius: 10, padding: 12, marginBottom: 14, borderWidth: 1, borderColor: 'rgba(59,130,246,0.2)' }}>
+        <Text style={{ fontSize: 14, color: C.dm }}>The builder will add their markup before sending to the customer for approval.</Text>
       </View>
 
       {/* Attachments */}
@@ -5164,10 +5400,7 @@ const SubChangeOrderModal = ({ project, api, user, task: initialTask, schedule, 
           </TouchableOpacity>
         </View>
         {attachments.map((att, idx) => (
-          <View key={idx} style={{
-            backgroundColor: C.w04, borderRadius: 10, padding: 12, marginBottom: 8,
-            borderWidth: 1, borderColor: C.w08,
-          }}>
+          <View key={idx} style={{ backgroundColor: C.w04, borderRadius: 10, padding: 12, marginBottom: 8, borderWidth: 1, borderColor: C.w08 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
               <Feather name="paperclip" size={18} color={C.dm} />
               <Text style={{ flex: 1, fontSize: 15, fontWeight: '500', color: C.text }} numberOfLines={1}>{att.originalName}</Text>
@@ -5179,22 +5412,15 @@ const SubChangeOrderModal = ({ project, api, user, task: initialTask, schedule, 
             <Inp label="NAME" value={att.docName}
               onChange={(v) => setAttachments(prev => prev.map((a, i) => i === idx ? { ...a, docName: v } : a))}
               placeholder="Document name" />
-            <Inp label="DESCRIPTION" value={att.docDesc}
-              onChange={(v) => setAttachments(prev => prev.map((a, i) => i === idx ? { ...a, docDesc: v } : a))}
-              placeholder="Brief description..." rows={2} />
           </View>
         ))}
-        {attachments.length === 0 && (
-          <Text style={{ fontSize: 14, color: C.dm, textAlign: 'center', paddingVertical: 6 }}>No documents attached</Text>
-        )}
       </View>
 
       <DatePicker value={dueDate} onChange={setDueDate} label="DUE DATE" placeholder="Select due date" />
       <Btn onPress={() => {
-        if (!title || !amount) return Alert.alert('Error', 'Title and amount are required');
-        if (!selectedTask) return Alert.alert('Error', 'Please select a task');
+        if (!title || !hasValidItems) return Alert.alert('Error', 'Title and at least one line item are required');
         setSignStep(true);
-      }} disabled={!title || !amount || !selectedTask}>
+      }} disabled={!title || !hasValidItems}>
         <Text style={s.btnTxt}>Sign & Submit</Text>
       </Btn>
     </ModalSheet>
@@ -5230,15 +5456,28 @@ const SelectionChangeOrderModal = ({ project, api, selections, onClose, onCreate
   const create = async () => {
     setLoading(true);
     try {
-      const res = await api(`/projects/${project.id}/change-orders`, {
-        method: 'POST',
-        body: { title: coTitle, description: coDesc, amount: priceDiff, due_date: dueDate || null, builder_initials: getInitials(signerName.trim()), builder_signer_name: signerName.trim() },
-      });
+      const body = {
+        title: coTitle, description: coDesc, due_date: dueDate || null,
+        initiated_by: 'super', user_id: user?.id,
+        line_items: [{ item_name: coTitle, cost: priceDiff, markup_percent: 0 }],
+        initials: getInitials(signerName.trim()),
+        signer_name: signerName.trim(),
+      };
+      const res = await api(`/projects/${project.id}/change-orders`, { method: 'POST', body });
       if (!res) {
         Alert.alert('Error', 'Failed to create change order. Please try again.');
         return;
       }
-      onCreated(res);
+      let finalCo = res;
+      if (res.id) {
+        const signRes = await apiFetch(`/change-orders/${res.id}/sign`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ role: 'super', initials: getInitials(signerName.trim()), signer_name: signerName.trim(), user_id: user?.id }),
+        });
+        if (signRes.ok) finalCo = await signRes.json();
+      }
+      onCreated(finalCo);
     } catch (e) { Alert.alert('Error', e.message); } finally { setLoading(false); }
   };
 
@@ -5434,6 +5673,49 @@ const SelectionChangeOrderModal = ({ project, api, selections, onClose, onCreate
           </Btn>
         </>
       )}
+    </ModalSheet>
+  );
+};
+
+const CustomerChangeOrderModal = ({ project, api, user, onClose, onCreated }) => {
+  const C = React.useContext(ThemeContext);
+  const s = React.useMemo(() => getStyles(C), [C]);
+  const [title, setTitle] = useState('');
+  const [desc, setDesc] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const submit = async () => {
+    if (!title.trim()) return Alert.alert('Error', 'Please enter a title');
+    setLoading(true);
+    try {
+      const body = {
+        title: title.trim(),
+        description: desc.trim(),
+        initiated_by: 'customer',
+        user_id: user?.id,
+        line_items: [],
+      };
+      const res = await api(`/projects/${project.id}/change-orders`, { method: 'POST', body });
+      if (!res) {
+        Alert.alert('Error', 'Failed to submit change order request.');
+        return;
+      }
+      onCreated(res);
+    } catch (e) { Alert.alert('Error', e.message); } finally { setLoading(false); }
+  };
+
+  return (
+    <ModalSheet visible title="Request Change Order" onClose={onClose}>
+      <View style={{ backgroundColor: C.bl + '10', borderRadius: 10, padding: 14, marginBottom: 16, borderWidth: 1, borderColor: C.bl + '25' }}>
+        <Text style={{ fontSize: 16, color: C.bl, fontWeight: '500' }}>
+          Describe the change you'd like. The builder will review your request, add pricing, and send it back for your approval.
+        </Text>
+      </View>
+      <Inp label="TITLE" value={title} onChange={setTitle} placeholder="e.g., Add recessed lighting in kitchen" />
+      <Inp label="DESCRIPTION" value={desc} onChange={setDesc} placeholder="Describe what you'd like changed..." rows={4} />
+      <Btn onPress={submit} disabled={!title.trim() || loading}>
+        <Text style={s.btnTxt}>{loading ? 'Submitting...' : 'Submit Request'}</Text>
+      </Btn>
     </ModalSheet>
   );
 };
