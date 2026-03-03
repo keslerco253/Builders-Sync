@@ -4162,6 +4162,10 @@ def auto_migrate():
                 sql_type = _get_sql_type(col_obj)
                 default = _get_default(col_obj)
                 null = '' if col_obj.nullable is not False else ' NOT NULL'
+                # MySQL doesn't allow DEFAULT on TEXT/BLOB columns
+                if sql_type == 'TEXT':
+                    default = '' if col_obj.nullable is not False else ''
+                    null = ''  # TEXT columns should be nullable for migration
                 # For NOT NULL without default, add a safe default
                 if null == ' NOT NULL' and not default:
                     if 'INT' in sql_type or 'FLOAT' in sql_type or 'TINYINT' in sql_type:
