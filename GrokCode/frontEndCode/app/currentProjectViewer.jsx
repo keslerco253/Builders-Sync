@@ -3176,18 +3176,18 @@ ${sectionsHtml}
               onPress={() => setExpandedSelItems(prev => ({ ...prev, [itemKey]: !prev[itemKey] }))}
               activeOpacity={0.7}
               style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-              <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, minWidth: 0 }}>
                 <Text style={{ fontSize: 18, color: C.dm }}>{isExpanded ? '▼' : '▶'}</Text>
-                <Text style={{ fontSize: 24, fontWeight: '600', color: C.text }}>{sel.item}</Text>
+                <Text numberOfLines={1} style={{ fontSize: 24, fontWeight: '600', color: C.text, flexShrink: 1 }}>{sel.item}</Text>
                 {allowMulti && (
                   <View style={{ backgroundColor: C.bH12, paddingHorizontal: 7, paddingVertical: 2, borderRadius: 5 }}>
                     <Text style={{ fontSize: 12, fontWeight: '700', color: C.gd }}>MULTI</Text>
                   </View>
                 )}
               </View>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 0, maxWidth: '45%' }}>
                 {hasSelection && !isConfirmed && (
-                  <Text style={{ fontSize: 15, color: C.dm }} numberOfLines={1}>{selectedArr.join(', ')}</Text>
+                  <Text style={{ fontSize: 15, color: C.dm, flexShrink: 1 }} numberOfLines={2}>{selectedArr.join(', ')}</Text>
                 )}
                 {isConfirmed ? (
                   <View style={{ backgroundColor: 'rgba(34,197,94,0.12)', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 }}>
