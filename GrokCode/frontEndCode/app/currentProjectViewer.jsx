@@ -1738,12 +1738,23 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
                         {ct.description ? (
                           <Text style={{ fontSize: 14, color: C.dm, marginTop: 6 }} numberOfLines={2}>{ct.description}</Text>
                         ) : null}
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 8 }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 8, flexWrap: 'wrap' }}>
                           {ct.due_date ? (
                             <Text style={{ fontSize: 13, color: ct.due_date < new Date().toISOString().slice(0, 10) && !ct.completed ? '#ef4444' : C.dm }}>
                               Due: {new Date(ct.due_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                             </Text>
                           ) : null}
+                          {ct.linked_schedule_id ? (() => {
+                            const linked = schedule.find(s => s.id === ct.linked_schedule_id);
+                            return (
+                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: 'rgba(139,92,246,0.1)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
+                                <Feather name="link" size={11} color="#a78bfa" />
+                                <Text style={{ fontSize: 12, fontWeight: '600', color: '#a78bfa' }}>
+                                  {linked?.task || 'Linked'} ({ct.linked_date_type || 'end'})
+                                </Text>
+                              </View>
+                            );
+                          })() : null}
                           {ct.completed && ct.completed_at ? (
                             <Text style={{ fontSize: 13, color: C.gn || '#10b981' }}>
                               Completed {new Date(ct.completed_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}

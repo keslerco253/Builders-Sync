@@ -100,6 +100,10 @@ export default function Dashboard() {
   const [ctSaving, setCtSaving] = useState(false);
   const [customerTasks, setCustomerTasks] = useState([]);
   const [selectedClientTask, setSelectedClientTask] = useState(null); // for customer detail popup
+  const [ctScheduleTasks, setCtScheduleTasks] = useState([]); // schedule tasks for linking
+  const [ctLinkedTaskId, setCtLinkedTaskId] = useState(null); // linked schedule task id
+  const [ctLinkedDateType, setCtLinkedDateType] = useState('end'); // 'start' or 'end'
+  const [ctShowTaskPicker, setCtShowTaskPicker] = useState(false); // task picker dropdown
 
   useEffect(() => {
     if (clientView) {
@@ -420,14 +424,23 @@ export default function Dashboard() {
         });
         if (upRes.ok) { const upData = await upRes.json(); imageUrl = upData.path || ''; }
       }
+      const body = {
+        title: ctTitle.trim(), description: ctDescription.trim(),
+        due_date: ctDueDate, image_url: imageUrl, created_by: user.id,
+      };
+      if (ctLinkedTaskId) {
+        body.linked_schedule_id = ctLinkedTaskId;
+        body.linked_date_type = ctLinkedDateType || 'end';
+      }
       const res = await apiFetch(`/projects/${showClientTaskModal.id}/client-tasks`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: ctTitle.trim(), description: ctDescription.trim(), due_date: ctDueDate, image_url: imageUrl, created_by: user.id }),
+        body: JSON.stringify(body),
       });
       if (res.ok) {
         setShowClientTaskModal(null);
         setCtTitle(''); setCtDescription(''); setCtDueDate(''); setCtImageB64('');
+        setCtLinkedTaskId(null); setCtLinkedDateType('end'); setCtScheduleTasks([]);
         fetchCustomerTasks();
       }
     } catch (e) { console.warn('Create client task error:', e); }
@@ -3393,7 +3406,16 @@ export default function Dashboard() {
                   <Text style={{ fontSize: 18, fontWeight: '500', color: C.text }}>Exception</Text>
                   {!projectActionMenu.go_live && <Text style={{ fontSize: 13, color: C.dm, marginLeft: 'auto' }}>Requires Go Live</Text>}
                 </TouchableOpacity>
-                <TouchableOpacity onPress={() => { setShowClientTaskModal(projectActionMenu); setProjectActionMenu(null); setCtTitle(''); setCtDescription(''); setCtDueDate(''); setCtImageB64(''); }}
+                <TouchableOpacity onPress={() => {
+                  const proj = projectActionMenu;
+                  setShowClientTaskModal(proj); setProjectActionMenu(null);
+                  setCtTitle(''); setCtDescription(''); setCtDueDate(''); setCtImageB64('');
+                  setCtLinkedTaskId(null); setCtLinkedDateType('end'); setCtShowTaskPicker(false); setCtScheduleTasks([]);
+                  // Fetch schedule tasks for this project
+                  apiFetch(`/projects/${proj.id}/schedule`).then(r => r.json()).then(data => {
+                    if (Array.isArray(data)) setCtScheduleTasks(data.filter(t => !t.is_exception));
+                  }).catch(() => {});
+                }}
                   style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 14, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: C.w06 }} activeOpacity={0.7}>
                   <Feather name="check-square" size={20} color={C.bl} />
                   <Text style={{ fontSize: 18, fontWeight: '500', color: C.text }}>Make Client Task</Text>
@@ -3524,7 +3546,7 @@ export default function Dashboard() {
       {showClientTaskModal && (
         <Modal visible animationType="fade" transparent>
           <TouchableOpacity style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', alignItems: 'center' }} activeOpacity={1}
-            onPress={() => { if (!ctSaving) { setShowClientTaskModal(null); setCtTitle(''); setCtDescription(''); setCtDueDate(''); setCtImageB64(''); } }}>
+            onPress={() => { if (!ctSaving) { setShowClientTaskModal(null); setCtTitle(''); setCtDescription(''); setCtDueDate(''); setCtImageB64(''); setCtLinkedTaskId(null); setCtLinkedDateType('end'); setCtScheduleTasks([]); setCtShowTaskPicker(false); } }}>
             <TouchableOpacity activeOpacity={1} onPress={e => e.stopPropagation()}>
               <View style={{ width: 420, backgroundColor: C.cardBg || C.card, borderRadius: 14, borderWidth: 1, borderColor: C.w12, overflow: 'hidden', ...(Platform.OS === 'web' ? { boxShadow: '0 10px 30px rgba(0,0,0,0.4)' } : { elevation: 20 }) }}>
                 <View style={{ padding: 20, alignItems: 'center', borderBottomWidth: 1, borderBottomColor: C.w06 }}>
@@ -3568,11 +3590,96 @@ export default function Dashboard() {
                     numberOfLines={3}
                     style={{ fontSize: 16, color: C.text, backgroundColor: C.w04, borderRadius: 8, padding: 12, borderWidth: 1, borderColor: C.w10, minHeight: 80, textAlignVertical: 'top', marginBottom: 14 }}
                   />
-                  <DatePicker value={ctDueDate} onChange={setCtDueDate} label="DUE DATE" placeholder="Select due date" />
+                  <DatePicker value={ctDueDate} onChange={v => { setCtDueDate(v); if (v) { setCtLinkedTaskId(null); } }} label="DUE DATE" placeholder="Select due date" />
+
+                  {/* Link to Schedule Task */}
+                  <View style={{ marginTop: 14 }}>
+                    <Text style={{ fontSize: 14, fontWeight: '700', color: C.dm, letterSpacing: 0.5, marginBottom: 8 }}>LINK TO SCHEDULE TASK</Text>
+                    {ctLinkedTaskId ? (() => {
+                      const linked = ctScheduleTasks.find(t => t.id === ctLinkedTaskId);
+                      return (
+                        <View style={{ backgroundColor: 'rgba(139,92,246,0.08)', borderWidth: 1, borderColor: 'rgba(139,92,246,0.25)', borderRadius: 8, padding: 12, gap: 8 }}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <View style={{ flex: 1 }}>
+                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                <Feather name="link" size={14} color="#a78bfa" />
+                                <Text style={{ fontSize: 16, fontWeight: '600', color: '#a78bfa' }} numberOfLines={1}>{linked?.task || 'Unknown task'}</Text>
+                              </View>
+                              <Text style={{ fontSize: 13, color: C.dm, marginTop: 2 }}>
+                                Due date will sync with {ctLinkedDateType === 'start' ? 'start' : 'end'} date
+                                {linked ? ` (${ctLinkedDateType === 'start' ? linked.start_date : linked.end_date})` : ''}
+                              </Text>
+                            </View>
+                            <TouchableOpacity onPress={() => { setCtLinkedTaskId(null); }} style={{ padding: 4 }}>
+                              <Feather name="x" size={16} color={C.rd} />
+                            </TouchableOpacity>
+                          </View>
+                          {/* Start / End toggle */}
+                          <View style={{ flexDirection: 'row', gap: 6 }}>
+                            {['start', 'end'].map(dt => (
+                              <TouchableOpacity key={dt} onPress={() => {
+                                setCtLinkedDateType(dt);
+                                const s = ctScheduleTasks.find(t => t.id === ctLinkedTaskId);
+                                if (s) setCtDueDate(dt === 'start' ? s.start_date : s.end_date);
+                              }}
+                                style={{ flex: 1, paddingVertical: 8, borderRadius: 6, alignItems: 'center',
+                                  backgroundColor: ctLinkedDateType === dt ? 'rgba(139,92,246,0.2)' : C.w04,
+                                  borderWidth: 1, borderColor: ctLinkedDateType === dt ? 'rgba(139,92,246,0.4)' : C.w08,
+                                }}>
+                                <Text style={{ fontSize: 14, fontWeight: '600', color: ctLinkedDateType === dt ? '#a78bfa' : C.dm }}>
+                                  {dt === 'start' ? 'Start Date' : 'End Date'}
+                                </Text>
+                              </TouchableOpacity>
+                            ))}
+                          </View>
+                        </View>
+                      );
+                    })() : (
+                      <View>
+                        <TouchableOpacity
+                          onPress={() => setCtShowTaskPicker(p => !p)}
+                          style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 10, paddingHorizontal: 12, backgroundColor: C.w04, borderRadius: 8, borderWidth: 1, borderColor: C.w10 }}
+                          activeOpacity={0.7}
+                        >
+                          <Feather name="link" size={16} color={C.dm} />
+                          <Text style={{ fontSize: 15, color: C.dm, flex: 1 }}>Link due date to a schedule task</Text>
+                          <Text style={{ fontSize: 13, color: C.dm }}>{ctShowTaskPicker ? '▲' : '▼'}</Text>
+                        </TouchableOpacity>
+                        {ctShowTaskPicker && (
+                          <View style={{ borderRadius: 8, borderWidth: 1, borderColor: C.w06, overflow: 'hidden', maxHeight: 200, marginTop: 6 }}>
+                            <ScrollView nestedScrollEnabled keyboardShouldPersistTaps="handled">
+                              {ctScheduleTasks.length === 0 ? (
+                                <View style={{ padding: 14, alignItems: 'center' }}>
+                                  <Text style={{ fontSize: 14, color: C.dm }}>No schedule tasks found</Text>
+                                </View>
+                              ) : ctScheduleTasks.map(t => (
+                                <TouchableOpacity key={t.id}
+                                  onPress={() => {
+                                    setCtLinkedTaskId(t.id);
+                                    setCtLinkedDateType('end');
+                                    setCtDueDate(t.end_date || t.start_date || '');
+                                    setCtShowTaskPicker(false);
+                                  }}
+                                  style={{ paddingVertical: 10, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: C.w04 }}
+                                  activeOpacity={0.7}
+                                >
+                                  <Text style={{ fontSize: 15, fontWeight: '500', color: C.text }} numberOfLines={1}>{t.task || 'Untitled'}</Text>
+                                  <Text style={{ fontSize: 12, color: C.dm, marginTop: 2 }}>
+                                    {t.start_date || '—'} → {t.end_date || '—'}
+                                    {(t.trades || []).length > 0 ? ` · ${t.trades.join(', ')}` : t.trade ? ` · ${t.trade}` : ''}
+                                  </Text>
+                                </TouchableOpacity>
+                              ))}
+                            </ScrollView>
+                          </View>
+                        )}
+                      </View>
+                    )}
+                  </View>
                 </View>
                 <View style={{ flexDirection: 'row', gap: 10, padding: 18, paddingTop: 0 }}>
                   <TouchableOpacity
-                    onPress={() => { setShowClientTaskModal(null); setCtTitle(''); setCtDescription(''); setCtDueDate(''); setCtImageB64(''); }}
+                    onPress={() => { setShowClientTaskModal(null); setCtTitle(''); setCtDescription(''); setCtDueDate(''); setCtImageB64(''); setCtLinkedTaskId(null); setCtLinkedDateType('end'); setCtScheduleTasks([]); setCtShowTaskPicker(false); }}
                     style={{ flex: 1, paddingVertical: 12, borderRadius: 8, alignItems: 'center', borderWidth: 1, borderColor: C.w12 }}
                     activeOpacity={0.7} disabled={ctSaving}>
                     <Text style={{ fontSize: 16, fontWeight: '600', color: C.dm }}>Cancel</Text>
@@ -3630,6 +3737,12 @@ export default function Dashboard() {
                       <Text style={{ fontSize: 16, color: selectedClientTask.due_date < new Date().toISOString().slice(0, 10) && !selectedClientTask.completed ? '#ef4444' : C.text }}>
                         {new Date(selectedClientTask.due_date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
                       </Text>
+                      {selectedClientTask.linked_schedule_id ? (
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 6 }}>
+                          <Feather name="link" size={12} color="#a78bfa" />
+                          <Text style={{ fontSize: 12, color: '#a78bfa' }}>Synced with schedule ({selectedClientTask.linked_date_type || 'end'} date)</Text>
+                        </View>
+                      ) : null}
                     </View>
                   ) : null}
                   {selectedClientTask.completed && selectedClientTask.completed_at ? (
