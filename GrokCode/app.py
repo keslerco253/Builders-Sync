@@ -2774,14 +2774,54 @@ def update_project_selection(psid):
             ps.selected = json.dumps(sel_val)
         else:
             ps.selected = sel_val
-        if ps.status != 'confirmed':
+        if ps.status not in ('confirmed', 'awaiting_price'):
             ps.status = 'selected' if ps.selected else 'pending'
+    if 'other_text' in data:
+        # Customer chose "Other" — store the custom text, mark as awaiting_price
+        ps.selected = data['other_text'] or ''
+        ps.status = 'awaiting_price'
+        ps.price_override = None  # reset any previous price
     if 'price_override' in data:
         ps.price_override = float(data['price_override']) if data['price_override'] is not None else None
     if 'customer_comment' in data:
         ps.customer_comment = data['customer_comment'] or None
     if data.get('confirm'):
+        # Check if any selected option has price_tbd — if so, go to awaiting_price
+        item = SelectionItem.query.get(ps.selection_item_id)
+        sel_names = []
+        if ps.selected:
+            if ps.selected.startswith('['):
+                try:
+                    sel_names = json.loads(ps.selected)
+                except (json.JSONDecodeError, ValueError):
+                    sel_names = [ps.selected]
+            else:
+                sel_names = [ps.selected]
+        has_tbd = False
+        if item:
+            opts = json.loads(item.options) if item.options else []
+            known_names = [o['name'] if isinstance(o, dict) else o for o in opts]
+            # "Other" custom text won't match any known option → treat as TBD
+            for sn in sel_names:
+                if sn not in known_names:
+                    has_tbd = True
+                    break
+                matching = [o for o in opts if isinstance(o, dict) and o.get('name') == sn]
+                if matching and matching[0].get('price_tbd'):
+                    has_tbd = True
+                    break
+        if has_tbd and ps.price_override is None:
+            ps.status = 'awaiting_price'
+        else:
+            ps.status = 'confirmed'
+    if data.get('accept_price'):
+        # Customer accepts the builder's price → confirmed
         ps.status = 'confirmed'
+    if data.get('change_selection'):
+        # Customer wants to change their selection → back to pending
+        ps.selected = None
+        ps.status = 'pending'
+        ps.price_override = None
     db.session.commit()
     return jsonify(ps.to_dict())
 

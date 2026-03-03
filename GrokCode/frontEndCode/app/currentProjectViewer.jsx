@@ -577,6 +577,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
   const [selections, setSelections] = useState([]);
   const [expandedSelTrades, setExpandedSelTrades] = useState({});
   const [expandedSelItems, setExpandedSelItems] = useState({});
+  const [otherText, setOtherText] = useState('');
   const [documents, setDocuments] = useState([]);
   const [docTemplates, setDocTemplates] = useState([]);
   const [docEditMode, setDocEditMode] = useState(false);
@@ -3086,7 +3087,7 @@ ${sectionsHtml}
     if (tab === 'selections') {
       const canPick = isB || isC;
       const pick = async (psId, optName, currentStatus, allowMulti) => {
-        if (currentStatus === 'confirmed') return; // locked
+        if (currentStatus === 'confirmed' || currentStatus === 'awaiting_price') return; // locked
         if (allowMulti) {
           // Toggle: add or remove from array
           setSelections(prev => prev.map(sel => {
@@ -3103,9 +3104,31 @@ ${sectionsHtml}
         }
       };
       const confirmSelection = async (psId) => {
-        setSelections(prev => prev.map(sel => sel.project_selection_id === psId ? { ...sel, status: 'confirmed' } : sel));
-        api(`/project-selections/${psId}`, { method: 'PUT', body: { confirm: true } });
+        const result = await api(`/project-selections/${psId}`, { method: 'PUT', body: { confirm: true } });
+        if (result) {
+          setSelections(prev => prev.map(sel => sel.project_selection_id === psId ? { ...sel, status: result.status } : sel));
+        }
         setModal(null);
+      };
+      const acceptPrice = async (psId) => {
+        const result = await api(`/project-selections/${psId}`, { method: 'PUT', body: { accept_price: true } });
+        if (result) {
+          setSelections(prev => prev.map(sel => sel.project_selection_id === psId ? { ...sel, status: result.status } : sel));
+        }
+        setModal(null);
+      };
+      const changeSelection = async (psId) => {
+        const result = await api(`/project-selections/${psId}`, { method: 'PUT', body: { change_selection: true } });
+        if (result) {
+          setSelections(prev => prev.map(sel => sel.project_selection_id === psId ? { ...sel, selected: null, status: 'pending', price_override: null } : sel));
+        }
+      };
+      const submitOther = async (psId, otherText) => {
+        if (!otherText?.trim()) return;
+        const result = await api(`/project-selections/${psId}`, { method: 'PUT', body: { other_text: otherText.trim() } });
+        if (result) {
+          setSelections(prev => prev.map(sel => sel.project_selection_id === psId ? { ...sel, selected: result.selected, status: result.status, price_override: null } : sel));
+        }
       };
       const savePriceOverride = async (psId, price) => {
         const val = parseFloat(price);
@@ -3114,9 +3137,10 @@ ${sectionsHtml}
         api(`/project-selections/${psId}`, { method: 'PUT', body: { price_override: val } });
       };
 
-      // Split by status, then group by category within each
+      // Split by status into 3 groups, then group by category within each
+      const pendingSels = selections.filter(sel => sel.status === 'pending' || sel.status === 'selected');
+      const awaitingPriceSels = selections.filter(sel => sel.status === 'awaiting_price');
       const confirmedSels = selections.filter(sel => sel.status === 'confirmed');
-      const awaitingSels = selections.filter(sel => sel.status !== 'confirmed');
       const groupByCategory = (sels) => {
         const grouped = {};
         sels.forEach(sel => { const cat = sel.category || 'Uncategorized'; if (!grouped[cat]) grouped[cat] = []; grouped[cat].push(sel); });
@@ -3130,11 +3154,15 @@ ${sectionsHtml}
 
       const renderSelectionCard = (sel) => {
         const isConfirmed = sel.status === 'confirmed';
+        const isAwaitingPrice = sel.status === 'awaiting_price';
+        const isLocked = isConfirmed || isAwaitingPrice;
         const allowMulti = !!sel.allow_multiple;
         const selectedArr = Array.isArray(sel.selected) ? sel.selected : (sel.selected ? [sel.selected] : []);
         const hasSelection = selectedArr.length > 0;
-        const needsConfirm = hasSelection && !isConfirmed;
-        const hasTbd = (sel.options || []).some(o => typeof o === 'object' && o.price_tbd && selectedArr.includes(o.name));
+        const needsConfirm = hasSelection && !isLocked;
+        const knownOptionNames = (sel.options || []).map(o => typeof o === 'object' ? o.name : o);
+        const isOtherSelection = hasSelection && selectedArr.some(n => !knownOptionNames.includes(n));
+        const hasTbd = isOtherSelection || (sel.options || []).some(o => typeof o === 'object' && o.price_tbd && selectedArr.includes(o.name));
         const selectedDescriptions = (sel.options || [])
           .filter(o => typeof o === 'object' && selectedArr.includes(o.name) && o.description)
           .map(o => ({ name: o.name, description: o.description }));
@@ -3158,11 +3186,15 @@ ${sectionsHtml}
               </View>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                 {hasSelection && !isConfirmed && (
-                  <Text style={{ fontSize: 15, color: C.dm }}>{selectedArr.join(', ')}</Text>
+                  <Text style={{ fontSize: 15, color: C.dm }} numberOfLines={1}>{selectedArr.join(', ')}</Text>
                 )}
                 {isConfirmed ? (
                   <View style={{ backgroundColor: 'rgba(34,197,94,0.12)', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 }}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}><Feather name="check" size={16} color={C.gn} /><Text style={{ fontSize: 16, fontWeight: '700', color: C.gn }}>Confirmed</Text></View>
+                  </View>
+                ) : isAwaitingPrice ? (
+                  <View style={{ backgroundColor: 'rgba(245,158,11,0.12)', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}><Feather name="clock" size={16} color="#f59e0b" /><Text style={{ fontSize: 16, fontWeight: '700', color: '#f59e0b' }}>Awaiting Price</Text></View>
                   </View>
                 ) : hasSelection ? (
                   <View style={{ backgroundColor: C.bH12, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 }}>
@@ -3187,14 +3219,14 @@ ${sectionsHtml}
                     const active = selectedArr.includes(optName);
                     return (
                       <TouchableOpacity key={i}
-                        onPress={() => canPick && !isConfirmed && sel.project_selection_id && pick(sel.project_selection_id, optName, sel.status, allowMulti)}
-                        activeOpacity={canPick && !isConfirmed ? 0.7 : 1}
+                        onPress={() => canPick && !isLocked && sel.project_selection_id && pick(sel.project_selection_id, optName, sel.status, allowMulti)}
+                        activeOpacity={canPick && !isLocked ? 0.7 : 1}
                         style={{
                           width: 172, borderRadius: 10, overflow: 'hidden',
                           borderWidth: active ? 2 : 1,
                           borderColor: active ? (isConfirmed ? C.gn : C.gd) : C.w12,
                           backgroundColor: active ? (C.mode === 'dark' ? C.bH08 : C.bH05) : C.w03,
-                          opacity: isConfirmed && !active ? 0.5 : 1,
+                          opacity: isLocked && !active ? 0.5 : 1,
                         }}>
                         {imgPath ? (
                           <Image source={{ uri: `${API_BASE}${imgPath}` }} style={{ width: '100%', height: 115 }} resizeMode="cover" />
@@ -3216,7 +3248,33 @@ ${sectionsHtml}
                       </TouchableOpacity>
                     );
                   })}
+                  {/* "Other" option tile — customer can write in a custom selection */}
+                  {canPick && !isLocked && sel.project_selection_id && (
+                    <TouchableOpacity
+                      onPress={() => setModal({ type: 'othersel', psId: sel.project_selection_id, item: sel.item })}
+                      activeOpacity={0.7}
+                      style={{
+                        width: 172, borderRadius: 10, overflow: 'hidden',
+                        borderWidth: 1, borderColor: C.w12, borderStyle: 'dashed',
+                        backgroundColor: C.w03,
+                      }}>
+                      <View style={{ width: '100%', height: 115, backgroundColor: C.w06, alignItems: 'center', justifyContent: 'center' }}>
+                        <Feather name="plus" size={42} color="#f59e0b" style={{ opacity: 0.7 }} />
+                      </View>
+                      <View style={{ padding: 11, alignItems: 'center' }}>
+                        <Text style={{ fontSize: 20, fontWeight: '600', color: '#f59e0b' }}>Other</Text>
+                        <Text style={{ fontSize: 14, color: C.dm, marginTop: 2 }}>Custom request</Text>
+                      </View>
+                    </TouchableOpacity>
+                  )}
                 </View>
+                {/* Show "Other" custom text if selected */}
+                {isOtherSelection && (
+                  <View style={{ marginTop: 12, padding: 12, backgroundColor: 'rgba(245,158,11,0.08)', borderRadius: 8, borderWidth: 1, borderColor: 'rgba(245,158,11,0.25)' }}>
+                    <Text style={{ fontSize: 14, fontWeight: '700', color: '#f59e0b', letterSpacing: 0.8, marginBottom: 4 }}>CUSTOM REQUEST</Text>
+                    <Text style={{ fontSize: 18, color: C.text, lineHeight: 26 }}>{selectedArr.filter(n => !knownOptionNames.includes(n)).join(', ')}</Text>
+                  </View>
+                )}
                 {/* Show descriptions for selected options */}
                 {selectedDescriptions.length > 0 && (
                   <View style={{ marginTop: 12, padding: 12, backgroundColor: C.mode === 'dark' ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)', borderRadius: 8, borderWidth: 1, borderColor: C.w08 }}>
@@ -3228,8 +3286,8 @@ ${sectionsHtml}
                     ))}
                   </View>
                 )}
-                {/* Builder price override for TBD selections */}
-                {hasTbd && isB && isConfirmed && (
+                {/* Builder price override for TBD / awaiting_price selections */}
+                {hasTbd && isB && (isAwaitingPrice || isConfirmed) && (
                   <View style={{ marginTop: 12, padding: 12, backgroundColor: C.mode === 'dark' ? 'rgba(245,158,11,0.08)' : 'rgba(245,158,11,0.06)', borderRadius: 8, borderWidth: 1, borderColor: 'rgba(245,158,11,0.25)' }}>
                     <Text style={{ fontSize: 16, fontWeight: '700', color: '#f59e0b', marginBottom: 8 }}>SET TBD PRICE</Text>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
@@ -3246,6 +3304,43 @@ ${sectionsHtml}
                     {sel.price_override != null && (
                       <Text style={{ fontSize: 16, color: C.gn, marginTop: 6 }}>Price set: {f$(sel.price_override)}</Text>
                     )}
+                  </View>
+                )}
+                {/* Customer: price acceptance flow for awaiting_price selections */}
+                {isAwaitingPrice && isC && sel.price_override != null && (
+                  <View style={{ marginTop: 12, padding: 16, backgroundColor: C.mode === 'dark' ? 'rgba(245,158,11,0.08)' : 'rgba(245,158,11,0.06)', borderRadius: 10, borderWidth: 1, borderColor: 'rgba(245,158,11,0.25)' }}>
+                    <Text style={{ fontSize: 18, fontWeight: '700', color: '#f59e0b', marginBottom: 6 }}>PRICE SET BY BUILDER</Text>
+                    <Text style={{ fontSize: 28, fontWeight: '700', color: C.text, marginBottom: 14 }}>{f$(sel.price_override)}</Text>
+                    <View style={{ flexDirection: 'row', gap: 12 }}>
+                      <TouchableOpacity
+                        onPress={() => changeSelection(sel.project_selection_id)}
+                        style={{ flex: 1, paddingVertical: 12, borderRadius: 8, borderWidth: 1, borderColor: C.w12, alignItems: 'center' }}
+                        activeOpacity={0.7}>
+                        <Text style={{ fontSize: 18, fontWeight: '600', color: C.mt }}>Change Selection</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={() => setModal({ type: 'acceptprice', psId: sel.project_selection_id, item: sel.item, selected: selectedArr.join(', '), price: sel.price_override })}
+                        style={{ flex: 1, paddingVertical: 12, borderRadius: 8, backgroundColor: C.gd, alignItems: 'center' }}
+                        activeOpacity={0.8}>
+                        <Text style={{ fontSize: 18, fontWeight: '700', color: C.textBold }}>Sign & Accept</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                )}
+                {/* Customer: awaiting price but builder hasn't set it yet */}
+                {isAwaitingPrice && isC && sel.price_override == null && (
+                  <View style={{ marginTop: 12, padding: 16, backgroundColor: C.mode === 'dark' ? 'rgba(245,158,11,0.08)' : 'rgba(245,158,11,0.06)', borderRadius: 10, borderWidth: 1, borderColor: 'rgba(245,158,11,0.25)' }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                      <Feather name="clock" size={20} color="#f59e0b" />
+                      <Text style={{ fontSize: 18, fontWeight: '700', color: '#f59e0b' }}>AWAITING PRICE FROM BUILDER</Text>
+                    </View>
+                    <Text style={{ fontSize: 16, color: C.mt, lineHeight: 24 }}>Your builder will set the price for this selection. You will be able to accept or change your selection once the price is set.</Text>
+                    <TouchableOpacity
+                      onPress={() => changeSelection(sel.project_selection_id)}
+                      style={{ marginTop: 12, paddingVertical: 10, borderRadius: 8, borderWidth: 1, borderColor: C.w12, alignItems: 'center' }}
+                      activeOpacity={0.7}>
+                      <Text style={{ fontSize: 16, fontWeight: '600', color: C.mt }}>Change Selection</Text>
+                    </TouchableOpacity>
                   </View>
                 )}
                 {/* Customer comment — editable by customer, visible to builder */}
@@ -3295,78 +3390,110 @@ ${sectionsHtml}
           <Text style={[s.sectionTitle, { marginBottom: 16 }]}>Selections</Text>
 
           {selections.length === 0 ? <Empty icon="sliders" text="No selections yet" sub={isC ? "Your builder will add selections here" : "Add selections in Settings → Manage Selections"} /> : (
-            <View style={s.twoColRow}>
-              <View style={s.twoColLeft}>
-                {confirmedSels.length > 0 && (
-                  <>
-                    <Text style={s.groupSubtitle}>Confirmed</Text>
-                    {groupByCategory(confirmedSels).map(([cat, sels]) => {
-                      const key = `confirmed-${cat}`;
-                      const isOpen = !!expandedSelTrades[key];
-                      return (
-                        <View key={cat} style={{ marginBottom: 12 }}>
-                          <TouchableOpacity
-                            onPress={() => setExpandedSelTrades(prev => ({ ...prev, [key]: !prev[key] }))}
-                            activeOpacity={0.7}
-                            style={{
-                              flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-                              paddingVertical: 10, paddingHorizontal: 12, borderRadius: 8,
-                              backgroundColor: C.w03, borderWidth: 1, borderColor: C.w08,
-                            }}>
-                            <Text style={{ fontSize: 20, fontWeight: '700', color: C.gd, letterSpacing: 1 }}>{cat.toUpperCase()}</Text>
-                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                              <Text style={{ fontSize: 16, color: C.dm }}>{sels.length}</Text>
-                              <Text style={{ fontSize: 18, color: C.dm }}>{isOpen ? '▼' : '▶'}</Text>
-                            </View>
-                          </TouchableOpacity>
-                          {isOpen && (
-                            <View style={{ marginTop: 10 }}>
-                              {sels.map(renderSelectionCard)}
-                            </View>
-                          )}
+            <View style={s.threeColRow}>
+              {/* Left column — Pending */}
+              <View style={s.threeColCell}>
+                <Text style={s.groupSubtitle}>Pending ({pendingSels.length})</Text>
+                {pendingSels.length > 0 ? groupByCategory(pendingSels).map(([cat, sels]) => {
+                  const key = `pending-${cat}`;
+                  const isOpen = !!expandedSelTrades[key];
+                  return (
+                    <View key={cat} style={{ marginBottom: 12 }}>
+                      <TouchableOpacity
+                        onPress={() => setExpandedSelTrades(prev => ({ ...prev, [key]: !prev[key] }))}
+                        activeOpacity={0.7}
+                        style={{
+                          flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+                          paddingVertical: 10, paddingHorizontal: 12, borderRadius: 8,
+                          backgroundColor: C.w03, borderWidth: 1, borderColor: C.w08,
+                        }}>
+                        <Text style={{ fontSize: 20, fontWeight: '700', color: C.gd, letterSpacing: 1 }}>{cat.toUpperCase()}</Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                          <Text style={{ fontSize: 16, color: C.dm }}>{sels.length}</Text>
+                          <Text style={{ fontSize: 18, color: C.dm }}>{isOpen ? '▼' : '▶'}</Text>
                         </View>
-                      );
-                    })}
-                  </>
+                      </TouchableOpacity>
+                      {isOpen && (
+                        <View style={{ marginTop: 10 }}>
+                          {sels.map(renderSelectionCard)}
+                        </View>
+                      )}
+                    </View>
+                  );
+                }) : (
+                  <Text style={{ fontSize: 16, color: C.dm, fontStyle: 'italic', marginTop: 8 }}>No pending selections</Text>
                 )}
               </View>
-              <View style={s.twoColRight}>
-                {awaitingSels.length > 0 && (
-                  <>
-                    <Text style={s.groupSubtitle}>Awaiting Confirmation</Text>
-                    {groupByCategory(awaitingSels).map(([cat, sels]) => {
-                      const key = `awaiting-${cat}`;
-                      const isOpen = !!expandedSelTrades[key];
-                      return (
-                        <View key={cat} style={{ marginBottom: 12 }}>
-                          <TouchableOpacity
-                            onPress={() => setExpandedSelTrades(prev => ({ ...prev, [key]: !prev[key] }))}
-                            activeOpacity={0.7}
-                            style={{
-                              flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-                              paddingVertical: 10, paddingHorizontal: 12, borderRadius: 8,
-                              backgroundColor: C.w03, borderWidth: 1, borderColor: C.w08,
-                            }}>
-                            <Text style={{ fontSize: 20, fontWeight: '700', color: C.gd, letterSpacing: 1 }}>{cat.toUpperCase()}</Text>
-                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                              <Text style={{ fontSize: 16, color: C.dm }}>{sels.length}</Text>
-                              <Text style={{ fontSize: 18, color: C.dm }}>{isOpen ? '▼' : '▶'}</Text>
-                            </View>
-                          </TouchableOpacity>
-                          {isOpen && (
-                            <View style={{ marginTop: 10 }}>
-                              {sels.map(renderSelectionCard)}
-                            </View>
-                          )}
+              {/* Middle column — Awaiting Price */}
+              <View style={s.threeColCell}>
+                <Text style={s.groupSubtitle}>Awaiting Price ({awaitingPriceSels.length})</Text>
+                {awaitingPriceSels.length > 0 ? groupByCategory(awaitingPriceSels).map(([cat, sels]) => {
+                  const key = `awaitprice-${cat}`;
+                  const isOpen = !!expandedSelTrades[key];
+                  return (
+                    <View key={cat} style={{ marginBottom: 12 }}>
+                      <TouchableOpacity
+                        onPress={() => setExpandedSelTrades(prev => ({ ...prev, [key]: !prev[key] }))}
+                        activeOpacity={0.7}
+                        style={{
+                          flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+                          paddingVertical: 10, paddingHorizontal: 12, borderRadius: 8,
+                          backgroundColor: 'rgba(245,158,11,0.06)', borderWidth: 1, borderColor: 'rgba(245,158,11,0.2)',
+                        }}>
+                        <Text style={{ fontSize: 20, fontWeight: '700', color: '#f59e0b', letterSpacing: 1 }}>{cat.toUpperCase()}</Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                          <Text style={{ fontSize: 16, color: C.dm }}>{sels.length}</Text>
+                          <Text style={{ fontSize: 18, color: C.dm }}>{isOpen ? '▼' : '▶'}</Text>
                         </View>
-                      );
-                    })}
-                  </>
+                      </TouchableOpacity>
+                      {isOpen && (
+                        <View style={{ marginTop: 10 }}>
+                          {sels.map(renderSelectionCard)}
+                        </View>
+                      )}
+                    </View>
+                  );
+                }) : (
+                  <Text style={{ fontSize: 16, color: C.dm, fontStyle: 'italic', marginTop: 8 }}>No selections awaiting price</Text>
+                )}
+              </View>
+              {/* Right column — Completed */}
+              <View style={s.threeColCell}>
+                <Text style={s.groupSubtitle}>Completed ({confirmedSels.length})</Text>
+                {confirmedSels.length > 0 ? groupByCategory(confirmedSels).map(([cat, sels]) => {
+                  const key = `confirmed-${cat}`;
+                  const isOpen = !!expandedSelTrades[key];
+                  return (
+                    <View key={cat} style={{ marginBottom: 12 }}>
+                      <TouchableOpacity
+                        onPress={() => setExpandedSelTrades(prev => ({ ...prev, [key]: !prev[key] }))}
+                        activeOpacity={0.7}
+                        style={{
+                          flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+                          paddingVertical: 10, paddingHorizontal: 12, borderRadius: 8,
+                          backgroundColor: 'rgba(34,197,94,0.06)', borderWidth: 1, borderColor: 'rgba(34,197,94,0.2)',
+                        }}>
+                        <Text style={{ fontSize: 20, fontWeight: '700', color: C.gn, letterSpacing: 1 }}>{cat.toUpperCase()}</Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                          <Text style={{ fontSize: 16, color: C.dm }}>{sels.length}</Text>
+                          <Text style={{ fontSize: 18, color: C.dm }}>{isOpen ? '▼' : '▶'}</Text>
+                        </View>
+                      </TouchableOpacity>
+                      {isOpen && (
+                        <View style={{ marginTop: 10 }}>
+                          {sels.map(renderSelectionCard)}
+                        </View>
+                      )}
+                    </View>
+                  );
+                }) : (
+                  <Text style={{ fontSize: 16, color: C.dm, fontStyle: 'italic', marginTop: 8 }}>No completed selections</Text>
                 )}
               </View>
             </View>
           )}
 
+          {/* Confirm Selection Modal */}
           {/* Confirm Selection Modal */}
           {modal?.type === 'confirmsel' && (
             <Modal visible animationType="fade" transparent>
@@ -3402,6 +3529,106 @@ ${sectionsHtml}
                       <Text style={{ fontSize: 21, fontWeight: '600', color: C.mt }}>Cancel</Text>
                     </TouchableOpacity>
                     <TouchableOpacity onPress={() => confirmSelection(modal.psId)}
+                      style={{ flex: 1, paddingVertical: 13, borderRadius: 8, backgroundColor: C.gd, alignItems: 'center' }}
+                      activeOpacity={0.8}>
+                      <Text style={{ fontSize: 21, fontWeight: '700', color: C.textBold }}>Sign & Accept</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </View>
+            </Modal>
+          )}
+
+          {/* "Other" Custom Selection Modal */}
+          {modal?.type === 'othersel' && (
+            <Modal visible animationType="fade" transparent>
+              <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+                <View style={{
+                  backgroundColor: C.modalBg, borderRadius: 16, padding: 28, width: '90%', maxWidth: 440,
+                  borderWidth: 1, borderColor: C.w10,
+                  ...(Platform.OS === 'web' ? { boxShadow: '0 20px 60px rgba(0,0,0,0.4)' } : { elevation: 20 }),
+                }}>
+                  <Text style={{ fontSize: 30, fontWeight: '700', color: C.textBold, textAlign: 'center', marginBottom: 8 }}>Other Option</Text>
+                  <Text style={{ fontSize: 20, fontWeight: '600', color: '#f59e0b', textAlign: 'center', marginBottom: 16 }}>{modal.item}</Text>
+
+                  <View style={{
+                    backgroundColor: 'rgba(245,158,11,0.08)',
+                    borderWidth: 1, borderColor: 'rgba(245,158,11,0.25)',
+                    borderRadius: 10, padding: 16, marginBottom: 20,
+                  }}>
+                    <Text style={{ fontSize: 17, lineHeight: 26, color: C.mt, textAlign: 'center' }}>
+                      Describe what you want. This will be submitted as a custom request with a TBD price. Your builder will set the price.
+                    </Text>
+                  </View>
+
+                  <Text style={{ fontSize: 14, fontWeight: '700', color: C.dm, letterSpacing: 0.8, marginBottom: 8 }}>DESCRIBE YOUR SELECTION</Text>
+                  <TextInput
+                    style={{
+                      fontSize: 18, color: C.text, borderWidth: 1, borderColor: C.w12, borderRadius: 8,
+                      padding: 12, minHeight: 100, textAlignVertical: 'top', marginBottom: 20,
+                      backgroundColor: C.mode === 'dark' ? 'rgba(255,255,255,0.03)' : '#fff',
+                    }}
+                    multiline
+                    placeholder="e.g., Custom tile pattern with marble inlay..."
+                    placeholderTextColor={C.ph}
+                    value={otherText}
+                    onChangeText={setOtherText}
+                    autoFocus
+                  />
+
+                  <View style={{ flexDirection: 'row', gap: 12 }}>
+                    <TouchableOpacity onPress={() => { setOtherText(''); setModal(null); }}
+                      style={{ flex: 1, paddingVertical: 13, borderRadius: 8, borderWidth: 1, borderColor: C.w12, alignItems: 'center' }}
+                      activeOpacity={0.7}>
+                      <Text style={{ fontSize: 21, fontWeight: '600', color: C.mt }}>Cancel</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => { submitOther(modal.psId, otherText); setOtherText(''); setModal(null); }}
+                      style={{ flex: 1, paddingVertical: 13, borderRadius: 8, backgroundColor: '#f59e0b', alignItems: 'center' }}
+                      activeOpacity={0.8}>
+                      <Text style={{ fontSize: 21, fontWeight: '700', color: '#fff' }}>Submit Request</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </View>
+            </Modal>
+          )}
+
+          {/* Accept Price Modal — customer signs to accept builder's price */}
+          {modal?.type === 'acceptprice' && (
+            <Modal visible animationType="fade" transparent>
+              <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+                <View style={{
+                  backgroundColor: C.modalBg, borderRadius: 16, padding: 28, width: '90%', maxWidth: 440,
+                  borderWidth: 1, borderColor: C.w10,
+                  ...(Platform.OS === 'web' ? { boxShadow: '0 20px 60px rgba(0,0,0,0.4)' } : { elevation: 20 }),
+                }}>
+                  <Text style={{ fontSize: 30, fontWeight: '700', color: C.textBold, textAlign: 'center', marginBottom: 8 }}>Accept Price</Text>
+                  <Text style={{ fontSize: 22, fontWeight: '600', color: C.gd, textAlign: 'center', marginBottom: 6 }}>{modal.item}: {modal.selected}</Text>
+                  <Text style={{ fontSize: 28, fontWeight: '700', color: '#f59e0b', textAlign: 'center', marginBottom: 16 }}>{f$(modal.price)}</Text>
+
+                  <View style={{
+                    backgroundColor: C.mode === 'dark' ? C.bH08 : C.bH05,
+                    borderWidth: 1, borderColor: C.gd + '30',
+                    borderRadius: 10, padding: 16, marginBottom: 24,
+                  }}>
+                    <Text style={{ fontSize: 21, lineHeight: 33, color: C.mt, textAlign: 'center' }}>
+                      By signing below, you agree to the price set by your builder for this selection.
+                    </Text>
+                  </View>
+
+                  {/* Signature line */}
+                  <View style={{ borderBottomWidth: 1, borderBottomColor: C.w15, marginBottom: 6, paddingBottom: 2 }}>
+                    <Text style={{ fontSize: 21, color: C.text, fontWeight: '600' }}>{user?.name || 'Signature'}</Text>
+                  </View>
+                  <Text style={{ fontSize: 16, color: C.dm, marginBottom: 24 }}>Electronic Signature</Text>
+
+                  <View style={{ flexDirection: 'row', gap: 12 }}>
+                    <TouchableOpacity onPress={() => setModal(null)}
+                      style={{ flex: 1, paddingVertical: 13, borderRadius: 8, borderWidth: 1, borderColor: C.w12, alignItems: 'center' }}
+                      activeOpacity={0.7}>
+                      <Text style={{ fontSize: 21, fontWeight: '600', color: C.mt }}>Cancel</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => acceptPrice(modal.psId)}
                       style={{ flex: 1, paddingVertical: 13, borderRadius: 8, backgroundColor: C.gd, alignItems: 'center' }}
                       activeOpacity={0.8}>
                       <Text style={{ fontSize: 21, fontWeight: '700', color: C.textBold }}>Sign & Accept</Text>
