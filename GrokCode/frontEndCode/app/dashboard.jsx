@@ -29,7 +29,7 @@ const Bar = ({ pct, color, h = 3, C: Cx }) => (
 // ============================================================
 export default function Dashboard() {
   const C = React.useContext(ThemeContext);
-  const styles = React.useMemo(() => getStyles(C), [C]);
+  const sty = React.useMemo(() => getStyles(C), [C]);
   const navigation = useNavigation();
   const { user, signout } = React.useContext(AuthContext);
   const { width } = useWindowDimensions();
@@ -632,12 +632,12 @@ export default function Dashboard() {
             selectProject(project);
           }
         }}
-        style={[styles.jobItem, active && styles.jobItemActive, project.on_hold && { borderLeftWidth: 3, borderLeftColor: '#f59e0b' }]}
+        style={[sty.jobItem, active && sty.jobItemActive, project.on_hold && { borderLeftWidth: 3, borderLeftColor: '#f59e0b' }]}
       >
-        <View style={[styles.jobIndicator, active && styles.jobIndicatorActive]} />
+        <View style={[sty.jobIndicator, active && sty.jobIndicatorActive]} />
         <View style={{ flex: 1, paddingVertical: 12, paddingLeft: 12, paddingRight: 4 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-            <Text style={[styles.jobName, active && styles.jobNameActive, { flex: 1 }]} numberOfLines={1}>
+            <Text style={[sty.jobName, active && sty.jobNameActive, { flex: 1 }]} numberOfLines={1}>
               {project.name}
             </Text>
             {project.on_hold && (
@@ -646,7 +646,7 @@ export default function Dashboard() {
               </View>
             )}
           </View>
-          <Text style={styles.jobMeta} numberOfLines={1}>
+          <Text style={sty.jobMeta} numberOfLines={1}>
             {[project.status, project.phase].filter(Boolean).join(' · ')}
           </Text>
           {project.progress !== undefined && project.progress !== null && (
@@ -689,7 +689,7 @@ export default function Dashboard() {
         )}
       </TouchableOpacity>
     );
-  }, [selectedProject?.id, styles, C, isBuilder, isContractor, clientView]);
+  }, [selectedProject?.id, sty, C, isBuilder, isContractor, clientView]);
 
   const selectSubdivision = (sd) => {
     setSelectedSubdivision(sd);
@@ -878,7 +878,7 @@ export default function Dashboard() {
   // SIDEBAR
   // ============================================================
   const renderSidebar = () => (
-    <View style={[styles.sidebar, isWide ? styles.sidebarWide : styles.sidebarFull]}>
+    <View style={[sty.sidebar, isWide ? sty.sidebarWide : sty.sidebarFull]}>
       {/* Company Logo */}
       {companyLogo && (
         <View style={{ alignItems: 'center', paddingVertical: 14, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: C.sw06 }}>
@@ -886,20 +886,20 @@ export default function Dashboard() {
         </View>
       )}
       {/* Section header */}
-      <View style={styles.sidebarHead}>
+      <View style={sty.sidebarHead}>
         <TouchableOpacity
           onPress={() => isBuilder && subdivisions.length > 0 ? setShowSidebarFilter(p => !p) : null}
           activeOpacity={isBuilder && subdivisions.length > 0 ? 0.7 : 1}
           style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}
         >
-          <Text style={styles.sidebarLabel}>
+          <Text style={sty.sidebarLabel}>
             {!isBuilder ? 'MY JOBS' : sidebarFilter ? (subdivisions.find(s => s.id === sidebarFilter)?.name?.toUpperCase() || 'ALL JOBS') : 'ALL JOBS'}
           </Text>
           {isBuilder && subdivisions.length > 0 && (
             <Text style={{ fontSize: 12, color: C.chromeTxt }}>▼</Text>
           )}
-          <View style={styles.countBadge}>
-            <Text style={styles.countTxt}>{filteredProjects.length}</Text>
+          <View style={sty.countBadge}>
+            <Text style={sty.countTxt}>{filteredProjects.length}</Text>
           </View>
         </TouchableOpacity>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
@@ -914,8 +914,8 @@ export default function Dashboard() {
             <Text style={{ fontSize: 13, fontWeight: showClosed ? '700' : '500', color: showClosed ? '#ef4444' : C.chromeTxt }}>Closed</Text>
           </TouchableOpacity>
           {isBuilder && (
-            <TouchableOpacity onPress={() => setShowAddMenu(p => !p)} style={styles.addBtn} activeOpacity={0.8}>
-              <Text style={styles.addBtnTxt}>+</Text>
+            <TouchableOpacity onPress={() => setShowAddMenu(p => !p)} style={sty.addBtn} activeOpacity={0.8}>
+              <Text style={sty.addBtnTxt}>+</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -1254,8 +1254,8 @@ export default function Dashboard() {
                         </TouchableOpacity>
                       )}
                       {isBuilder && (
-                        <TouchableOpacity onPress={() => setSdDocModal('upload')} style={styles.addBtn} activeOpacity={0.8}>
-                          <Text style={styles.addBtnTxt}>+</Text>
+                        <TouchableOpacity onPress={() => setSdDocModal('upload')} style={sty.addBtn} activeOpacity={0.8}>
+                          <Text style={sty.addBtnTxt}>+</Text>
                         </TouchableOpacity>
                       )}
                     </View>
@@ -1277,8 +1277,8 @@ export default function Dashboard() {
                           {isBuilder && (
                             <TouchableOpacity
                               onPress={() => setSdDocModal({ type: 'upload', templateId: tmpl.id, templateName: tmpl.name })}
-                              style={styles.addBtn} activeOpacity={0.8}>
-                              <Text style={styles.addBtnTxt}>+</Text>
+                              style={sty.addBtn} activeOpacity={0.8}>
+                              <Text style={sty.addBtnTxt}>+</Text>
                             </TouchableOpacity>
                           )}
                         </View>
@@ -1391,16 +1391,16 @@ export default function Dashboard() {
   // SUB SIDEBAR
   // ============================================================
   const renderSubSidebar = () => (
-    <View style={[styles.sidebar, isWide ? styles.sidebarWide : styles.sidebarFull]}>
-      <View style={styles.sidebarHead}>
+    <View style={[sty.sidebar, isWide ? sty.sidebarWide : sty.sidebarFull]}>
+      <View style={sty.sidebarHead}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          <Text style={styles.sidebarLabel}>SUBCONTRACTORS</Text>
-          <View style={styles.countBadge}>
-            <Text style={styles.countTxt}>{filteredSubs.length}</Text>
+          <Text style={sty.sidebarLabel}>SUBCONTRACTORS</Text>
+          <View style={sty.countBadge}>
+            <Text style={sty.countTxt}>{filteredSubs.length}</Text>
           </View>
         </View>
-        <TouchableOpacity onPress={() => setModal('newsub')} style={styles.addBtn} activeOpacity={0.8}>
-          <Text style={styles.addBtnTxt}>+</Text>
+        <TouchableOpacity onPress={() => setModal('newsub')} style={sty.addBtn} activeOpacity={0.8}>
+          <Text style={sty.addBtnTxt}>+</Text>
         </TouchableOpacity>
       </View>
 
@@ -1461,15 +1461,15 @@ export default function Dashboard() {
                   }
                   setSubView(false); selectSub(sub);
                 }}
-                style={[styles.jobItem, active && styles.jobItemActive]}
+                style={[sty.jobItem, active && sty.jobItemActive]}
               >
-                <View style={[styles.jobIndicator, active && styles.jobIndicatorActive]} />
+                <View style={[sty.jobIndicator, active && sty.jobIndicatorActive]} />
                 <View style={{ flex: 1, paddingVertical: 12, paddingLeft: 12, paddingRight: 8 }}>
-                  <Text style={[styles.jobName, active && styles.jobNameActive]} numberOfLines={1}>
+                  <Text style={[sty.jobName, active && sty.jobNameActive]} numberOfLines={1}>
                     {sub.company_name || sub.name}
                   </Text>
                   {sub.company_name ? (
-                    <Text style={styles.jobMeta} numberOfLines={1}>{sub.name}</Text>
+                    <Text style={sty.jobMeta} numberOfLines={1}>{sub.name}</Text>
                   ) : null}
                   {tradesArr.length > 0 && (
                     <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: 5 }}>
@@ -2296,7 +2296,7 @@ export default function Dashboard() {
         )}
 
         {/* Tab bar */}
-        <View style={styles.subTabBar}>
+        <View style={sty.subTabBar}>
           {[['calendar', 'Calendar'], ['info', 'Info'], ['changeorders', 'Change Orders']].map(([id, label]) => {
             const active = subTab === id;
             return (
@@ -2313,14 +2313,14 @@ export default function Dashboard() {
                     .finally(() => setSubCOLoading(false));
                 }
               }}
-              style={[styles.subTabBtn, active && styles.subTabBtnOn]}
+              style={[sty.subTabBtn, active && sty.subTabBtnOn]}
               activeOpacity={0.7}
               {...(Platform.OS === 'web' ? {
                 onMouseEnter: (e) => { if (!active) e.currentTarget.style.backgroundColor = C.mode === 'dark' ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)'; },
                 onMouseLeave: (e) => { e.currentTarget.style.backgroundColor = 'transparent'; },
               } : {})}
             >
-              <Text style={[styles.subTabTxt, active && styles.subTabTxtOn]}>{label}</Text>
+              <Text style={[sty.subTabTxt, active && sty.subTabTxtOn]}>{label}</Text>
             </TouchableOpacity>
             );
           })}
@@ -2416,11 +2416,11 @@ export default function Dashboard() {
             {/* Two-column layout: Info card + Assigned Projects */}
             <View style={isWide ? { flexDirection: 'row', gap: 16, alignItems: 'flex-start' } : {}}>
             {/* Sub header card */}
-            <View style={[styles.subDetailCard, isWide && { flex: 1 }]}>
+            <View style={[sty.subDetailCard, isWide && { flex: 1 }]}>
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14, flex: 1 }}>
-                  <View style={styles.subAvatar}>
-                    <Text style={styles.subAvatarTxt}>{ini(selectedSub.company_name || selectedSub.name)}</Text>
+                  <View style={sty.subAvatar}>
+                    <Text style={sty.subAvatarTxt}>{ini(selectedSub.company_name || selectedSub.name)}</Text>
                   </View>
                   <View style={{ flex: 1 }}>
                     {subEditing ? (
@@ -2477,19 +2477,19 @@ export default function Dashboard() {
               {subEditing ? (
                 <View style={{ gap: 10, marginBottom: 14 }}>
                   <View>
-                    <Text style={styles.subSectionLbl}>EMAIL</Text>
+                    <Text style={sty.subSectionLbl}>EMAIL</Text>
                     <TextInput value={subEditFields.email} onChangeText={v => setSubEditFields(p => ({ ...p, email: v }))}
                       placeholder="email@example.com" placeholderTextColor={C.ph} keyboardType="email-address" autoCapitalize="none"
                       style={{ fontSize: 20, color: C.text, backgroundColor: C.inputBg, borderWidth: 1, borderColor: C.w10, borderRadius: 8, padding: 10 }} />
                   </View>
                   <View>
-                    <Text style={styles.subSectionLbl}>PHONE</Text>
+                    <Text style={sty.subSectionLbl}>PHONE</Text>
                     <TextInput value={fPhone(subEditFields.phone)} onChangeText={v => setSubEditFields(p => ({ ...p, phone: v.replace(/\D/g, '').slice(0, 10) }))}
                       placeholder="(555) 555-5555" placeholderTextColor={C.ph} keyboardType="phone-pad"
                       style={{ fontSize: 20, color: C.text, backgroundColor: C.inputBg, borderWidth: 1, borderColor: C.w10, borderRadius: 8, padding: 10 }} />
                   </View>
                   <View>
-                    <Text style={styles.subSectionLbl}>ADDRESS</Text>
+                    <Text style={sty.subSectionLbl}>ADDRESS</Text>
                     <TextInput value={subEditFields.street_address} onChangeText={v => setSubEditFields(p => ({ ...p, street_address: v }))}
                       placeholder="Street Address" placeholderTextColor={C.ph}
                       style={{ fontSize: 20, color: C.text, backgroundColor: C.inputBg, borderWidth: 1, borderColor: C.w10, borderRadius: 8, padding: 10, marginBottom: 8 }} />
@@ -2509,21 +2509,21 @@ export default function Dashboard() {
               ) : (
                 <View style={{ gap: 8, marginBottom: 14 }}>
                   {selectedSub.username && (
-                    <View style={styles.subInfoRow}>
-                      <Text style={styles.subInfoLabel}>Email</Text>
-                      <Text style={styles.subInfoVal}>{selectedSub.username}</Text>
+                    <View style={sty.subInfoRow}>
+                      <Text style={sty.subInfoLabel}>Email</Text>
+                      <Text style={sty.subInfoVal}>{selectedSub.username}</Text>
                     </View>
                   )}
                   {selectedSub.phone && (
-                    <View style={styles.subInfoRow}>
-                      <Text style={styles.subInfoLabel}>Phone</Text>
-                      <Text style={styles.subInfoVal}>{fPhone(selectedSub.phone)}</Text>
+                    <View style={sty.subInfoRow}>
+                      <Text style={sty.subInfoLabel}>Phone</Text>
+                      <Text style={sty.subInfoVal}>{fPhone(selectedSub.phone)}</Text>
                     </View>
                   )}
                   {(selectedSub.street_address || selectedSub.city || selectedSub.state) && (
-                    <View style={styles.subInfoRow}>
-                      <Text style={styles.subInfoLabel}>Address</Text>
-                      <Text style={styles.subInfoVal}>
+                    <View style={sty.subInfoRow}>
+                      <Text style={sty.subInfoLabel}>Address</Text>
+                      <Text style={sty.subInfoVal}>
                         {[selectedSub.street_address, [selectedSub.city, selectedSub.state].filter(Boolean).join(', '), selectedSub.zip_code].filter(Boolean).join('\n')}
                       </Text>
                     </View>
@@ -2533,15 +2533,15 @@ export default function Dashboard() {
 
               {/* Trades */}
               <View style={{ marginBottom: 4 }}>
-                <Text style={[styles.subSectionLbl, { marginBottom: 6 }]}>TRADES</Text>
+                <Text style={[sty.subSectionLbl, { marginBottom: 6 }]}>TRADES</Text>
                 {subEditing ? (
                   <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
                     {builderTrades.concat(tradesArr.filter(t => !builderTrades.includes(t))).map(trade => {
                       const on = subEditTrades.includes(trade);
                       return (
                         <TouchableOpacity key={trade} onPress={() => setSubEditTrades(prev => on ? prev.filter(t => t !== trade) : [...prev, trade])}
-                          style={[styles.nsTradeChip, on && styles.nsTradeChipOn]} activeOpacity={0.7}>
-                          <Text style={[styles.nsTradeTxt, on && styles.nsTradeTxtOn]}>{trade}</Text>
+                          style={[sty.nsTradeChip, on && sty.nsTradeChipOn]} activeOpacity={0.7}>
+                          <Text style={[sty.nsTradeTxt, on && sty.nsTradeTxtOn]}>{trade}</Text>
                         </TouchableOpacity>
                       );
                     })}
@@ -2549,8 +2549,8 @@ export default function Dashboard() {
                 ) : tradesArr.length > 0 ? (
                   <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
                     {tradesArr.map(t => (
-                      <View key={t} style={styles.subTradeBadge}>
-                        <Text style={styles.subTradeTxt}>{t}</Text>
+                      <View key={t} style={sty.subTradeBadge}>
+                        <Text style={sty.subTradeTxt}>{t}</Text>
                       </View>
                     ))}
                   </View>
@@ -2605,8 +2605,8 @@ export default function Dashboard() {
             </View>
 
             {/* Assigned Projects */}
-            <View style={[styles.subDetailCard, isWide && { flex: 1 }]}>
-              <Text style={styles.subCardTitle}>Assigned Projects</Text>
+            <View style={[sty.subDetailCard, isWide && { flex: 1 }]}>
+              <Text style={sty.subCardTitle}>Assigned Projects</Text>
               {subProjects.length === 0 ? (
                 <Text style={{ color: C.dm, fontSize: 20, paddingVertical: 12 }}>No projects assigned</Text>
               ) : (
@@ -2618,7 +2618,7 @@ export default function Dashboard() {
                 }).map(p => (
                   <TouchableOpacity
                     key={p.id}
-                    style={styles.subProjectRow}
+                    style={sty.subProjectRow}
                     activeOpacity={0.7}
                     onPress={() => {
                       const proj = projects.find(pr => pr.id === p.id) || p;
@@ -2648,28 +2648,28 @@ export default function Dashboard() {
 
             {/* Stats row */}
             <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
-              <View style={styles.subStatCard}>
-                <Text style={styles.subStatNum}>{subProjects.length}</Text>
-                <Text style={styles.subStatLbl}>Projects</Text>
+              <View style={sty.subStatCard}>
+                <Text style={sty.subStatNum}>{subProjects.length}</Text>
+                <Text style={sty.subStatLbl}>Projects</Text>
               </View>
-              <View style={styles.subStatCard}>
-                <Text style={styles.subStatNum}>{totalTasks}</Text>
-                <Text style={styles.subStatLbl}>Tasks</Text>
+              <View style={sty.subStatCard}>
+                <Text style={sty.subStatNum}>{totalTasks}</Text>
+                <Text style={sty.subStatLbl}>Tasks</Text>
               </View>
-              <View style={styles.subStatCard}>
-                <Text style={[styles.subStatNum, { color: C.gn }]}>{completeTasks}</Text>
-                <Text style={styles.subStatLbl}>Complete</Text>
+              <View style={sty.subStatCard}>
+                <Text style={[sty.subStatNum, { color: C.gn }]}>{completeTasks}</Text>
+                <Text style={sty.subStatLbl}>Complete</Text>
               </View>
-              <View style={styles.subStatCard}>
-                <Text style={[styles.subStatNum, { color: totalTasks - completeTasks > 0 ? C.yl : C.gn }]}>{totalTasks - completeTasks}</Text>
-                <Text style={styles.subStatLbl}>Active</Text>
+              <View style={sty.subStatCard}>
+                <Text style={[sty.subStatNum, { color: totalTasks - completeTasks > 0 ? C.yl : C.gn }]}>{totalTasks - completeTasks}</Text>
+                <Text style={sty.subStatLbl}>Active</Text>
               </View>
             </View>
 
             {/* Assigned Tasks — builder only */}
             {isBuilder && (
-            <View style={[styles.subDetailCard, { marginTop: 14 }]}>
-              <Text style={styles.subCardTitle}>Assigned Tasks</Text>
+            <View style={[sty.subDetailCard, { marginTop: 14 }]}>
+              <Text style={sty.subCardTitle}>Assigned Tasks</Text>
               {subTasks.length === 0 ? (
                 <Text style={{ color: C.dm, fontSize: 20, paddingVertical: 12 }}>No tasks assigned</Text>
               ) : (
@@ -2677,8 +2677,8 @@ export default function Dashboard() {
                   const { pct: taskPct } = calcTaskProgress(t);
                   const isComplete = taskPct >= 100;
                   return (
-                    <View key={t.id} style={styles.subTaskRow}>
-                      <View style={[styles.subTaskDot, isComplete && { backgroundColor: C.gn }]} />
+                    <View key={t.id} style={sty.subTaskRow}>
+                      <View style={[sty.subTaskDot, isComplete && { backgroundColor: C.gn }]} />
                       <View style={{ flex: 1 }}>
                         <Text style={{ fontSize: 20, fontWeight: '600', color: C.text }}>{t.task}</Text>
                         <Text style={{ fontSize: 16, color: C.dm, marginTop: 1 }}>
@@ -2697,9 +2697,9 @@ export default function Dashboard() {
 
             {/* Employees — builder only */}
             {isBuilder && (
-            <View style={[styles.subDetailCard, { marginTop: 14, marginBottom: 20 }]}>
+            <View style={[sty.subDetailCard, { marginTop: 14, marginBottom: 20 }]}>
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-                <Text style={styles.subCardTitle}>Employees</Text>
+                <Text style={sty.subCardTitle}>Employees</Text>
                 <TouchableOpacity onPress={() => { setShowAddEmployee(true); setEmpName(''); setEmpJob(''); setEmpPhone(''); setEditingEmpId(null); }}
                   style={{ paddingHorizontal: 12, paddingVertical: 6, backgroundColor: C.bl, borderRadius: 8 }} activeOpacity={0.7}>
                   <Text style={{ fontSize: 15, fontWeight: '700', color: '#fff' }}>+ Add</Text>
@@ -2825,26 +2825,26 @@ export default function Dashboard() {
             )}
 
             {/* Month nav */}
-            <View style={styles.subCalNav}>
+            <View style={sty.subCalNav}>
               <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <TouchableOpacity onPress={goToday} style={styles.subCalTodayBtn} activeOpacity={0.7}>
-                  <Text style={styles.subCalTodayTxt}>Today</Text>
+                <TouchableOpacity onPress={goToday} style={sty.subCalTodayBtn} activeOpacity={0.7}>
+                  <Text style={sty.subCalTodayTxt}>Today</Text>
                 </TouchableOpacity>
                 {Object.keys(projectColors).length > 0 && (
-                  <TouchableOpacity onPress={() => setShowSubCalLegend(v => !v)} style={[styles.subCalTodayBtn, showSubCalLegend && { backgroundColor: C.bl + '18', borderColor: C.bl + '40' }]} activeOpacity={0.7}>
-                    <Text style={[styles.subCalTodayTxt, showSubCalLegend && { color: C.bl }]}>Key</Text>
+                  <TouchableOpacity onPress={() => setShowSubCalLegend(v => !v)} style={[sty.subCalTodayBtn, showSubCalLegend && { backgroundColor: C.bl + '18', borderColor: C.bl + '40' }]} activeOpacity={0.7}>
+                    <Text style={[sty.subCalTodayTxt, showSubCalLegend && { color: C.bl }]}>Key</Text>
                   </TouchableOpacity>
                 )}
               </View>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                <TouchableOpacity onPress={prevMonth} style={styles.subCalNavBtn}><Text style={styles.subCalNavArrow}>‹</Text></TouchableOpacity>
-                <Text style={styles.subCalNavTitle}>{monNames[calMon]} {calYear}</Text>
-                <TouchableOpacity onPress={nextMonth} style={styles.subCalNavBtn}><Text style={styles.subCalNavArrow}>›</Text></TouchableOpacity>
+                <TouchableOpacity onPress={prevMonth} style={sty.subCalNavBtn}><Text style={sty.subCalNavArrow}>‹</Text></TouchableOpacity>
+                <Text style={sty.subCalNavTitle}>{monNames[calMon]} {calYear}</Text>
+                <TouchableOpacity onPress={nextMonth} style={sty.subCalNavBtn}><Text style={sty.subCalNavArrow}>›</Text></TouchableOpacity>
               </View>
               <View style={{ flex: 1 }} />
             </View>
             {showSubCalLegend && Object.keys(projectColors).length > 0 && (
-              <View style={styles.subCalLegend}>
+              <View style={sty.subCalLegend}>
                 {Object.entries(projectColors).map(([name, color]) => (
                   <View key={name} style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
                     <View style={{ width: 15, height: 15, borderRadius: 5, borderWidth: 2.5, borderColor: color, backgroundColor: 'transparent' }} />
@@ -2855,10 +2855,10 @@ export default function Dashboard() {
             )}
 
             {/* Day headers */}
-            <View style={styles.subCalDayHeaders}>
+            <View style={sty.subCalDayHeaders}>
               {DAYS.map(d => (
-                <View key={d} style={styles.subCalDayHeaderCell}>
-                  <Text style={styles.subCalDayHeaderTxt}>{d}</Text>
+                <View key={d} style={sty.subCalDayHeaderCell}>
+                  <Text style={sty.subCalDayHeaderTxt}>{d}</Text>
                 </View>
               ))}
             </View>
@@ -2886,14 +2886,14 @@ export default function Dashboard() {
                 const rowMinH = Math.max(125, 40 + lanes.length * laneH);
 
                 return (
-                  <View key={wi} style={[styles.subCalWeekRow, { minHeight: rowMinH }]}>
+                  <View key={wi} style={[sty.subCalWeekRow, { minHeight: rowMinH }]}>
                     {week.map((day, di) => {
                       const isToday2 = isSameDay(day, today);
                       const isCurMonth = day.getMonth() === calMon;
                       return (
-                        <View key={di} style={[styles.subCalCell, di < 6 && styles.subCalCellBorder, (di === 0 || di === 6) && styles.subCalCellWknd]}>
-                          <View style={[styles.subCalDayCircle, isToday2 && styles.subCalDayCircleToday]}>
-                            <Text style={[styles.subCalDayNum, !isCurMonth && styles.subCalDayOther, isToday2 && styles.subCalDayNumToday]}>
+                        <View key={di} style={[sty.subCalCell, di < 6 && sty.subCalCellBorder, (di === 0 || di === 6) && sty.subCalCellWknd]}>
+                          <View style={[sty.subCalDayCircle, isToday2 && sty.subCalDayCircleToday]}>
+                            <Text style={[sty.subCalDayNum, !isCurMonth && sty.subCalDayOther, isToday2 && sty.subCalDayNumToday]}>
                               {day.getDate()}
                             </Text>
                           </View>
@@ -2922,7 +2922,7 @@ export default function Dashboard() {
                               const proj = projects.find(pr => pr.id === task.job_id);
                               if (proj) { setTaskActionPopup({ task, project: proj }); setTaskActionDate(''); }
                             }}
-                            style={[styles.subCalTaskBar, {
+                            style={[sty.subCalTaskBar, {
                               left: leftPct, width: widthPct, top: laneTop,
                               borderColor: isHighlight ? highlightColor : pColor, opacity: isDragged ? 0.7 : 1,
                             },
@@ -2936,8 +2936,8 @@ export default function Dashboard() {
                             } : {})}
                           >
                             <View style={{ flex: 1, justifyContent: 'center' }}>
-                              <Text style={[styles.subCalTaskTxt, isHighlight && { color: '#fff' }]} numberOfLines={1}>{task.task || 'Untitled'}</Text>
-                              <Text style={[styles.subCalTaskTxtSub, isHighlight && { color: 'rgba(255,255,255,0.8)' }]} numberOfLines={1}>{task.project_name || 'Unknown'}</Text>
+                              <Text style={[sty.subCalTaskTxt, isHighlight && { color: '#fff' }]} numberOfLines={1}>{task.task || 'Untitled'}</Text>
+                              <Text style={[sty.subCalTaskTxtSub, isHighlight && { color: 'rgba(255,255,255,0.8)' }]} numberOfLines={1}>{task.project_name || 'Unknown'}</Text>
                             </View>
                           </TouchableOpacity>
                         );
@@ -2964,16 +2964,16 @@ export default function Dashboard() {
                 const rowMinH = Math.max(125, 48 + maxTasks * 95);
 
                 return (
-                  <View key={wi} style={[styles.subCalWeekRow, { minHeight: rowMinH }]}>
+                  <View key={wi} style={[sty.subCalWeekRow, { minHeight: rowMinH }]}>
                     {week.map((day, di) => {
                       const isToday2 = isSameDay(day, today);
                       const isCurMonth = day.getMonth() === calMon;
                       const dayTasks = getTasksForDay(day);
 
                       return (
-                        <View key={di} style={[styles.subCalCell, di < 6 && styles.subCalCellBorder, (di === 0 || di === 6) && styles.subCalCellWknd, { overflow: 'hidden' }]}>
-                          <View style={[styles.subCalDayCircle, isToday2 && styles.subCalDayCircleToday]}>
-                            <Text style={[styles.subCalDayNum, !isCurMonth && styles.subCalDayOther, isToday2 && styles.subCalDayNumToday]}>
+                        <View key={di} style={[sty.subCalCell, di < 6 && sty.subCalCellBorder, (di === 0 || di === 6) && sty.subCalCellWknd, { overflow: 'hidden' }]}>
+                          <View style={[sty.subCalDayCircle, isToday2 && sty.subCalDayCircleToday]}>
+                            <Text style={[sty.subCalDayNum, !isCurMonth && sty.subCalDayOther, isToday2 && sty.subCalDayNumToday]}>
                               {day.getDate()}
                             </Text>
                           </View>
@@ -4543,28 +4543,28 @@ export default function Dashboard() {
                 return (
                   <View style={{ flex: 1, minHeight: 0 }}>
                     {/* Month nav */}
-                    <View style={styles.subCalNav}>
+                    <View style={sty.subCalNav}>
                       <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                        <TouchableOpacity onPress={bcToday} style={styles.subCalTodayBtn} activeOpacity={0.7}>
-                          <Text style={styles.subCalTodayTxt}>Today</Text>
+                        <TouchableOpacity onPress={bcToday} style={sty.subCalTodayBtn} activeOpacity={0.7}>
+                          <Text style={sty.subCalTodayTxt}>Today</Text>
                         </TouchableOpacity>
                         {Object.keys(projectColors).length > 0 && (
-                          <TouchableOpacity onPress={() => setShowSubCalLegend(v => !v)} style={[styles.subCalTodayBtn, showSubCalLegend && { backgroundColor: C.bl + '18', borderColor: C.bl + '40' }]} activeOpacity={0.7}>
-                            <Text style={[styles.subCalTodayTxt, showSubCalLegend && { color: C.bl }]}>Key</Text>
+                          <TouchableOpacity onPress={() => setShowSubCalLegend(v => !v)} style={[sty.subCalTodayBtn, showSubCalLegend && { backgroundColor: C.bl + '18', borderColor: C.bl + '40' }]} activeOpacity={0.7}>
+                            <Text style={[sty.subCalTodayTxt, showSubCalLegend && { color: C.bl }]}>Key</Text>
                           </TouchableOpacity>
                         )}
                       </View>
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                        <TouchableOpacity onPress={bcPrev} style={styles.subCalNavBtn}><Text style={styles.subCalNavArrow}>‹</Text></TouchableOpacity>
-                        <Text style={styles.subCalNavTitle}>{monNames[bcMon]} {bcYear}</Text>
-                        <TouchableOpacity onPress={bcNext} style={styles.subCalNavBtn}><Text style={styles.subCalNavArrow}>›</Text></TouchableOpacity>
+                        <TouchableOpacity onPress={bcPrev} style={sty.subCalNavBtn}><Text style={sty.subCalNavArrow}>‹</Text></TouchableOpacity>
+                        <Text style={sty.subCalNavTitle}>{monNames[bcMon]} {bcYear}</Text>
+                        <TouchableOpacity onPress={bcNext} style={sty.subCalNavBtn}><Text style={sty.subCalNavArrow}>›</Text></TouchableOpacity>
                       </View>
                       <View style={{ flex: 1 }} />
                     </View>
 
                     {/* Legend */}
                     {showSubCalLegend && Object.keys(projectColors).length > 0 && (
-                      <View style={styles.subCalLegend}>
+                      <View style={sty.subCalLegend}>
                         {Object.entries(projectColors).map(([name, color]) => (
                           <View key={name} style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
                             <View style={{ width: 15, height: 15, borderRadius: 5, borderWidth: 2.5, borderColor: color, backgroundColor: 'transparent' }} />
@@ -4575,10 +4575,10 @@ export default function Dashboard() {
                     )}
 
                     {/* Day headers */}
-                    <View style={styles.subCalDayHeaders}>
+                    <View style={sty.subCalDayHeaders}>
                       {DAYS.map(d => (
-                        <View key={d} style={styles.subCalDayHeaderCell}>
-                          <Text style={styles.subCalDayHeaderTxt}>{d}</Text>
+                        <View key={d} style={sty.subCalDayHeaderCell}>
+                          <Text style={sty.subCalDayHeaderTxt}>{d}</Text>
                         </View>
                       ))}
                     </View>
@@ -4611,14 +4611,14 @@ export default function Dashboard() {
                         const rowMinH = Math.max(125, 40 + lanes.length * laneH);
 
                         return (
-                          <View key={wi} style={[styles.subCalWeekRow, { minHeight: rowMinH }]}>
+                          <View key={wi} style={[sty.subCalWeekRow, { minHeight: rowMinH }]}>
                             {week.map((day, di) => {
                               const isToday2 = isSameDay(day, today);
                               const isCurMonth = day.getMonth() === bcMon;
                               return (
-                                <View key={di} style={[styles.subCalCell, di < 6 && styles.subCalCellBorder, (di === 0 || di === 6) && styles.subCalCellWknd]}>
-                                  <View style={[styles.subCalDayCircle, isToday2 && styles.subCalDayCircleToday]}>
-                                    <Text style={[styles.subCalDayNum, !isCurMonth && styles.subCalDayOther, isToday2 && styles.subCalDayNumToday]}>
+                                <View key={di} style={[sty.subCalCell, di < 6 && sty.subCalCellBorder, (di === 0 || di === 6) && sty.subCalCellWknd]}>
+                                  <View style={[sty.subCalDayCircle, isToday2 && sty.subCalDayCircleToday]}>
+                                    <Text style={[sty.subCalDayNum, !isCurMonth && sty.subCalDayOther, isToday2 && sty.subCalDayNumToday]}>
                                       {day.getDate()}
                                     </Text>
                                   </View>
@@ -4649,7 +4649,7 @@ export default function Dashboard() {
                                         setSelectedProject(proj);
                                       }
                                     }}
-                                    style={[styles.subCalTaskBar, {
+                                    style={[sty.subCalTaskBar, {
                                       left: leftPct, width: widthPct, top: laneTop,
                                       borderColor: isHighlight ? highlightColor : pColor, opacity: isDragged ? 0.7 : 1,
                                     },
@@ -4663,8 +4663,8 @@ export default function Dashboard() {
                                     } : {})}
                                   >
                                     <View style={{ flex: 1, justifyContent: 'center' }}>
-                                      <Text style={[styles.subCalTaskTxt, isHighlight && { color: '#fff' }]} numberOfLines={1}>{task.task || 'Untitled'}</Text>
-                                      <Text style={[styles.subCalTaskTxtSub, isHighlight && { color: 'rgba(255,255,255,0.8)' }]} numberOfLines={1}>{task.project_name || 'Unknown'}</Text>
+                                      <Text style={[sty.subCalTaskTxt, isHighlight && { color: '#fff' }]} numberOfLines={1}>{task.task || 'Untitled'}</Text>
+                                      <Text style={[sty.subCalTaskTxtSub, isHighlight && { color: 'rgba(255,255,255,0.8)' }]} numberOfLines={1}>{task.project_name || 'Unknown'}</Text>
                                     </View>
                                   </TouchableOpacity>
                                 );
@@ -4691,16 +4691,16 @@ export default function Dashboard() {
                         const rowMinH = Math.max(125, 48 + maxTasks * 95);
 
                         return (
-                          <View key={wi} style={[styles.subCalWeekRow, { minHeight: rowMinH }]}>
+                          <View key={wi} style={[sty.subCalWeekRow, { minHeight: rowMinH }]}>
                             {week.map((day, di) => {
                               const isToday2 = isSameDay(day, today);
                               const isCurMonth = day.getMonth() === bcMon;
                               const dayTasks = getTasksForDay(day);
 
                               return (
-                                <View key={di} style={[styles.subCalCell, di < 6 && styles.subCalCellBorder, (di === 0 || di === 6) && styles.subCalCellWknd, { overflow: 'hidden' }]}>
-                                  <View style={[styles.subCalDayCircle, isToday2 && styles.subCalDayCircleToday]}>
-                                    <Text style={[styles.subCalDayNum, !isCurMonth && styles.subCalDayOther, isToday2 && styles.subCalDayNumToday]}>
+                                <View key={di} style={[sty.subCalCell, di < 6 && sty.subCalCellBorder, (di === 0 || di === 6) && sty.subCalCellWknd, { overflow: 'hidden' }]}>
+                                  <View style={[sty.subCalDayCircle, isToday2 && sty.subCalDayCircleToday]}>
+                                    <Text style={[sty.subCalDayNum, !isCurMonth && sty.subCalDayOther, isToday2 && sty.subCalDayNumToday]}>
                                       {day.getDate()}
                                     </Text>
                                   </View>
@@ -4847,12 +4847,12 @@ export default function Dashboard() {
       )}
 
       {/* ========== HEADER ========== */}
-      <View style={styles.header}>
-        <View style={[styles.headerLeft, isWide && { width: 325, flexShrink: 0 }]}>
+      <View style={sty.header}>
+        <View style={[sty.headerLeft, isWide && { width: 325, flexShrink: 0 }]}>
           {/* Mobile back button when viewing detail */}
           {showingDetail && (
-            <TouchableOpacity onPress={() => { setSelectedProject(null); setSelectedSubdivision(null); }} style={styles.backBtn} activeOpacity={0.7}>
-              <Text style={styles.backBtnTxt}>‹</Text>
+            <TouchableOpacity onPress={() => { setSelectedProject(null); setSelectedSubdivision(null); }} style={sty.backBtn} activeOpacity={0.7}>
+              <Text style={sty.backBtnTxt}>‹</Text>
             </TouchableOpacity>
           )}
           {showingContractorProject && (
@@ -4864,93 +4864,93 @@ export default function Dashboard() {
                   .then(data => { if (Array.isArray(data)) setSubChangeOrders(data); })
                   .catch(() => {});
               }
-            }} style={styles.backBtn} activeOpacity={0.7}>
-              <Text style={styles.backBtnTxt}>‹</Text>
+            }} style={sty.backBtn} activeOpacity={0.7}>
+              <Text style={sty.backBtnTxt}>‹</Text>
             </TouchableOpacity>
           )}
-          <View style={styles.logoBox}>
+          <View style={sty.logoBox}>
             <Text style={{ fontSize: 24, color: '#fff', fontWeight: '700' }}>⬡</Text>
           </View>
-          <Text style={styles.brandName}>{isWide || (!showingDetail && !showingContractorProject) ? 'BuilderSync' : ''}</Text>
+          <Text style={sty.brandName}>{isWide || (!showingDetail && !showingContractorProject) ? 'BuilderSync' : ''}</Text>
         </View>
 
         {/* Spacer pushes search + icons right */}
         <View style={{ flex: 1 }} />
 
-        <View style={styles.headerRight}>
+        <View style={sty.headerRight}>
           {isBuilder && (
             <View style={{ position: 'relative' }}>
-              <TouchableOpacity onPress={() => setShowSettings(p => !p)} style={styles.headerBtn}>
+              <TouchableOpacity onPress={() => setShowSettings(p => !p)} style={sty.headerBtn}>
                 <Feather name="settings" size={24} color={C.chromeDm} />
               </TouchableOpacity>
               {showSettings && (
-                <View style={styles.settingsDropdown}>
+                <View style={sty.settingsDropdown}>
                   <TouchableOpacity
                     onPress={() => { setShowSettings(false); setShowTemplateManager(true); }}
-                    style={styles.settingsItem}
+                    style={sty.settingsItem}
                     activeOpacity={0.7}
                   >
                     <Feather name="layers" size={20} color={C.text} />
-                    <Text style={styles.settingsItemTxt}>Manage Schedule Templates</Text>
+                    <Text style={sty.settingsItemTxt}>Manage Schedule Templates</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     onPress={() => { setShowSettings(false); setShowExemptions(true); }}
-                    style={styles.settingsItem}
+                    style={sty.settingsItem}
                     activeOpacity={0.7}
                   >
                     <Feather name="calendar" size={20} color={C.text} />
-                    <Text style={styles.settingsItemTxt}>Workday Exemptions</Text>
+                    <Text style={sty.settingsItemTxt}>Workday Exemptions</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     onPress={() => { setShowSettings(false); setShowSelectionManager(true); }}
-                    style={styles.settingsItem}
+                    style={sty.settingsItem}
                     activeOpacity={0.7}
                   >
                     <Feather name="sliders" size={20} color={C.text} />
-                    <Text style={styles.settingsItemTxt}>Manage Selections</Text>
+                    <Text style={sty.settingsItemTxt}>Manage Selections</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     onPress={() => { setShowSettings(false); setShowDocumentManager(true); }}
-                    style={styles.settingsItem}
+                    style={sty.settingsItem}
                     activeOpacity={0.7}
                   >
                     <Feather name="file-text" size={20} color={C.text} />
-                    <Text style={styles.settingsItemTxt}>Manage Documents</Text>
+                    <Text style={sty.settingsItemTxt}>Manage Documents</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     onPress={() => { setShowSettings(false); setShowTradeManager(true); }}
-                    style={styles.settingsItem}
+                    style={sty.settingsItem}
                     activeOpacity={0.7}
                   >
                     <Feather name="tool" size={20} color={C.text} />
-                    <Text style={styles.settingsItemTxt}>Manage Trades</Text>
+                    <Text style={sty.settingsItemTxt}>Manage Trades</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     onPress={() => { setShowSettings(false); fetchFloorPlans(); setShowFloorPlanManager(true); }}
-                    style={styles.settingsItem}
+                    style={sty.settingsItem}
                     activeOpacity={0.7}
                   >
                     <Feather name="home" size={20} color={C.text} />
-                    <Text style={styles.settingsItemTxt}>Manage Floor Plans</Text>
+                    <Text style={sty.settingsItemTxt}>Manage Floor Plans</Text>
                   </TouchableOpacity>
                   {user?.role === 'company_admin' && (
                     <TouchableOpacity
                       onPress={() => { setShowSettings(false); fetchGoLiveStepsDef(); setShowGoLiveManager(true); }}
-                      style={styles.settingsItem}
+                      style={sty.settingsItem}
                       activeOpacity={0.7}
                     >
                       <Feather name="zap" size={20} color={C.text} />
-                      <Text style={styles.settingsItemTxt}>Manage Go Live Steps</Text>
+                      <Text style={sty.settingsItemTxt}>Manage Go Live Steps</Text>
                     </TouchableOpacity>
                   )}
                   {user?.role === 'company_admin' && (
                     <TouchableOpacity
                       onPress={() => { setShowSettings(false); fetchPmBuilders(); setShowPmManager(true); }}
-                      style={styles.settingsItem}
+                      style={sty.settingsItem}
                       activeOpacity={0.7}
                     >
                       <Feather name="briefcase" size={20} color={C.text} />
-                      <Text style={styles.settingsItemTxt}>Manage Project Managers</Text>
+                      <Text style={sty.settingsItemTxt}>Manage Project Managers</Text>
                     </TouchableOpacity>
                   )}
                 </View>
@@ -4958,23 +4958,23 @@ export default function Dashboard() {
             </View>
           )}
           {isBuilder && (
-            <TouchableOpacity onPress={() => navigation.navigate('UserManagement')} style={styles.headerBtn}>
+            <TouchableOpacity onPress={() => navigation.navigate('UserManagement')} style={sty.headerBtn}>
               <Feather name="users" size={24} color={C.chromeDm} />
             </TouchableOpacity>
           )}
           {isBuilder && (
-            <TouchableOpacity onPress={() => setShowBuilderCal(true)} style={styles.headerBtn}>
+            <TouchableOpacity onPress={() => setShowBuilderCal(true)} style={sty.headerBtn}>
               <Feather name="calendar" size={24} color={C.chromeDm} />
             </TouchableOpacity>
           )}
           {isBuilder && (
-            <TouchableOpacity onPress={() => navigation.navigate('Reports')} style={styles.headerBtn}>
+            <TouchableOpacity onPress={() => navigation.navigate('Reports')} style={sty.headerBtn}>
               <Feather name="bar-chart-2" size={24} color={C.chromeDm} />
             </TouchableOpacity>
           )}
-          <TouchableOpacity onPress={() => navigation.navigate('Account')} style={styles.headerBtn}>
-            <View style={[styles.avatar, { backgroundColor: rG(user?.role, C) }]}>
-              <Text style={styles.avatarTxt}>{ini(user?.name)}</Text>
+          <TouchableOpacity onPress={() => navigation.navigate('Account')} style={sty.headerBtn}>
+            <View style={[sty.avatar, { backgroundColor: rG(user?.role, C) }]}>
+              <Text style={sty.avatarTxt}>{ini(user?.name)}</Text>
             </View>
           </TouchableOpacity>
           <TouchableOpacity
@@ -4992,7 +4992,7 @@ export default function Dashboard() {
                 ]);
               }
             }}
-            style={styles.headerBtn}
+            style={sty.headerBtn}
           >
             <Feather name="log-out" size={22} color={C.chromeDm} />
           </TouchableOpacity>
@@ -5068,14 +5068,14 @@ export default function Dashboard() {
         /* --- CUSTOMER VIEW: tasks sidebar + project detail --- */
         <View style={{ flex: 1, flexDirection: isWide ? 'row' : 'column', minHeight: 0 }}>
           {isWide && (
-            <View style={[styles.sidebar, styles.sidebarWide]}>
+            <View style={[sty.sidebar, sty.sidebarWide]}>
               {companyLogo && (
                 <View style={{ alignItems: 'center', paddingVertical: 14, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: C.sw06 }}>
                   <Image source={{ uri: companyLogo }} style={{ width: 368, height: 147, resizeMode: 'contain' }} />
                 </View>
               )}
-              <View style={styles.sidebarHead}>
-                <Text style={styles.sidebarLabel}>CUSTOMER TASKS</Text>
+              <View style={sty.sidebarHead}>
+                <Text style={sty.sidebarLabel}>CUSTOMER TASKS</Text>
                 <Text style={{ fontSize: 13, color: C.chromeDm, marginLeft: 'auto' }}>{customerTasks.filter(t => !t.completed).length} pending</Text>
               </View>
               {customerTasks.length === 0 ? (
@@ -5157,7 +5157,7 @@ export default function Dashboard() {
       ) : isWide ? (
         /* --- WIDE: sidebar + detail side by side --- */
         <View style={{ flex: 1, flexDirection: 'row', minHeight: 0 }}>
-          <View style={[styles.sidebar, styles.sidebarWide]}>
+          <View style={[sty.sidebar, sty.sidebarWide]}>
             {/* Company Logo */}
             {companyLogo && (
               <View style={{ alignItems: 'center', paddingVertical: 14, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: C.sw06 }}>
@@ -5166,21 +5166,21 @@ export default function Dashboard() {
             )}
             {/* Projects / Subs tab bar */}
             {isBuilder && (
-              <View style={styles.dashTabBar}>
+              <View style={sty.dashTabBar}>
                 {[['projects', 'Projects'], ['subs', 'Subcontractors']].map(([id, label]) => {
                   const active = dashView === id;
                   return (
                     <TouchableOpacity
                       key={id}
                       onPress={() => { setDashView(id); setProjectSearch(''); }}
-                      style={[styles.dashTab, active && styles.dashTabOn]}
+                      style={[sty.dashTab, active && sty.dashTabOn]}
                       activeOpacity={0.7}
                       {...(Platform.OS === 'web' ? {
                         onMouseEnter: (e) => { if (!active) e.currentTarget.style.backgroundColor = C.mode === 'dark' ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)'; },
                         onMouseLeave: (e) => { e.currentTarget.style.backgroundColor = 'transparent'; },
                       } : {})}
                     >
-                      <Text style={[styles.dashTabTxt, active && styles.dashTabTxtOn]}>{label}</Text>
+                      <Text style={[sty.dashTabTxt, active && sty.dashTabTxtOn]}>{label}</Text>
                     </TouchableOpacity>
                   );
                 })}
@@ -5191,20 +5191,20 @@ export default function Dashboard() {
             {/* Sidebar content */}
             {dashView === 'projects' ? (
               <React.Fragment>
-                <View style={styles.sidebarHead}>
+                <View style={sty.sidebarHead}>
                   <TouchableOpacity
                     onPress={() => isBuilder && subdivisions.length > 0 ? setShowSidebarFilter(p => !p) : null}
                     activeOpacity={isBuilder && subdivisions.length > 0 ? 0.7 : 1}
                     style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}
                   >
-                    <Text style={styles.sidebarLabel}>
+                    <Text style={sty.sidebarLabel}>
                       {!isBuilder ? 'MY JOBS' : sidebarFilter ? (subdivisions.find(s => s.id === sidebarFilter)?.name?.toUpperCase() || 'ALL JOBS') : 'ALL JOBS'}
                     </Text>
                     {isBuilder && subdivisions.length > 0 && (
                       <Text style={{ fontSize: 12, color: C.chromeTxt }}>▼</Text>
                     )}
-                    <View style={styles.countBadge}>
-                      <Text style={styles.countTxt}>{filteredProjects.length}</Text>
+                    <View style={sty.countBadge}>
+                      <Text style={sty.countTxt}>{filteredProjects.length}</Text>
                     </View>
                   </TouchableOpacity>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
@@ -5219,8 +5219,8 @@ export default function Dashboard() {
                       <Text style={{ fontSize: 13, fontWeight: showClosed ? '700' : '500', color: showClosed ? '#ef4444' : C.chromeTxt }}>Closed</Text>
                     </TouchableOpacity>
                     {isBuilder && (
-                      <TouchableOpacity onPress={() => setShowAddMenu(p => !p)} style={styles.addBtn} activeOpacity={0.8}>
-                        <Text style={styles.addBtnTxt}>+</Text>
+                      <TouchableOpacity onPress={() => setShowAddMenu(p => !p)} style={sty.addBtn} activeOpacity={0.8}>
+                        <Text style={sty.addBtnTxt}>+</Text>
                       </TouchableOpacity>
                     )}
                   </View>
@@ -5319,15 +5319,15 @@ export default function Dashboard() {
               </React.Fragment>
             ) : (
               <React.Fragment>
-                <View style={styles.sidebarHead}>
+                <View style={sty.sidebarHead}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                    <Text style={styles.sidebarLabel}>SUBCONTRACTORS</Text>
-                    <View style={styles.countBadge}>
-                      <Text style={styles.countTxt}>{filteredSubs.length}</Text>
+                    <Text style={sty.sidebarLabel}>SUBCONTRACTORS</Text>
+                    <View style={sty.countBadge}>
+                      <Text style={sty.countTxt}>{filteredSubs.length}</Text>
                     </View>
                   </View>
-                  <TouchableOpacity onPress={() => setModal('newsub')} style={styles.addBtn} activeOpacity={0.8}>
-                    <Text style={styles.addBtnTxt}>+</Text>
+                  <TouchableOpacity onPress={() => setModal('newsub')} style={sty.addBtn} activeOpacity={0.8}>
+                    <Text style={sty.addBtnTxt}>+</Text>
                   </TouchableOpacity>
                 </View>
                 {subsLoading ? (
@@ -5386,15 +5386,15 @@ export default function Dashboard() {
                             }
                             setSubView(false); selectSub(sub);
                           }}
-                          style={[styles.jobItem, active && styles.jobItemActive]}
+                          style={[sty.jobItem, active && sty.jobItemActive]}
                         >
-                          <View style={[styles.jobIndicator, active && styles.jobIndicatorActive]} />
+                          <View style={[sty.jobIndicator, active && sty.jobIndicatorActive]} />
                           <View style={{ flex: 1, paddingVertical: 12, paddingLeft: 12, paddingRight: 8 }}>
-                            <Text style={[styles.jobName, active && styles.jobNameActive]} numberOfLines={1}>
+                            <Text style={[sty.jobName, active && sty.jobNameActive]} numberOfLines={1}>
                               {sub.company_name || sub.name}
                             </Text>
                             {sub.company_name ? (
-                              <Text style={styles.jobMeta} numberOfLines={1}>{sub.name}</Text>
+                              <Text style={sty.jobMeta} numberOfLines={1}>{sub.name}</Text>
                             ) : null}
                             {tradesArr.length > 0 && (
                               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: 5 }}>
@@ -5496,17 +5496,17 @@ export default function Dashboard() {
           ) : (
             <View style={{ flex: 1 }}>
               {isBuilder && (
-                <View style={styles.dashTabBar}>
+                <View style={sty.dashTabBar}>
                   {[['projects', 'Projects'], ['subs', 'Subcontractors']].map(([id, label]) => {
                     const active = dashView === id;
                     return (
                       <TouchableOpacity
                         key={id}
                         onPress={() => { setDashView(id); setProjectSearch(''); }}
-                        style={[styles.dashTab, active && styles.dashTabOn]}
+                        style={[sty.dashTab, active && sty.dashTabOn]}
                         activeOpacity={0.7}
                       >
-                        <Text style={[styles.dashTabTxt, active && styles.dashTabTxtOn]}>{label}</Text>
+                        <Text style={[sty.dashTabTxt, active && sty.dashTabTxtOn]}>{label}</Text>
                       </TouchableOpacity>
                     );
                   })}
@@ -5528,17 +5528,17 @@ export default function Dashboard() {
           ) : (
             <View style={{ flex: 1 }}>
               {isBuilder && (
-                <View style={styles.dashTabBar}>
+                <View style={sty.dashTabBar}>
                   {[['projects', 'Projects'], ['subs', 'Subcontractors']].map(([id, label]) => {
                     const active = dashView === id;
                     return (
                       <TouchableOpacity
                         key={id}
                         onPress={() => { setDashView(id); setProjectSearch(''); }}
-                        style={[styles.dashTab, active && styles.dashTabOn]}
+                        style={[sty.dashTab, active && sty.dashTabOn]}
                         activeOpacity={0.7}
                       >
-                        <Text style={[styles.dashTabTxt, active && styles.dashTabTxtOn]}>{label}</Text>
+                        <Text style={[sty.dashTabTxt, active && sty.dashTabTxtOn]}>{label}</Text>
                       </TouchableOpacity>
                     );
                   })}
@@ -5562,18 +5562,18 @@ const PHASES = ['Planning', 'Permitting', 'Foundation', 'Framing', 'Roofing', 'M
 
 const Inp2 = ({ label, value, onChange, placeholder, type, style: ss }) => {
   const C = React.useContext(ThemeContext);
-  const styles = React.useMemo(() => getStyles(C), [C]);
+  const sty = React.useMemo(() => getStyles(C), [C]);
   const isPhone = type === 'phone';
   return (
   <View style={[{ marginBottom: 14 }, ss]}>
-    {label && <Text style={styles.formLbl}>{label}</Text>}
+    {label && <Text style={sty.formLbl}>{label}</Text>}
     <TextInput
       value={isPhone ? fPhone(value) : value}
       onChangeText={v => onChange(isPhone ? v.replace(/\D/g, '').slice(0, 10) : v)}
       placeholder={placeholder}
       placeholderTextColor={C.ph}
       keyboardType={type === 'number' ? 'numeric' : type === 'email' ? 'email-address' : isPhone ? 'phone-pad' : 'default'}
-      style={styles.formInp}
+      style={sty.formInp}
     />
   </View>
   );
@@ -5581,13 +5581,13 @@ const Inp2 = ({ label, value, onChange, placeholder, type, style: ss }) => {
 
 const ChipSelect = ({ options, value, onChange }) => {
   const C = React.useContext(ThemeContext);
-  const styles = React.useMemo(() => getStyles(C), [C]);
+  const sty = React.useMemo(() => getStyles(C), [C]);
   return (
-  <View style={styles.chipRow}>
+  <View style={sty.chipRow}>
     {options.map(opt => (
       <TouchableOpacity key={opt} onPress={() => onChange(opt)}
-        style={[styles.chip, value === opt && styles.chipOn]}>
-        <Text style={[styles.chipTxt, value === opt && styles.chipTxtOn]}>{opt}</Text>
+        style={[sty.chip, value === opt && sty.chipOn]}>
+        <Text style={[sty.chipTxt, value === opt && sty.chipTxtOn]}>{opt}</Text>
       </TouchableOpacity>
     ))}
   </View>
@@ -5599,7 +5599,7 @@ const TEMPLATE_ICONS = ['clipboard', 'home', 'coffee', 'droplet', 'tool', 'brief
 const TemplateManagerModal = ({ onClose, builderTrades = [] }) => {
   const C = React.useContext(ThemeContext);
   const { user } = React.useContext(AuthContext);
-  const styles = React.useMemo(() => getStyles(C), [C]);
+  const sty = React.useMemo(() => getStyles(C), [C]);
   const [templates, setTemplates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [editTmpl, setEditTmpl] = useState(null); // null=list, 'new'=create, {id,...}=edit
@@ -5730,10 +5730,10 @@ const TemplateManagerModal = ({ onClose, builderTrades = [] }) => {
   return (
     <Modal visible animationType="slide" transparent>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
-        <View style={styles.modalBg}>
-          <View style={[styles.modalContent, { maxHeight: '95%' }]}>
-            <View style={styles.modalHead}>
-              <Text style={styles.modalTitle}>{isForm ? formTitle : 'Schedule Templates'}</Text>
+        <View style={sty.modalBg}>
+          <View style={[sty.modalContent, { maxHeight: '95%' }]}>
+            <View style={sty.modalHead}>
+              <Text style={sty.modalTitle}>{isForm ? formTitle : 'Schedule Templates'}</Text>
               <TouchableOpacity onPress={isForm ? () => setEditTmpl(null) : onClose}>
                 <Text style={{ color: C.mt, fontSize: 42 }}>{isForm ? '←' : '×'}</Text>
               </TouchableOpacity>
@@ -5760,7 +5760,7 @@ const TemplateManagerModal = ({ onClose, builderTrades = [] }) => {
                   </View>
                 ) : (
                   templates.map(tmpl => (
-                    <View key={tmpl.id} style={styles.tmplRow}>
+                    <View key={tmpl.id} style={sty.tmplRow}>
                       <TouchableOpacity
                         style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12 }}
                         activeOpacity={0.7}
@@ -5780,7 +5780,7 @@ const TemplateManagerModal = ({ onClose, builderTrades = [] }) => {
                       </TouchableOpacity>
                       <TouchableOpacity
                         onPress={() => handleDelete(tmpl)}
-                        style={styles.tmplDeleteBtn}
+                        style={sty.tmplDeleteBtn}
                         activeOpacity={0.7}
                       >
                         <Feather name="trash-2" size={21} color={C.rd} />
@@ -5796,15 +5796,15 @@ const TemplateManagerModal = ({ onClose, builderTrades = [] }) => {
                 {/* Template info */}
                 <View style={{ flexDirection: 'row', gap: 12, marginBottom: 14 }}>
                   <View>
-                    <Text style={styles.formLbl}>ICON</Text>
-                    <TouchableOpacity onPress={() => setShowIcons(p => !p)} style={styles.iconPicker}>
+                    <Text style={sty.formLbl}>ICON</Text>
+                    <TouchableOpacity onPress={() => setShowIcons(p => !p)} style={sty.iconPicker}>
                       <Feather name={editIcon} size={36} color={C.dm} />
                     </TouchableOpacity>
                     {showIcons && (
-                      <View style={styles.iconGrid}>
+                      <View style={sty.iconGrid}>
                         {TEMPLATE_ICONS.map((ic, idx) => (
                           <TouchableOpacity key={`${ic}-${idx}`} onPress={() => { setEditIcon(ic); setShowIcons(false); }}
-                            style={[styles.iconOption, ic === editIcon && styles.iconOptionOn]}>
+                            style={[sty.iconOption, ic === editIcon && sty.iconOptionOn]}>
                             <Feather name={ic} size={27} color={ic === editIcon ? C.gd : C.dm} />
                           </TouchableOpacity>
                         ))}
@@ -5827,10 +5827,10 @@ const TemplateManagerModal = ({ onClose, builderTrades = [] }) => {
                 <TouchableOpacity
                   onPress={handleSave}
                   disabled={!editName.trim() || saving}
-                  style={[styles.submitBtn, (!editName.trim() || saving) && styles.submitBtnOff, { marginTop: 16 }]}
+                  style={[sty.submitBtn, (!editName.trim() || saving) && sty.submitBtnOff, { marginTop: 16 }]}
                   activeOpacity={0.8}
                 >
-                  <Text style={styles.submitBtnTxt}>
+                  <Text style={sty.submitBtnTxt}>
                     {saving ? 'Saving...' : `${editTmpl === 'new' ? 'Create' : 'Save'} Template${editTasks.length > 0 ? ` (${editTasks.length} tasks)` : ''}`}
                   </Text>
                 </TouchableOpacity>
@@ -5847,7 +5847,7 @@ const TemplateManagerModal = ({ onClose, builderTrades = [] }) => {
 const NewProjectModal = ({ onClose, onCreated, subdivisions = [], builderTrades = [], companyBuilders = [], currentUser }) => {
   const C = React.useContext(ThemeContext);
   const { user } = React.useContext(AuthContext);
-  const styles = React.useMemo(() => getStyles(C), [C]);
+  const sty = React.useMemo(() => getStyles(C), [C]);
   const [f, sF] = useState({
     name: '', street_address: '', city: '', addr_state: '', zip_code: '', email: '',
     customer_first_name: '', customer_last_name: '', customer_phone: '',
@@ -5978,10 +5978,10 @@ const NewProjectModal = ({ onClose, onCreated, subdivisions = [], builderTrades 
   return (
     <Modal visible animationType="slide" transparent>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
-        <View style={styles.modalBg}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHead}>
-              <Text style={styles.modalTitle}>New Project</Text>
+        <View style={sty.modalBg}>
+          <View style={sty.modalContent}>
+            <View style={sty.modalHead}>
+              <Text style={sty.modalTitle}>New Project</Text>
               <TouchableOpacity onPress={onClose}><Text style={{ color: C.mt, fontSize: 42 }}>×</Text></TouchableOpacity>
             </View>
             <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
@@ -5993,7 +5993,7 @@ const NewProjectModal = ({ onClose, onCreated, subdivisions = [], builderTrades 
               {/* Subdivision picker */}
               {subdivisions.length > 0 && (
                 <View style={{ marginBottom: 16 }}>
-                  <Text style={styles.formLbl}>SUBDIVISION</Text>
+                  <Text style={sty.formLbl}>SUBDIVISION</Text>
                   <TouchableOpacity onPress={() => setShowSubdivPicker(p => !p)}
                     style={{ backgroundColor: C.inputBg, borderWidth: 1, borderColor: C.w10, borderRadius: 8, padding: 12, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                     <Text style={{ fontSize: 21, color: f.subdivision_id ? C.text : C.ph }}>
@@ -6023,8 +6023,8 @@ const NewProjectModal = ({ onClose, onCreated, subdivisions = [], builderTrades 
                 </View>
               )}
 
-              <View style={styles.divider} />
-              <Text style={[styles.formLbl, { color: C.gd, marginBottom: 10 }]}>HOMEOWNER</Text>
+              <View style={sty.divider} />
+              <Text style={[sty.formLbl, { color: C.gd, marginBottom: 10 }]}>HOMEOWNER</Text>
               <View style={{ flexDirection: 'row', gap: 12 }}>
                 <Inp2 label="FIRST NAME" value={f.customer_first_name} onChange={v => set('customer_first_name', v)} placeholder="Jane" style={{ flex: 1 }} />
                 <Inp2 label="LAST NAME" value={f.customer_last_name} onChange={v => set('customer_last_name', v)} placeholder="Parker" style={{ flex: 1 }} />
@@ -6053,7 +6053,7 @@ const NewProjectModal = ({ onClose, onCreated, subdivisions = [], builderTrades 
 
               {showHomeowner2 && (
                 <View style={{ marginBottom: 14, paddingLeft: 4 }}>
-                  <Text style={[styles.formLbl, { color: C.gd, marginBottom: 10 }]}>SECOND HOMEOWNER</Text>
+                  <Text style={[sty.formLbl, { color: C.gd, marginBottom: 10 }]}>SECOND HOMEOWNER</Text>
                   <View style={{ flexDirection: 'row', gap: 12 }}>
                     <Inp2 label="FIRST NAME" value={f.homeowner2_first_name} onChange={v => set('homeowner2_first_name', v)} placeholder="John" style={{ flex: 1 }} />
                     <Inp2 label="LAST NAME" value={f.homeowner2_last_name} onChange={v => set('homeowner2_last_name', v)} placeholder="Parker" style={{ flex: 1 }} />
@@ -6070,7 +6070,7 @@ const NewProjectModal = ({ onClose, onCreated, subdivisions = [], builderTrades 
               <View style={{ flexDirection: 'row', gap: 12, zIndex: 10 }}>
                 <Inp2 label="CITY" value={f.city} onChange={v => set('city', v)} placeholder="Eagle" style={{ flex: 2 }} />
                 <View style={{ flex: 1, marginBottom: 16 }}>
-                  <Text style={styles.formLbl}>STATE</Text>
+                  <Text style={sty.formLbl}>STATE</Text>
                   <TouchableOpacity onPress={() => setShowAddrState(p => !p)}
                     style={{ backgroundColor: C.inputBg, borderWidth: 1, borderColor: C.w10, borderRadius: 8, padding: 12, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                     <Text style={{ fontSize: 21, color: f.addr_state ? C.text : C.ph }}>{f.addr_state || 'ST'}</Text>
@@ -6079,7 +6079,7 @@ const NewProjectModal = ({ onClose, onCreated, subdivisions = [], builderTrades 
                 </View>
                 <Inp2 label="ZIP" value={f.zip_code} onChange={v => set('zip_code', v)} type="number" placeholder="83616" style={{ flex: 1 }} />
               </View>
-              <View style={styles.divider} />
+              <View style={sty.divider} />
 
               {/* Project Manager & Superintendent dropdowns */}
               {companyBuilders.length > 0 && (
@@ -6087,7 +6087,7 @@ const NewProjectModal = ({ onClose, onCreated, subdivisions = [], builderTrades 
                   <View style={{ flexDirection: 'row', gap: 12 }}>
                     {/* Project Manager */}
                     <View style={{ flex: 1 }}>
-                      <Text style={styles.formLbl}>PROJECT MANAGER</Text>
+                      <Text style={sty.formLbl}>PROJECT MANAGER</Text>
                       <TouchableOpacity onPress={() => { setShowPmPicker(p => !p); setShowSuptPicker(false); }}
                         style={{ backgroundColor: C.inputBg, borderWidth: 1, borderColor: C.w10, borderRadius: 8, padding: 12, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                         <Text style={{ fontSize: 18, color: selectedPmId ? C.text : C.ph }} numberOfLines={1}>
@@ -6120,7 +6120,7 @@ const NewProjectModal = ({ onClose, onCreated, subdivisions = [], builderTrades 
                     </View>
                     {/* Superintendent */}
                     <View style={{ flex: 1 }}>
-                      <Text style={styles.formLbl}>SUPERINTENDENT</Text>
+                      <Text style={sty.formLbl}>SUPERINTENDENT</Text>
                       <TouchableOpacity onPress={() => { setShowSuptPicker(p => !p); setShowPmPicker(false); }}
                         style={{ backgroundColor: C.inputBg, borderWidth: 1, borderColor: C.w10, borderRadius: 8, padding: 12, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                         <Text style={{ fontSize: 18, color: selectedSuptId ? C.text : C.ph }} numberOfLines={1}>
@@ -6154,7 +6154,7 @@ const NewProjectModal = ({ onClose, onCreated, subdivisions = [], builderTrades 
               {/* Selection Template picker */}
               {selectionTemplates.length > 0 && (
                 <View style={{ marginTop: 4, marginBottom: 16 }}>
-                  <Text style={styles.formLbl}>SELECTION TEMPLATE</Text>
+                  <Text style={sty.formLbl}>SELECTION TEMPLATE</Text>
                   <TouchableOpacity onPress={() => setShowSelTmplPicker(p => !p)}
                     style={{ backgroundColor: C.inputBg, borderWidth: 1, borderColor: C.w10, borderRadius: 8, padding: 12, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                     <Text style={{ fontSize: 21, color: selectedSelTmplId ? C.text : C.ph }}>
@@ -6182,7 +6182,7 @@ const NewProjectModal = ({ onClose, onCreated, subdivisions = [], builderTrades 
                 </View>
               )}
 
-              <View style={styles.divider} />
+              <View style={sty.divider} />
               <ScheduleBuilder
                 tasks={scheduleTasks}
                 onTasksChange={setScheduleTasks}
@@ -6201,8 +6201,8 @@ const NewProjectModal = ({ onClose, onCreated, subdivisions = [], builderTrades 
               />
 
               <TouchableOpacity onPress={create} disabled={!f.name.trim() || loading}
-                style={[styles.submitBtn, (!f.name.trim() || loading) && styles.submitBtnOff]} activeOpacity={0.8}>
-                <Text style={styles.submitBtnTxt}>{loading ? 'Creating...' : 'Create Project'}</Text>
+                style={[sty.submitBtn, (!f.name.trim() || loading) && sty.submitBtnOff]} activeOpacity={0.8}>
+                <Text style={sty.submitBtnTxt}>{loading ? 'Creating...' : 'Create Project'}</Text>
               </TouchableOpacity>
               <View style={{ height: 30 }} />
             </ScrollView>
@@ -6506,7 +6506,7 @@ const DEFAULT_TRADES = [
 const NewSubModal = ({ onClose, onCreated, tradesList }) => {
   const C = React.useContext(ThemeContext);
   const { user } = React.useContext(AuthContext);
-  const styles = React.useMemo(() => getStyles(C), [C]);
+  const sty = React.useMemo(() => getStyles(C), [C]);
   const [companyName, setCompanyName] = useState('');
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
@@ -6569,18 +6569,18 @@ const NewSubModal = ({ onClose, onCreated, tradesList }) => {
 
   return (
     <Modal visible animationType="slide" transparent>
-      <View style={styles.exOverlay}>
-        <View style={[styles.exBox, { maxWidth: 560, maxHeight: '92%' }]}>
+      <View style={sty.exOverlay}>
+        <View style={[sty.exBox, { maxWidth: 560, maxHeight: '92%' }]}>
           {/* Header */}
-          <View style={styles.exHeader}>
+          <View style={sty.exHeader}>
             <View>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                 <Feather name="user" size={20} color={C.textBold} />
-                <Text style={styles.exTitle}>Add Subcontractor</Text>
+                <Text style={sty.exTitle}>Add Subcontractor</Text>
               </View>
-              <Text style={styles.exSubtitle}>Account created with default password: Liberty1</Text>
+              <Text style={sty.exSubtitle}>Account created with default password: Liberty1</Text>
             </View>
-            <TouchableOpacity onPress={onClose} style={styles.exCloseBtn}>
+            <TouchableOpacity onPress={onClose} style={sty.exCloseBtn}>
               <Feather name="x" size={21} color={C.mt} />
             </TouchableOpacity>
           </View>
@@ -6594,62 +6594,62 @@ const NewSubModal = ({ onClose, onCreated, tradesList }) => {
 
             {/* Company Name */}
             <View style={{ marginBottom: 14 }}>
-              <Text style={styles.nsLabel}>COMPANY NAME *</Text>
+              <Text style={sty.nsLabel}>COMPANY NAME *</Text>
               <TextInput value={companyName} onChangeText={setCompanyName}
                 placeholder="e.g., Smith Electric LLC" placeholderTextColor={C.w20}
-                style={styles.nsInput} />
+                style={sty.nsInput} />
             </View>
 
             {/* Primary Contact Name */}
-            <Text style={styles.nsLabel}>PRIMARY CONTACT NAME *</Text>
+            <Text style={sty.nsLabel}>PRIMARY CONTACT NAME *</Text>
             <View style={{ flexDirection: 'row', gap: 10, marginBottom: 14 }}>
               <View style={{ flex: 1 }}>
                 <TextInput value={firstName} onChangeText={setFirstName}
                   placeholder="First" placeholderTextColor={C.w20}
-                  style={styles.nsInput} />
+                  style={sty.nsInput} />
               </View>
               <View style={{ flex: 1 }}>
                 <TextInput value={lastName} onChangeText={setLastName}
                   placeholder="Last" placeholderTextColor={C.w20}
-                  style={styles.nsInput} />
+                  style={sty.nsInput} />
               </View>
             </View>
 
             {/* Phone & Email */}
             <View style={{ flexDirection: 'row', gap: 10, marginBottom: 14 }}>
               <View style={{ flex: 1 }}>
-                <Text style={styles.nsLabel}>PHONE NUMBER</Text>
+                <Text style={sty.nsLabel}>PHONE NUMBER</Text>
                 <TextInput value={fPhone(phone)} onChangeText={v => setPhone(v.replace(/\D/g, '').slice(0, 10))}
                   placeholder="(555) 555-5555" placeholderTextColor={C.w20}
-                  keyboardType="phone-pad" style={styles.nsInput} />
+                  keyboardType="phone-pad" style={sty.nsInput} />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.nsLabel}>EMAIL ADDRESS *</Text>
+                <Text style={sty.nsLabel}>EMAIL ADDRESS *</Text>
                 <TextInput value={email} onChangeText={setEmail}
                   placeholder="email@example.com" placeholderTextColor={C.w20}
-                  keyboardType="email-address" autoCapitalize="none" style={styles.nsInput} />
+                  keyboardType="email-address" autoCapitalize="none" style={sty.nsInput} />
               </View>
             </View>
 
             {/* Street Address */}
             <View style={{ marginBottom: 14 }}>
-              <Text style={styles.nsLabel}>STREET ADDRESS</Text>
+              <Text style={sty.nsLabel}>STREET ADDRESS</Text>
               <TextInput value={street} onChangeText={setStreet}
                 placeholder="123 Main St" placeholderTextColor={C.w20}
-                style={styles.nsInput} />
+                style={sty.nsInput} />
             </View>
 
             {/* City, State, Zip */}
             <View style={{ flexDirection: 'row', gap: 10, marginBottom: 14 }}>
               <View style={{ flex: 2 }}>
-                <Text style={styles.nsLabel}>CITY</Text>
+                <Text style={sty.nsLabel}>CITY</Text>
                 <TextInput value={city} onChangeText={setCity}
                   placeholder="City" placeholderTextColor={C.w20}
-                  style={styles.nsInput} />
+                  style={sty.nsInput} />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.nsLabel}>STATE</Text>
-                <TouchableOpacity onPress={() => setShowStateDropdown(p => !p)} style={[styles.nsInput, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]}>
+                <Text style={sty.nsLabel}>STATE</Text>
+                <TouchableOpacity onPress={() => setShowStateDropdown(p => !p)} style={[sty.nsInput, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]}>
                   <Text style={{ fontSize: 21, color: stateVal ? C.text : C.w20 }}>
                     {stateVal || 'Select'}
                   </Text>
@@ -6657,19 +6657,19 @@ const NewSubModal = ({ onClose, onCreated, tradesList }) => {
                 </TouchableOpacity>
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.nsLabel}>ZIP CODE</Text>
+                <Text style={sty.nsLabel}>ZIP CODE</Text>
                 <TextInput value={zip} onChangeText={setZip}
                   placeholder="12345" placeholderTextColor={C.w20}
-                  keyboardType="numeric" style={styles.nsInput} />
+                  keyboardType="numeric" style={sty.nsInput} />
               </View>
             </View>
 
             {/* Trades */}
             <View style={{ marginBottom: 14 }}>
-              <Text style={styles.nsLabel}>TRADES</Text>
+              <Text style={sty.nsLabel}>TRADES</Text>
               <TouchableOpacity
                 onPress={() => { setShowTradeDropdown(true); setTradeSearch(''); }}
-                style={[styles.nsInput, { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]}
+                style={[sty.nsInput, { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]}
                 activeOpacity={0.7}
               >
                 <Text style={{ fontSize: 16, color: selectedTrades.length > 0 ? C.text : C.w20, flex: 1 }} numberOfLines={1}>
@@ -6693,12 +6693,12 @@ const NewSubModal = ({ onClose, onCreated, tradesList }) => {
           </ScrollView>
 
           {/* Footer actions */}
-          <View style={styles.nsFooter}>
-            <TouchableOpacity onPress={onClose} style={styles.nsCancelBtn}>
+          <View style={sty.nsFooter}>
+            <TouchableOpacity onPress={onClose} style={sty.nsCancelBtn}>
               <Text style={{ fontSize: 21, fontWeight: '600', color: C.mt }}>Cancel</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={handleSave} disabled={!canSave || saving}
-              style={[styles.nsSaveBtn, (!canSave || saving) && { opacity: 0.4 }]}>
+              style={[sty.nsSaveBtn, (!canSave || saving) && { opacity: 0.4 }]}>
               <Text style={{ fontSize: 21, fontWeight: '700', color: C.textBold }}>
                 {saving ? 'Creating...' : 'Create Subcontractor'}
               </Text>
@@ -6791,7 +6791,7 @@ const NewSubModal = ({ onClose, onCreated, tradesList }) => {
 const DocumentManagerModal = ({ onClose }) => {
   const C = React.useContext(ThemeContext);
   const { user } = React.useContext(AuthContext);
-  const styles = React.useMemo(() => getStyles(C), [C]);
+  const sty = React.useMemo(() => getStyles(C), [C]);
   const [templates, setTemplates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [name, setName] = useState('');
@@ -6836,14 +6836,14 @@ const DocumentManagerModal = ({ onClose }) => {
 
   return (
     <Modal visible animationType="slide" transparent>
-      <View style={styles.exOverlay}>
-        <View style={[styles.exBox, { maxWidth: 560, maxHeight: '94%' }]}>
-          <View style={styles.exHeader}>
+      <View style={sty.exOverlay}>
+        <View style={[sty.exBox, { maxWidth: 560, maxHeight: '94%' }]}>
+          <View style={sty.exHeader}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
               <Feather name="file-text" size={20} color={C.textBold} />
-              <Text style={styles.exTitle}>Manage Documents</Text>
+              <Text style={sty.exTitle}>Manage Documents</Text>
             </View>
-            <TouchableOpacity onPress={onClose} style={styles.exCloseBtn}>
+            <TouchableOpacity onPress={onClose} style={sty.exCloseBtn}>
               <Feather name="x" size={21} color={C.mt} />
             </TouchableOpacity>
           </View>
@@ -6938,7 +6938,7 @@ const DocumentManagerModal = ({ onClose }) => {
 
 const SubdivisionUploadModal = ({ subdivision, user, templateId, templateName, onClose, onCreated }) => {
   const C = React.useContext(ThemeContext);
-  const styles = React.useMemo(() => getStyles(C), [C]);
+  const sty = React.useMemo(() => getStyles(C), [C]);
   const [name, setName] = useState(templateName || '');
   const [category, setCategory] = useState('General');
   const [loading, setLoading] = useState(false);
@@ -6995,11 +6995,11 @@ const SubdivisionUploadModal = ({ subdivision, user, templateId, templateName, o
 
   return (
     <Modal visible animationType="slide" transparent>
-      <View style={styles.exOverlay}>
-        <View style={[styles.exBox, { maxWidth: 500, maxHeight: '90%' }]}>
-          <View style={styles.exHeader}>
-            <Text style={styles.exTitle}>{templateName ? `Upload: ${templateName}` : 'Upload Document'}</Text>
-            <TouchableOpacity onPress={onClose} style={styles.exCloseBtn}>
+      <View style={sty.exOverlay}>
+        <View style={[sty.exBox, { maxWidth: 500, maxHeight: '90%' }]}>
+          <View style={sty.exHeader}>
+            <Text style={sty.exTitle}>{templateName ? `Upload: ${templateName}` : 'Upload Document'}</Text>
+            <TouchableOpacity onPress={onClose} style={sty.exCloseBtn}>
               <Feather name="x" size={21} color={C.mt} />
             </TouchableOpacity>
           </View>
@@ -7070,7 +7070,7 @@ const SubdivisionUploadModal = ({ subdivision, user, templateId, templateName, o
 const SelectionManagerModal = ({ onClose, builderTrades = [] }) => {
   const C = React.useContext(ThemeContext);
   const { user } = React.useContext(AuthContext);
-  const styles = React.useMemo(() => getStyles(C), [C]);
+  const sty = React.useMemo(() => getStyles(C), [C]);
   const [topTab, setTopTab] = useState('items'); // items | templates
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -7276,17 +7276,17 @@ const SelectionManagerModal = ({ onClose, builderTrades = [] }) => {
 
   return (
     <Modal visible animationType="slide" transparent>
-      <View style={styles.exOverlay}>
-        <View style={[styles.exBox, { maxWidth: 640, maxHeight: '94%' }]}>
-          <View style={styles.exHeader}>
+      <View style={sty.exOverlay}>
+        <View style={[sty.exBox, { maxWidth: 640, maxHeight: '94%' }]}>
+          <View style={sty.exHeader}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
               <Feather name="sliders" size={20} color={C.textBold} />
-              <Text style={styles.exTitle}>{headerTitle}</Text>
+              <Text style={sty.exTitle}>{headerTitle}</Text>
             </View>
             <TouchableOpacity onPress={() => {
               if (showBack) { if (isItemsTab) { resetForm(); setView('list'); } else { resetTmplForm(); setTmplView('list'); } }
               else onClose();
-            }} style={styles.exCloseBtn}>
+            }} style={sty.exCloseBtn}>
               <Feather name={showBack ? 'chevron-left' : 'x'} size={21} color={C.mt} />
             </TouchableOpacity>
           </View>
@@ -7378,7 +7378,7 @@ const SelectionManagerModal = ({ onClose, builderTrades = [] }) => {
             /* CREATE / EDIT VIEW */
             <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 18 }} keyboardShouldPersistTaps="handled">
               {/* Trade */}
-              <Text style={styles.formLbl}>TRADE</Text>
+              <Text style={sty.formLbl}>TRADE</Text>
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 14 }}>
                 {builderTrades.length > 0 ? builderTrades.map(t => (
                   <TouchableOpacity key={t} onPress={() => setTrade(t)}
@@ -7414,7 +7414,7 @@ const SelectionManagerModal = ({ onClose, builderTrades = [] }) => {
 
               {/* Options */}
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                <Text style={styles.formLbl}>OPTIONS</Text>
+                <Text style={sty.formLbl}>OPTIONS</Text>
                 <TouchableOpacity onPress={addOption} activeOpacity={0.7}>
                   <Text style={{ fontSize: 20, fontWeight: '600', color: C.gd }}>+ Add Option</Text>
                 </TouchableOpacity>
@@ -7439,7 +7439,7 @@ const SelectionManagerModal = ({ onClose, builderTrades = [] }) => {
                   <Inp2 label="DESCRIPTION" value={opt.description} onChange={v => updateOption(idx, 'description', v)} placeholder="e.g., Durable quartz surface with a clean white finish" />
 
                   {/* Image upload */}
-                  <Text style={styles.formLbl}>IMAGE</Text>
+                  <Text style={sty.formLbl}>IMAGE</Text>
                   {opt.image_b64 || opt.image_path ? (
                     <TouchableOpacity onPress={() => pickImage(idx)} activeOpacity={0.7}
                       style={{
@@ -7495,7 +7495,7 @@ const SelectionManagerModal = ({ onClose, builderTrades = [] }) => {
               ))}
 
               <TouchableOpacity onPress={saveItem} disabled={saving || !trade || !itemName || !options[0]?.name}
-                style={[styles.submitBtn, (saving || !trade || !itemName || !options[0]?.name) && { backgroundColor: C.dm }]} activeOpacity={0.8}>
+                style={[sty.submitBtn, (saving || !trade || !itemName || !options[0]?.name) && { backgroundColor: C.dm }]} activeOpacity={0.8}>
                 <Text style={{ color: C.textBold, fontSize: 22, fontWeight: '700', textAlign: 'center' }}>
                   {saving ? 'Saving...' : (editingId ? 'Update Selection' : 'Create Selection')}
                 </Text>
@@ -7555,7 +7555,7 @@ const SelectionManagerModal = ({ onClose, builderTrades = [] }) => {
                 {tmplSelectedIds.length} selection{tmplSelectedIds.length !== 1 ? 's' : ''} included
               </Text>
 
-              <Text style={styles.formLbl}>SELECT ITEMS TO INCLUDE</Text>
+              <Text style={sty.formLbl}>SELECT ITEMS TO INCLUDE</Text>
               {items.length === 0 ? (
                 <Text style={{ fontSize: 18, color: C.dm, marginBottom: 20 }}>No selection items yet. Create items first in the Items tab.</Text>
               ) : (
@@ -7611,7 +7611,7 @@ const SelectionManagerModal = ({ onClose, builderTrades = [] }) => {
               )}
 
               <TouchableOpacity onPress={saveTmpl} disabled={tmplSaving || !tmplName.trim() || tmplSelectedIds.length === 0}
-                style={[styles.submitBtn, (tmplSaving || !tmplName.trim() || tmplSelectedIds.length === 0) && { backgroundColor: C.dm }]} activeOpacity={0.8}>
+                style={[sty.submitBtn, (tmplSaving || !tmplName.trim() || tmplSelectedIds.length === 0) && { backgroundColor: C.dm }]} activeOpacity={0.8}>
                 <Text style={{ color: C.textBold, fontSize: 22, fontWeight: '700', textAlign: 'center' }}>
                   {tmplSaving ? 'Saving...' : (tmplEditingId ? 'Update Template' : 'Create Template')}
                 </Text>
@@ -7633,7 +7633,7 @@ const SelectionManagerModal = ({ onClose, builderTrades = [] }) => {
 const WorkdayExemptionsModal = ({ onClose }) => {
   const C = React.useContext(ThemeContext);
   const { user } = React.useContext(AuthContext);
-  const styles = React.useMemo(() => getStyles(C), [C]);
+  const sty = React.useMemo(() => getStyles(C), [C]);
   const [exemptions, setExemptions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [newDate, setNewDate] = useState('');
@@ -7691,25 +7691,25 @@ const WorkdayExemptionsModal = ({ onClose }) => {
 
   return (
     <Modal visible animationType="slide" transparent>
-      <View style={styles.exOverlay}>
-        <View style={styles.exBox}>
+      <View style={sty.exOverlay}>
+        <View style={sty.exBox}>
           {/* Header */}
-          <View style={styles.exHeader}>
+          <View style={sty.exHeader}>
             <View>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                 <Feather name="calendar" size={20} color={C.textBold} />
-                <Text style={styles.exTitle}>Workday Exemptions</Text>
+                <Text style={sty.exTitle}>Workday Exemptions</Text>
               </View>
-              <Text style={styles.exSubtitle}>Days excluded from schedule calculations</Text>
+              <Text style={sty.exSubtitle}>Days excluded from schedule calculations</Text>
             </View>
-            <TouchableOpacity onPress={onClose} style={styles.exCloseBtn}>
+            <TouchableOpacity onPress={onClose} style={sty.exCloseBtn}>
               <Feather name="x" size={21} color={C.mt} />
             </TouchableOpacity>
           </View>
 
           {/* Add form */}
-          <View style={styles.exForm}>
-            <View style={styles.exFormRow}>
+          <View style={sty.exForm}>
+            <View style={sty.exFormRow}>
               <View style={{ flex: 1 }}>
                 <DatePicker
                   label="DATE"
@@ -7720,31 +7720,31 @@ const WorkdayExemptionsModal = ({ onClose }) => {
                 />
               </View>
               <View style={{ flex: 1.5 }}>
-                <Text style={styles.exLabel}>DESCRIPTION</Text>
+                <Text style={sty.exLabel}>DESCRIPTION</Text>
                 <TextInput
                   value={newDesc}
                   onChangeText={setNewDesc}
                   placeholder="e.g., Christmas Day, Labor Day"
                   placeholderTextColor={C.w20}
-                  style={styles.exInput}
+                  style={sty.exInput}
                 />
               </View>
               <TouchableOpacity
                 onPress={() => setNewRecurring(p => !p)}
-                style={styles.exRecurToggle}
+                style={sty.exRecurToggle}
                 activeOpacity={0.7}
               >
-                <View style={[styles.exCheckbox, newRecurring && styles.exCheckboxOn]}>
+                <View style={[sty.exCheckbox, newRecurring && sty.exCheckboxOn]}>
                   {newRecurring && <Feather name="check" size={18} color={C.textBold} />}
                 </View>
-                <Text style={styles.exRecurLabel}>Annual</Text>
+                <Text style={sty.exRecurLabel}>Annual</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={addExemption}
                 disabled={!newDate.trim() || saving}
-                style={[styles.exAddBtn, (!newDate.trim() || saving) && { opacity: 0.4 }]}
+                style={[sty.exAddBtn, (!newDate.trim() || saving) && { opacity: 0.4 }]}
               >
-                <Text style={styles.exAddBtnTxt}>{saving ? '...' : '+ Add'}</Text>
+                <Text style={sty.exAddBtnTxt}>{saving ? '...' : '+ Add'}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -7764,31 +7764,31 @@ const WorkdayExemptionsModal = ({ onClose }) => {
             ) : (
               Object.entries(grouped).map(([year, items]) => (
                 <View key={year} style={{ marginBottom: 16 }}>
-                  <Text style={styles.exYearLabel}>{year}</Text>
+                  <Text style={sty.exYearLabel}>{year}</Text>
                   {items.map(ex => {
                     const d = new Date(ex.date + 'T00:00:00');
                     const dayName = d.toLocaleDateString('en-US', { weekday: 'short' });
                     const dateFmt = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
                     return (
-                      <View key={ex.id} style={styles.exItem}>
-                        <View style={styles.exDateChip}>
-                          <Text style={styles.exDayTxt}>{dayName}</Text>
-                          <Text style={styles.exDateTxt}>{dateFmt}</Text>
+                      <View key={ex.id} style={sty.exItem}>
+                        <View style={sty.exDateChip}>
+                          <Text style={sty.exDayTxt}>{dayName}</Text>
+                          <Text style={sty.exDateTxt}>{dateFmt}</Text>
                         </View>
                         <View style={{ flex: 1 }}>
                           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                            <Text style={styles.exDescTxt}>{ex.description || 'No description'}</Text>
+                            <Text style={sty.exDescTxt}>{ex.description || 'No description'}</Text>
                             {ex.recurring && (
-                              <View style={styles.exRecurBadge}>
+                              <View style={sty.exRecurBadge}>
                                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                                   <Feather name="refresh-cw" size={12} color={C.gd} />
-                                  <Text style={styles.exRecurBadgeTxt}>Annual</Text>
+                                  <Text style={sty.exRecurBadgeTxt}>Annual</Text>
                                 </View>
                               </View>
                             )}
                           </View>
                         </View>
-                        <TouchableOpacity onPress={() => deleteExemption(ex.id)} style={styles.exDelBtn}>
+                        <TouchableOpacity onPress={() => deleteExemption(ex.id)} style={sty.exDelBtn}>
                           <Feather name="x" size={18} color={C.rd} />
                         </TouchableOpacity>
                       </View>
@@ -8049,7 +8049,7 @@ const getStyles = (C) => StyleSheet.create({
   dashTabTxt: { fontSize: 21, fontWeight: '500', color: C.chromeDm },
   dashTabTxtOn: { color: C.chromeTxt, fontWeight: '600' },
 
-  // Sub detail styles
+  // Sub detail sty
   subDetailCard: {
     backgroundColor: C.w04, borderRadius: 14, padding: 18,
     borderWidth: 1, borderColor: C.w06, marginBottom: 14,
