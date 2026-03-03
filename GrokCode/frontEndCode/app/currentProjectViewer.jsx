@@ -578,6 +578,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
   const [expandedSelTrades, setExpandedSelTrades] = useState({});
   const [expandedSelItems, setExpandedSelItems] = useState({});
   const [otherText, setOtherText] = useState('');
+  const [tdpInputs, setTdpInputs] = useState({});
   const [documents, setDocuments] = useState([]);
   const [docTemplates, setDocTemplates] = useState([]);
   const [docEditMode, setDocEditMode] = useState(false);
@@ -3297,9 +3298,21 @@ ${sectionsHtml}
                         keyboardType="numeric"
                         placeholder={sel.price_override != null ? String(sel.price_override) : '0'}
                         placeholderTextColor={C.ph}
-                        defaultValue={sel.price_override != null ? String(sel.price_override) : ''}
-                        onEndEditing={(e) => savePriceOverride(sel.project_selection_id, e.nativeEvent.text)}
+                        value={tdpInputs[sel.project_selection_id] != null ? tdpInputs[sel.project_selection_id] : (sel.price_override != null ? String(sel.price_override) : '')}
+                        onChangeText={(text) => setTdpInputs(prev => ({ ...prev, [sel.project_selection_id]: text }))}
                       />
+                      <TouchableOpacity
+                        onPress={() => {
+                          const val = tdpInputs[sel.project_selection_id];
+                          if (val != null && val !== '') {
+                            savePriceOverride(sel.project_selection_id, val);
+                            setTdpInputs(prev => { const n = { ...prev }; delete n[sel.project_selection_id]; return n; });
+                          }
+                        }}
+                        style={{ backgroundColor: '#f59e0b', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 6 }}
+                        activeOpacity={0.8}>
+                        <Text style={{ fontSize: 16, fontWeight: '700', color: '#fff' }}>Save</Text>
+                      </TouchableOpacity>
                     </View>
                     {sel.price_override != null && (
                       <Text style={{ fontSize: 16, color: C.gn, marginTop: 6 }}>Price set: {f$(sel.price_override)}</Text>
