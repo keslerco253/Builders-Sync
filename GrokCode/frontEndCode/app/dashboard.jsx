@@ -1791,12 +1791,12 @@ export default function Dashboard() {
     setSubCOSubmitting(true);
     try {
       const body = {
-        title, description: desc, amount: amt, due_date: dueDate || null,
-        created_by: 'sub',
-        sub_id: user?.id || null,
-        sub_name: user?.company_name || user?.name || '',
-        sub_initials: getInitials(signerName.trim()),
-        sub_signer_name: signerName.trim(),
+        title, description: desc, due_date: dueDate || null,
+        initiated_by: 'sub',
+        user_id: user?.id,
+        initials: getInitials(signerName.trim()),
+        signer_name: signerName.trim(),
+        line_items: [{ item_name: title, cost: amt, markup_percent: 0, sub_id: user?.id || null, sub_name: user?.company_name || user?.name || '' }],
         task_id: task.id,
         task_name: task.task || null,
       };
@@ -2243,7 +2243,7 @@ export default function Dashboard() {
                         const res = await apiFetch(`/change-orders/${subCOSignModal.id}/sign`, {
                           method: 'PUT',
                           headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ role: 'sub' }),
+                          body: JSON.stringify({ role: 'sub', user_id: user?.id }),
                         });
                         const data = await res.json();
                         if (!res.ok) {

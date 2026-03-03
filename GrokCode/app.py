@@ -311,10 +311,20 @@ class JobUsers(db.Model):
 class ChangeOrders(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     job_id = db.Column(db.Integer, db.ForeignKey('projects.id'), nullable=False)
+    co_number = db.Column(db.Integer, default=1)  # per-project numbering starting at 1
     title = db.Column(db.String(200), nullable=False)
     description = db.Column(db.Text, default='')
+    # amount is now computed from line items; kept for backwards compat
     amount = db.Column(db.Float, default=0)
-    status = db.Column(db.String(30), default='pending_customer')
+    status = db.Column(db.String(30), default='draft')
+    # draft | pending_super | pending_customer | pending_customer_review |
+    # pending_subs | pending_pm | approved | declined | expired
+    initiated_by = db.Column(db.String(20), default='super')  # super | customer | sub
+    initiated_by_user_id = db.Column(db.Integer, nullable=True)
+    # Signing order tracking — JSON array of role strings in order
+    sign_order = db.Column(db.Text, default='[]')
+    current_sign_step = db.Column(db.Integer, default=0)
+    # Legacy single-sig fields kept for migration; new flow uses ChangeOrderSignature table
     builder_sig = db.Column(db.Boolean, default=False)
     builder_sig_date = db.Column(db.String(20), nullable=True)
     customer_sig = db.Column(db.Boolean, default=False)
@@ -334,13 +344,25 @@ class ChangeOrders(db.Model):
     task_extension_days = db.Column(db.Integer, default=0)
     created_at = db.Column(db.String(20), default='')
     due_date = db.Column(db.String(20), nullable=True)
+    declined_by = db.Column(db.String(200), nullable=True)
+    declined_reason = db.Column(db.Text, nullable=True)
     documents = db.relationship('ChangeOrderDocument', backref='change_order', cascade='all, delete-orphan', lazy=True)
+    line_items = db.relationship('ChangeOrderLineItem', backref='change_order', cascade='all, delete-orphan', lazy=True)
+    signatures = db.relationship('ChangeOrderSignature', backref='change_order', cascade='all, delete-orphan', lazy=True)
 
     def to_dict(self):
+        sigs = [s.to_dict() for s in (self.signatures or [])]
+        items = [li.to_dict() for li in (self.line_items or [])]
+        sign_order = json.loads(self.sign_order) if self.sign_order else []
         return {
-            'id': self.id, 'job_id': self.job_id, 'title': self.title,
-            'description': self.description, 'amount': self.amount,
-            'status': self.status, 'builder_sig': self.builder_sig,
+            'id': self.id, 'job_id': self.job_id, 'co_number': self.co_number,
+            'title': self.title, 'description': self.description,
+            'amount': self.amount, 'status': self.status,
+            'initiated_by': self.initiated_by,
+            'initiated_by_user_id': self.initiated_by_user_id,
+            'sign_order': sign_order,
+            'current_sign_step': self.current_sign_step,
+            'builder_sig': self.builder_sig,
             'builder_sig_date': self.builder_sig_date, 'customer_sig': self.customer_sig,
             'customer_sig_date': self.customer_sig_date,
             'sub_id': self.sub_id, 'sub_name': self.sub_name,
@@ -354,6 +376,50 @@ class ChangeOrders(db.Model):
             'task_id': self.task_id, 'task_name': self.task_name,
             'task_extension_days': self.task_extension_days,
             'created_at': self.created_at, 'due_date': self.due_date,
+            'declined_by': self.declined_by,
+            'declined_reason': self.declined_reason,
+            'line_items': items,
+            'signatures': sigs,
+        }
+
+
+class ChangeOrderLineItem(db.Model):
+    """Individual line item within a change order"""
+    id = db.Column(db.Integer, primary_key=True)
+    change_order_id = db.Column(db.Integer, db.ForeignKey('change_orders.id'), nullable=False)
+    item_name = db.Column(db.String(200), nullable=False)
+    cost = db.Column(db.Float, default=0)
+    markup_percent = db.Column(db.Float, default=0)  # per line item markup
+    sub_id = db.Column(db.Integer, nullable=True)
+    sub_name = db.Column(db.String(200), nullable=True)
+
+    def to_dict(self):
+        total = self.cost * (1 + (self.markup_percent or 0) / 100)
+        return {
+            'id': self.id, 'change_order_id': self.change_order_id,
+            'item_name': self.item_name, 'cost': self.cost,
+            'markup_percent': self.markup_percent,
+            'total': round(total, 2),
+            'sub_id': self.sub_id, 'sub_name': self.sub_name,
+        }
+
+
+class ChangeOrderSignature(db.Model):
+    """Individual signature on a change order"""
+    id = db.Column(db.Integer, primary_key=True)
+    change_order_id = db.Column(db.Integer, db.ForeignKey('change_orders.id'), nullable=False)
+    user_id = db.Column(db.Integer, nullable=False)
+    role = db.Column(db.String(30), nullable=False)  # super | customer | sub | pm
+    initials = db.Column(db.String(10), default='')
+    signer_name = db.Column(db.String(200), default='')
+    signed_at = db.Column(db.String(30), default='')
+
+    def to_dict(self):
+        return {
+            'id': self.id, 'change_order_id': self.change_order_id,
+            'user_id': self.user_id, 'role': self.role,
+            'initials': self.initials, 'signer_name': self.signer_name,
+            'signed_at': self.signed_at,
         }
 
 
@@ -2324,9 +2390,114 @@ def get_user_tasks(uid):
 # CHANGE ORDERS
 # ============================================================
 
+def _co_build_sign_order(initiated_by, line_items_data):
+    """Build the signing order based on who initiated and which subs are involved."""
+    # Collect unique sub IDs from line items
+    sub_ids = list(set(li.get('sub_id') for li in (line_items_data or []) if li.get('sub_id')))
+    sub_steps = [f'sub:{sid}' for sid in sub_ids]
+
+    if initiated_by == 'super':
+        # Super -> Customer -> Sub/s -> PM
+        return ['super', 'customer'] + sub_steps + ['pm']
+    elif initiated_by == 'customer':
+        # Customer creates (no sig) -> Super reviews/prices -> Customer reviews -> Sub/s -> PM
+        return ['super', 'customer_review'] + sub_steps + ['pm']
+    elif initiated_by == 'sub':
+        # Sub -> Super -> Customer -> PM
+        return ['sub', 'super', 'customer'] + ['pm']
+    return ['super', 'customer'] + sub_steps + ['pm']
+
+
+def _co_recalc_amount(co):
+    """Recalculate total amount from line items (cost * (1 + markup/100))."""
+    items = ChangeOrderLineItem.query.filter_by(change_order_id=co.id).all()
+    co.amount = round(sum(li.cost * (1 + (li.markup_percent or 0) / 100) for li in items), 2)
+
+
+def _co_next_number(job_id):
+    """Get the next change order number for a project."""
+    max_num = db.session.query(db.func.max(ChangeOrders.co_number)).filter_by(job_id=job_id).scalar()
+    return (max_num or 0) + 1
+
+
+def _co_advance_status(co):
+    """Advance the change order to the next signing step based on collected signatures."""
+    sign_order = json.loads(co.sign_order) if co.sign_order else []
+    sigs = ChangeOrderSignature.query.filter_by(change_order_id=co.id).all()
+    sig_roles = {s.role for s in sigs}
+    # Also track sub signatures by user_id
+    sub_sig_user_ids = {s.user_id for s in sigs if s.role == 'sub'}
+
+    # Find the next unsigned step
+    for i, step in enumerate(sign_order):
+        if step == 'customer_review':
+            # Customer review = customer signs again after super
+            customer_sigs = [s for s in sigs if s.role == 'customer_review']
+            if not customer_sigs:
+                co.current_sign_step = i
+                co.status = 'pending_customer_review'
+                return
+        elif step.startswith('sub:'):
+            sub_id = int(step.split(':')[1])
+            if sub_id not in sub_sig_user_ids:
+                co.current_sign_step = i
+                co.status = 'pending_subs'
+                return
+        elif step == 'sub':
+            # Generic sub step (sub-initiated, the initiator already signed)
+            if 'sub' not in sig_roles:
+                co.current_sign_step = i
+                co.status = 'pending_subs'
+                return
+        else:
+            if step not in sig_roles:
+                co.current_sign_step = i
+                status_map = {'super': 'pending_super', 'customer': 'pending_customer', 'pm': 'pending_pm'}
+                co.status = status_map.get(step, f'pending_{step}')
+                return
+
+    # All steps signed → approved
+    co.status = 'approved'
+    co.current_sign_step = len(sign_order)
+
+
+def _co_can_view(co, user_id, user_role, project):
+    """Check if a user can view a change order (only after the person before them signs)."""
+    if co.status == 'draft':
+        # Only the creator can see drafts
+        return co.initiated_by_user_id == user_id
+    if co.status in ('approved', 'declined', 'expired'):
+        return True
+    # The initiator can always see their own CO
+    if co.initiated_by_user_id == user_id:
+        return True
+    # Builders (super/pm/company_admin) can always view
+    if _is_builder(user_role):
+        return True
+    # Customers can view if it's their turn or already past their step
+    sign_order = json.loads(co.sign_order) if co.sign_order else []
+    step = co.current_sign_step or 0
+    if user_role == 'customer':
+        for i, s in enumerate(sign_order):
+            if s in ('customer', 'customer_review'):
+                return i <= step
+    # Subs can view if it's their turn or past their step
+    if user_role == 'contractor':
+        for i, s in enumerate(sign_order):
+            if s == f'sub:{user_id}' or (s == 'sub' and co.initiated_by_user_id == user_id):
+                return i <= step
+    return False
+
+
 @app.route('/projects/<int:pid>/change-orders', methods=['GET'])
 def get_change_orders(pid):
-    cos = ChangeOrders.query.filter_by(job_id=pid).order_by(ChangeOrders.created_at.desc()).all()
+    cos = ChangeOrders.query.filter_by(job_id=pid).order_by(ChangeOrders.co_number.desc()).all()
+    # Get requesting user info for visibility filtering
+    user_id = request.args.get('user_id', type=int)
+    user_role = request.args.get('role', '')
+    project = Projects.query.get(pid)
+    if user_id and user_role:
+        cos = [co for co in cos if _co_can_view(co, user_id, user_role, project)]
     return jsonify([co.to_dict() for co in cos])
 
 
@@ -2336,41 +2507,109 @@ def add_change_order(pid):
     now = datetime.utcnow()
     today = now.strftime('%Y-%m-%d')
     timestamp = now.strftime('%Y-%m-%d %H:%M:%S')
-    created_by = data.get('created_by', 'builder')  # 'builder' or 'sub'
+    initiated_by = data.get('initiated_by', 'super')  # super | customer | sub
+    is_draft = data.get('draft', False)
+    line_items_data = data.get('line_items', [])
+
     try:
-        if created_by == 'sub':
-            # Sub-created: sub auto-signs, needs builder + customer approval
-            co = ChangeOrders(
-                job_id=pid, title=data['title'], description=data.get('description', ''),
-                amount=data.get('amount', 0), status='pending_builder',
-                builder_sig=False, builder_sig_date=None,
-                customer_sig=False, customer_sig_date=None,
-                sub_id=data.get('sub_id', None), sub_name=data.get('sub_name', None),
-                sub_sig=True, sub_sig_date=timestamp,
-                sub_sig_initials=data.get('sub_initials', None),
-                sub_sig_name=data.get('sub_signer_name', None),
-                task_id=data.get('task_id', None), task_name=data.get('task_name', None),
-                task_extension_days=data.get('task_extension_days', 0),
-                created_at=today, due_date=data.get('due_date', None),
-            )
+        co_number = _co_next_number(pid)
+        sign_order = _co_build_sign_order(initiated_by, line_items_data)
+
+        # Determine initial status
+        if is_draft:
+            status = 'draft'
+        elif initiated_by == 'customer':
+            # Customer creates without signing — goes to super first
+            status = 'pending_super'
+        elif initiated_by == 'sub':
+            # Sub auto-signs at creation — goes to super
+            status = 'pending_super'
         else:
-            # Builder-created: builder auto-signs
-            co = ChangeOrders(
-                job_id=pid, title=data['title'], description=data.get('description', ''),
-                amount=data.get('amount', 0), status='pending_customer',
-                builder_sig=True, builder_sig_date=timestamp,
-                builder_sig_initials=data.get('builder_initials', None),
-                builder_sig_name=data.get('builder_signer_name', None),
-                customer_sig=False, customer_sig_date=None,
-                sub_id=data.get('sub_id', None), sub_name=data.get('sub_name', None),
-                sub_sig=False, sub_sig_date=None,
-                task_id=data.get('task_id', None), task_name=data.get('task_name', None),
-                task_extension_days=data.get('task_extension_days', 0),
-                created_at=today, due_date=data.get('due_date', None),
-            )
+            # Super creates as draft by default, or signs immediately
+            status = 'draft'
+
+        co = ChangeOrders(
+            job_id=pid, co_number=co_number,
+            title=data['title'], description=data.get('description', ''),
+            amount=0, status=status,
+            initiated_by=initiated_by,
+            initiated_by_user_id=data.get('user_id'),
+            sign_order=json.dumps(sign_order),
+            current_sign_step=0,
+            task_id=data.get('task_id'), task_name=data.get('task_name'),
+            task_extension_days=data.get('task_extension_days', 0),
+            created_at=today, due_date=data.get('due_date'),
+        )
         db.session.add(co)
+        db.session.flush()  # get co.id
+
+        # Create line items
+        for li in line_items_data:
+            item = ChangeOrderLineItem(
+                change_order_id=co.id,
+                item_name=li.get('item_name', ''),
+                cost=float(li.get('cost', 0)),
+                markup_percent=float(li.get('markup_percent', 0)),
+                sub_id=li.get('sub_id'),
+                sub_name=li.get('sub_name'),
+            )
+            db.session.add(item)
+
+        # Recalc total amount
+        db.session.flush()
+        _co_recalc_amount(co)
+
+        # Auto-sign for initiator (except customer who doesn't sign initially)
+        if initiated_by == 'sub' and not is_draft:
+            sig = ChangeOrderSignature(
+                change_order_id=co.id,
+                user_id=data.get('user_id', 0),
+                role='sub',
+                initials=data.get('initials', ''),
+                signer_name=data.get('signer_name', ''),
+                signed_at=timestamp,
+            )
+            db.session.add(sig)
+            _co_advance_status(co)
+
         db.session.commit()
         return jsonify(co.to_dict()), 201
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/change-orders/<int:co_id>', methods=['PUT'])
+def update_change_order(co_id):
+    """Update a change order (edit draft, add markup, update line items)."""
+    co = ChangeOrders.query.get_or_404(co_id)
+    data = request.get_json()
+    try:
+        for field in ('title', 'description', 'due_date', 'task_id', 'task_name', 'task_extension_days'):
+            if field in data:
+                setattr(co, field, data[field])
+
+        # Update line items if provided
+        if 'line_items' in data:
+            # Remove old items
+            ChangeOrderLineItem.query.filter_by(change_order_id=co.id).delete()
+            for li in data['line_items']:
+                item = ChangeOrderLineItem(
+                    change_order_id=co.id,
+                    item_name=li.get('item_name', ''),
+                    cost=float(li.get('cost', 0)),
+                    markup_percent=float(li.get('markup_percent', 0)),
+                    sub_id=li.get('sub_id'),
+                    sub_name=li.get('sub_name'),
+                )
+                db.session.add(item)
+            db.session.flush()
+            # Rebuild sign order with new subs
+            co.sign_order = json.dumps(_co_build_sign_order(co.initiated_by, data['line_items']))
+            _co_recalc_amount(co)
+
+        db.session.commit()
+        return jsonify(co.to_dict())
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
@@ -2383,27 +2622,45 @@ def sign_change_order(co_id):
     now = datetime.utcnow()
     today = now.strftime('%Y-%m-%d')
     timestamp = now.strftime('%Y-%m-%d %H:%M:%S')
-    role = data.get('role', '')
+    role = data.get('role', '')  # super | customer | customer_review | sub | pm
+    user_id = data.get('user_id', 0)
 
     # Enforce due date for customer signing
-    if role == 'customer' and co.due_date:
+    if role in ('customer', 'customer_review') and co.due_date:
         if today > co.due_date:
             try:
                 co.status = 'expired'
                 db.session.commit()
             except Exception:
                 db.session.rollback()
-            return jsonify({'error': 'This change order has expired. The due date has passed.', 'co': co.to_dict()}), 400
+            return jsonify({'error': 'This change order has expired.', 'co': co.to_dict()}), 400
 
     try:
         initials = data.get('initials', '')
         signer_name = data.get('signer_name', '')
-        if _is_builder(role):
+
+        # If signing from draft → set to first pending status
+        if co.status == 'draft':
+            co.status = 'pending_super'  # will be recalculated below
+
+        # Record signature
+        sig = ChangeOrderSignature(
+            change_order_id=co.id,
+            user_id=user_id,
+            role=role,
+            initials=initials,
+            signer_name=signer_name,
+            signed_at=timestamp,
+        )
+        db.session.add(sig)
+
+        # Also update legacy fields for backwards compat
+        if role == 'super' or _is_builder(role):
             co.builder_sig = True
             co.builder_sig_date = timestamp
             co.builder_sig_initials = initials
             co.builder_sig_name = signer_name
-        elif role == 'customer':
+        elif role in ('customer', 'customer_review'):
             co.customer_sig = True
             co.customer_sig_date = timestamp
             co.customer_sig_initials = initials
@@ -2414,13 +2671,11 @@ def sign_change_order(co_id):
             co.sub_sig_initials = initials
             co.sub_sig_name = signer_name
 
-        # Determine if fully approved: builder + customer + sub (if sub required)
-        all_signed = co.builder_sig and co.customer_sig
-        if co.sub_id:
-            all_signed = all_signed and co.sub_sig
+        # Advance to next step
+        _co_advance_status(co)
 
-        if all_signed:
-            co.status = 'approved'
+        # If approved, apply side effects
+        if co.status == 'approved':
             # Update project contract price
             project = Projects.query.get(co.job_id)
             if project:
@@ -2436,7 +2691,6 @@ def sign_change_order(co_id):
                     old_end = _to_date(task.end_date)
                     new_end = _add_workdays(old_end, co.task_extension_days)
                     task.end_date = _fmt(new_end)
-                    # Cascade: push all dependent tasks in the chain
                     all_items = Schedule.query.filter_by(job_id=co.job_id).all()
                     by_id = {t.id: t for t in all_items}
                     for _ in range(len(all_items) + 1):
@@ -2470,14 +2724,23 @@ def sign_change_order(co_id):
                     file_url=cd.file_url,
                 )
                 db.session.add(proj_doc)
-        else:
-            if not co.builder_sig:
-                co.status = 'pending_builder'
-            elif not co.customer_sig:
-                co.status = 'pending_customer'
-            elif co.sub_id and not co.sub_sig:
-                co.status = 'pending_sub'
 
+        db.session.commit()
+        return jsonify(co.to_dict())
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/change-orders/<int:co_id>/decline', methods=['PUT'])
+def decline_change_order(co_id):
+    """Decline a change order — stops the signing chain."""
+    co = ChangeOrders.query.get_or_404(co_id)
+    data = request.get_json()
+    try:
+        co.status = 'declined'
+        co.declined_by = data.get('declined_by', '')
+        co.declined_reason = data.get('reason', '')
         db.session.commit()
         return jsonify(co.to_dict())
     except Exception as e:
@@ -2527,8 +2790,15 @@ def delete_co_document(doc_id):
 
 @app.route('/users/<int:uid>/change-orders', methods=['GET'])
 def get_user_change_orders(uid):
-    """Get all change orders involving a subcontractor."""
-    cos = ChangeOrders.query.filter_by(sub_id=uid).order_by(ChangeOrders.created_at.desc()).all()
+    """Get all change orders involving a subcontractor (via line items or as initiator)."""
+    # Find COs where this sub is on a line item
+    li_co_ids = db.session.query(ChangeOrderLineItem.change_order_id).filter_by(sub_id=uid).distinct().all()
+    li_co_ids = [r[0] for r in li_co_ids]
+    # Also legacy: sub_id on the CO itself
+    legacy = ChangeOrders.query.filter_by(sub_id=uid).all()
+    legacy_ids = [co.id for co in legacy]
+    all_ids = list(set(li_co_ids + legacy_ids))
+    cos = ChangeOrders.query.filter(ChangeOrders.id.in_(all_ids)).order_by(ChangeOrders.created_at.desc()).all() if all_ids else []
     result = []
     for co in cos:
         d = co.to_dict()
