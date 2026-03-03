@@ -3210,7 +3210,11 @@ ${sectionsHtml}
             {isExpanded && (
               <View style={{ marginTop: 14 }}>
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
-                  {(sel.options || []).map((opt, i) => {
+                  {(sel.options || []).filter(opt => {
+                    if (!hasSelection) return true; // show all when nothing selected
+                    const name = typeof opt === 'object' ? opt.name : opt;
+                    return selectedArr.includes(name);
+                  }).map((opt, i) => {
                     const isObj = typeof opt === 'object';
                     const optName = isObj ? opt.name : opt;
                     const imgPath = isObj ? opt.image_path : null;
