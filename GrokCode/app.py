@@ -95,6 +95,7 @@ class LoginInfo(db.Model):
     company_id = db.Column(db.Integer, db.ForeignKey('company.id'), nullable=True)  # NULL for admin
     authorized = db.Column(db.Boolean, default=True)
     registered = db.Column(db.Boolean, default=True)  # False = invited but hasn't completed registration
+    is_project_manager = db.Column(db.Boolean, default=False)  # PM flag for builders
 
     def __init__(self, username, password, firstName, lastName, companyName='',
                  role='builder', phone='', trades='', street_address='', city='', state='', zip_code='',
@@ -136,6 +137,7 @@ class LoginInfo(db.Model):
             'has_logo': bool(self.company_logo),
             'company_id': self.company_id,
             'registered': self.registered if self.registered is not None else True,
+            'is_project_manager': bool(self.is_project_manager) if self.is_project_manager is not None else False,
             'created_at': self.created_at.isoformat() if self.created_at else None,
         }
 
@@ -240,6 +242,8 @@ class Projects(db.Model):
     selection_template_id = db.Column(db.Integer, db.ForeignKey('selection_template.id'), nullable=True)
     subdivision_id = db.Column(db.Integer, db.ForeignKey('subdivision.id'), nullable=True)
     company_id = db.Column(db.Integer, db.ForeignKey('company.id'), nullable=True)
+    project_manager_id = db.Column(db.Integer, db.ForeignKey('login_info.id'), nullable=True)
+    superintendent_id = db.Column(db.Integer, db.ForeignKey('login_info.id'), nullable=True)
     date = db.Column(db.DateTime, default=datetime.utcnow)
 
     def to_dict(self):
@@ -288,6 +292,8 @@ class Projects(db.Model):
             'selection_template_id': self.selection_template_id,
             'subdivision_id': self.subdivision_id,
             'company_id': self.company_id,
+            'project_manager_id': self.project_manager_id,
+            'superintendent_id': self.superintendent_id,
             'date': self.date.isoformat() if self.date else None,
         }
 
@@ -1353,6 +1359,30 @@ def toggle_user_active(user_id):
     return jsonify(user.to_dict())
 
 
+@app.route('/users/<int:user_id>/project-manager', methods=['PUT'])
+def toggle_project_manager(user_id):
+    """Toggle is_project_manager flag for a builder."""
+    user = LoginInfo.query.get_or_404(user_id)
+    data = request.get_json() or {}
+    if 'is_project_manager' in data:
+        user.is_project_manager = bool(data['is_project_manager'])
+    else:
+        user.is_project_manager = not (user.is_project_manager or False)
+    db.session.commit()
+    return jsonify(user.to_dict())
+
+
+@app.route('/company/<int:cid>/builders', methods=['GET'])
+def get_company_builders(cid):
+    """Get all builders/company_admins in a company (for PM/superintendent dropdowns)."""
+    builders = LoginInfo.query.filter(
+        LoginInfo.company_id == cid,
+        LoginInfo.role.in_(['builder', 'company_admin']),
+        LoginInfo.active == True,
+    ).all()
+    return jsonify([b.to_dict() for b in builders])
+
+
 @app.route('/users/<int:user_id>/reset-password', methods=['PUT'])
 def reset_user_password(user_id):
     data = request.get_json()
@@ -1609,11 +1639,29 @@ def get_projects():
     company_id = req_user.company_id if req_user else None
 
     if not user_id or _is_builder(role):
-        # Builders / company admins see their company's projects
-        q = Projects.query
-        if company_id:
-            q = q.filter_by(company_id=company_id)
-        projects = q.all()
+        # Company admins see ALL company projects
+        # Regular builders see only projects assigned to them as PM or superintendent
+        if req_user and req_user.role == 'company_admin':
+            q = Projects.query
+            if company_id:
+                q = q.filter_by(company_id=company_id)
+            projects = q.all()
+        elif req_user and _is_builder(req_user.role):
+            q = Projects.query
+            if company_id:
+                q = q.filter_by(company_id=company_id)
+            all_company = q.all()
+            # Filter to projects where this builder is PM or superintendent
+            # Include projects with no PM/superintendent assigned (legacy projects)
+            projects = [p for p in all_company
+                        if p.project_manager_id == user_id
+                        or p.superintendent_id == user_id
+                        or (not p.project_manager_id and not p.superintendent_id)]
+        else:
+            q = Projects.query
+            if company_id:
+                q = q.filter_by(company_id=company_id)
+            projects = q.all()
     elif role == 'customer':
         projects = Projects.query.filter(
             db.or_(Projects.customer_id == user_id, Projects.homeowner2_id == user_id)
@@ -1635,6 +1683,15 @@ def get_projects():
                 d['customer_name'] = f'{cust.firstName} {cust.lastName}'.strip()
                 d['customer_first_name'] = cust.firstName or ''
                 d['customer_last_name'] = cust.lastName or ''
+        # Enrich with PM and superintendent names
+        if p.project_manager_id:
+            pm = LoginInfo.query.get(p.project_manager_id)
+            if pm:
+                d['project_manager_name'] = f'{pm.firstName} {pm.lastName}'.strip()
+        if p.superintendent_id:
+            sup = LoginInfo.query.get(p.superintendent_id)
+            if sup:
+                d['superintendent_name'] = f'{sup.firstName} {sup.lastName}'.strip()
         result.append(d)
     return jsonify(result)
 
@@ -1760,7 +1817,8 @@ def add_project():
                      'contract_price', 'sqft', 'bedrooms', 'bathrooms', 'garage',
                      'lot_size', 'style', 'stories', 'email', 'dates_from_schedule', 'go_live', 'subdivision_id',
                      'permit_number', 'customer_first_name', 'customer_last_name', 'selection_template_id',
-                     'homeowner2_first_name', 'homeowner2_last_name', 'homeowner2_phone', 'homeowner2_email'):
+                     'homeowner2_first_name', 'homeowner2_last_name', 'homeowner2_phone', 'homeowner2_email',
+                     'project_manager_id', 'superintendent_id'):
             if key in data:
                 setattr(p, key, data[key])
 
@@ -1842,7 +1900,8 @@ def update_project(project_id):
                  'start_date', 'est_completion', 'progress', 'original_price',
                  'contract_price', 'sqft', 'bedrooms', 'bathrooms', 'garage',
                  'lot_size', 'style', 'stories', 'email', 'reconciliation', 'dates_from_schedule', 'go_live', 'subdivision_id',
-                 'permit_number', 'plan_name', 'selection_template_id'):
+                 'permit_number', 'plan_name', 'selection_template_id',
+                 'project_manager_id', 'superintendent_id'):
         if key in data:
             # Prevent un-toggling go_live once it's been set
             if key == 'go_live' and p.go_live and not data[key]:
