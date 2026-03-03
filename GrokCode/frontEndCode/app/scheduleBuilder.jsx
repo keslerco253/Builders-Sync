@@ -336,12 +336,12 @@ const TemplatePicker = ({ onApply, existingCount }) => {
   };
 
   // Convert saved template to the same format as built-in TEMPLATES
-  const savedAsBuiltIn = savedTemplates.map(styles => ({
-    name: styles.name,
-    icon: styles.icon || 'clipboard',
-    desc: styles.description || `${styles.tasks?.length || 0} tasks`,
-    tasks: styles.tasks || [],
-    _savedId: styles.id,
+  const savedAsBuiltIn = savedTemplates.map(tmpl => ({
+    name: tmpl.name,
+    icon: tmpl.icon || 'clipboard',
+    desc: tmpl.description || `${tmpl.tasks?.length || 0} tasks`,
+    tasks: tmpl.tasks || [],
+    _savedId: tmpl.id,
   }));
 
   const allTemplates = [...savedAsBuiltIn, ...TEMPLATES];
