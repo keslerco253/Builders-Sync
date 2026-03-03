@@ -110,11 +110,8 @@ export default function UserManagement() {
 
   return (
     <View style={{ flex: 1, backgroundColor: C.bg }}>
-      {/* Add User Modal (builders) */}
-      {modal === 'adduser' && <AddUserModal onClose={() => setModal(null)} onCreated={(u) => { setUsers(prev => [...prev, u]); setModal(null); Alert.alert('Success', `${u.name} added`); }} />}
-
-      {/* Invite User Modal (company admins) */}
-      {modal === 'invite' && <InviteUserModal onClose={() => setModal(null)} onInvited={(u) => { setUsers(prev => [...prev, u]); setModal(null); Alert.alert('Success', `Invitation sent to ${u.username}`); }} />}
+      {/* Invite User Modal */}
+      {(modal === 'adduser' || modal === 'invite') && <InviteUserModal onClose={() => setModal(null)} onInvited={(u) => { setUsers(prev => [...prev, u]); setModal(null); Alert.alert('Success', `Invitation sent to ${u.username}`); }} />}
 
       {/* Reset Password Modal */}
       {modal?.type === 'resetpw' && <ResetPasswordModal user={modal.data} onClose={() => setModal(null)} onReset={() => { setModal(null); Alert.alert('Success', 'Password reset'); }} />}
@@ -122,8 +119,8 @@ export default function UserManagement() {
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
           <Text style={{ fontSize: 22, fontWeight: '700', color: C.textBold }}>Users</Text>
-          <TouchableOpacity onPress={() => setModal(isCompanyAdmin ? 'invite' : 'adduser')} style={st.addBtn}>
-            <Text style={{ color: '#fff', fontSize: 14, fontWeight: '700' }}>{isCompanyAdmin ? '+ Invite User' : '+ Add User'}</Text>
+          <TouchableOpacity onPress={() => setModal('invite')} style={st.addBtn}>
+            <Text style={{ color: '#fff', fontSize: 14, fontWeight: '700' }}>+ Invite User</Text>
           </TouchableOpacity>
         </View>
 
@@ -179,71 +176,7 @@ export default function UserManagement() {
   );
 }
 
-// Add User Modal
-const AddUserModal = ({ onClose, onCreated }) => {
-  const C = React.useContext(ThemeContext);
-  const st = React.useMemo(() => getStyles(C), [C]);
-  const { user } = React.useContext(AuthContext);
-  const [f, sF] = useState({ email: '', password: '', name: '', firstName: '', lastName: '', role: 'contractor', company: '', phone: '', trades: '' });
-  const [err, sErr] = useState('');
-  const [loading, setLoading] = useState(false);
-
-  const create = async () => {
-    if (!f.firstName || !f.lastName || !f.email || !f.password) return sErr('Name, email, password required');
-    if (f.password.length < 8) return sErr('Password min 8 characters');
-    setLoading(true);
-    try {
-      const res = await apiFetch(`/users`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          username: f.email.toLowerCase().trim(), password: f.password,
-          firstName: f.firstName, lastName: f.lastName,
-          companyName: f.company, role: f.role, phone: f.phone, trades: f.trades,
-          company_id: user?.company_id,
-        }),
-      });
-      if (!res.ok) { const d = await res.json(); sErr(d.error || 'Failed'); setLoading(false); return; }
-      const newUser = await res.json();
-      onCreated(newUser);
-    } catch (e) { sErr(e.message); } finally { setLoading(false); }
-  };
-
-  const ROLES = [
-    { value: 'builder', label: 'Builder / Employee' },
-    { value: 'contractor', label: 'Subcontractor' },
-    { value: 'customer', label: 'Customer / Homeowner' },
-  ];
-
-  return (
-    <ModalSheet visible title="Add New User" onClose={onClose}>
-      {err ? <View style={st.errBox}><Text style={{ color: C.rd, fontSize: 13 }}>{err}</Text></View> : null}
-      <View style={{ flexDirection: 'row', gap: 12 }}>
-        <Inp label="FIRST NAME" value={f.firstName} onChange={v => sF({ ...f, firstName: v })} placeholder="Jane" style={{ flex: 1 }} />
-        <Inp label="LAST NAME" value={f.lastName} onChange={v => sF({ ...f, lastName: v })} placeholder="Smith" style={{ flex: 1 }} />
-      </View>
-      <Inp label="EMAIL" value={f.email} onChange={v => sF({ ...f, email: v })} type="email" placeholder="jane@company.com" />
-      <Inp label="PASSWORD (MIN 8)" value={f.password} onChange={v => sF({ ...f, password: v })} type="password" placeholder="Secure password" />
-      <Lbl>ROLE</Lbl>
-      <View style={{ marginBottom: 14 }}>
-        {ROLES.map(r => (
-          <TouchableOpacity key={r.value} onPress={() => sF({ ...f, role: r.value })}
-            style={[st.roleOpt, f.role === r.value && { borderColor: rCl(r.value, C), backgroundColor: rBg(r.value, C) }]}>
-            <Text style={[{ fontSize: 13, color: C.mt }, f.role === r.value && { color: rCl(r.value, C), fontWeight: '600' }]}>{r.label}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-      <Inp label="COMPANY" value={f.company} onChange={v => sF({ ...f, company: v })} placeholder="Optional" />
-      <Inp label="PHONE" value={f.phone} onChange={v => sF({ ...f, phone: v })} placeholder="Optional" />
-      {f.role === 'contractor' && <Inp label="TRADES" value={f.trades} onChange={v => sF({ ...f, trades: v })} placeholder="Plumbing, Electrical..." />}
-      <TouchableOpacity onPress={create} disabled={loading} style={[st.addBtn, { width: '100%', paddingVertical: 14, marginTop: 4 }, loading && { backgroundColor: C.dm }]}>
-        <Text style={{ color: C.textBold, fontSize: 15, fontWeight: '700', textAlign: 'center' }}>{loading ? 'Creating...' : 'Create User'}</Text>
-      </TouchableOpacity>
-    </ModalSheet>
-  );
-};
-
-// Invite User Modal (for company admins)
+// Invite User Modal
 const InviteUserModal = ({ onClose, onInvited }) => {
   const C = React.useContext(ThemeContext);
   const st = React.useMemo(() => getStyles(C), [C]);

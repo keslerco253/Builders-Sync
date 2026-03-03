@@ -1169,8 +1169,8 @@ def company_admin_invite():
     if not uid:
         return jsonify({'error': 'Missing user_id'}), 400
     requester = LoginInfo.query.get(uid)
-    if not requester or requester.role != 'company_admin':
-        return jsonify({'error': 'Only company admins can invite users'}), 403
+    if not requester or requester.role not in ('company_admin', 'builder'):
+        return jsonify({'error': 'Only company admins and builders can invite users'}), 403
     if not requester.company_id:
         return jsonify({'error': 'You are not assigned to a company'}), 400
 
