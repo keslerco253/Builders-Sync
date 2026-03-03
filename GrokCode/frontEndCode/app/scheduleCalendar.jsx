@@ -859,8 +859,8 @@ export default function ScheduleCalendar({ schedule, onUpdateTask, onEditTask, o
                 <Text style={st.popupTaskDates}>
                   {editPopup.task.start_date} → {editPopup.task.end_date}
                 </Text>
-                {editPopup.task.contractor ? (
-                  <Text style={st.popupTaskContractor}>{editPopup.task.contractor}</Text>
+                {((editPopup.task.contractors || []).length > 0 || editPopup.task.contractor) ? (
+                  <Text style={st.popupTaskContractor}>{(editPopup.task.contractors || []).length > 0 ? editPopup.task.contractors.join(', ') : editPopup.task.contractor}</Text>
                 ) : null}
               </View>
 

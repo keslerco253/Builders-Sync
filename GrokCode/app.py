@@ -444,19 +444,50 @@ class Schedule(db.Model):
     progress = db.Column(db.Integer, default=0)
     contractor = db.Column(db.String(100), default='')
     trade = db.Column(db.String(100), default='')
+    contractors_json = db.Column(db.Text, default='[]')   # JSON array of contractor names
+    trades_json = db.Column(db.Text, default='[]')        # JSON array of trade names
+    hidden_from_customer = db.Column(db.Boolean, default=False)
     predecessor_id = db.Column(db.Integer, nullable=True)
     rel_type = db.Column(db.String(5), default='FS')
     lag_days = db.Column(db.Integer, default=0)
     is_exception = db.Column(db.Boolean, default=False)
     exception_description = db.Column(db.Text, default='')
 
+    def _get_contractors(self):
+        """Return contractors as list. Falls back to legacy single contractor field."""
+        if self.contractors_json:
+            try:
+                arr = json.loads(self.contractors_json)
+                if arr:
+                    return arr
+            except (json.JSONDecodeError, TypeError):
+                pass
+        return [self.contractor] if self.contractor else []
+
+    def _get_trades(self):
+        """Return trades as list. Falls back to legacy single trade field."""
+        if self.trades_json:
+            try:
+                arr = json.loads(self.trades_json)
+                if arr:
+                    return arr
+            except (json.JSONDecodeError, TypeError):
+                pass
+        return [self.trade] if self.trade else []
+
     def to_dict(self):
+        contractors = self._get_contractors()
+        trades = self._get_trades()
         return {
             'id': self.id, 'job_id': self.job_id, 'task': self.task,
             'start_date': self.start_date, 'end_date': self.end_date,
             'baseline_start': self.baseline_start, 'baseline_end': self.baseline_end,
-            'progress': self.progress, 'contractor': self.contractor,
-            'trade': self.trade or '',
+            'progress': self.progress,
+            'contractor': contractors[0] if contractors else '',
+            'contractors': contractors,
+            'trade': trades[0] if trades else '',
+            'trades': trades,
+            'hidden_from_customer': bool(self.hidden_from_customer) if self.hidden_from_customer else False,
             'predecessor_id': self.predecessor_id, 'rel_type': self.rel_type,
             'lag_days': self.lag_days,
             'is_exception': bool(self.is_exception) if self.is_exception else False,
@@ -1541,12 +1572,18 @@ def apply_subdivision_contractors(project_id):
     tasks = Schedule.query.filter_by(job_id=project_id).all()
     assigned_ids = set()
     for t in tasks:
-        if t.trade and t.trade.lower() in trade_map:
-            if t.progress == 100:
-                continue
-            cid, cname = trade_map[t.trade.lower()]
-            t.contractor = cname
-            assigned_ids.add(cid)
+        if t.progress == 100:
+            continue
+        # Check all trades (multi-trade support)
+        task_trades = t._get_trades()
+        if not task_trades and t.trade:
+            task_trades = [t.trade]
+        for tt in task_trades:
+            if tt and tt.lower() in trade_map:
+                cid, cname = trade_map[tt.lower()]
+                t.contractor = cname
+                assigned_ids.add(cid)
+                break  # assign from first matching trade
     # Ensure contractors are in JobUsers for this project
     existing_user_ids = {ju.user_id for ju in JobUsers.query.filter_by(job_id=project_id).all()}
     for cid in assigned_ids:
@@ -2678,6 +2715,11 @@ def get_schedule(pid):
     items = Schedule.query.filter_by(job_id=pid).order_by(Schedule.start_date).all()
     result = [i.to_dict() for i in items]
 
+    # Hide tasks marked hidden_from_customer when the requesting user is a customer
+    user_role = getattr(request, 'current_user', {}).get('role', '')
+    if user_role == 'customer':
+        result = [r for r in result if not r.get('hidden_from_customer')]
+
     # Apply on-the-fly hold adjustments so dates extend visually while on hold
     proj = Projects.query.get(pid)
     if proj and proj.on_hold and proj.hold_start_date:
@@ -2699,13 +2741,23 @@ def add_schedule_item(pid):
         for d in data:
             start = d.get('start_date', '')
             end = d.get('end_date', '')
+            # Support both single and multi contractor/trade
+            contractors = d.get('contractors', [])
+            if not contractors and d.get('contractor'):
+                contractors = [d['contractor']]
+            trades = d.get('trades', [])
+            if not trades and d.get('trade'):
+                trades = [d['trade']]
             item = Schedule(
                 job_id=pid, task=d.get('task', ''),
                 start_date=start, end_date=end,
                 baseline_start=start if is_live else '', baseline_end=end if is_live else '',
                 progress=d.get('progress', 0),
-                contractor=d.get('contractor', ''),
-                trade=d.get('trade', ''),
+                contractor=contractors[0] if contractors else d.get('contractor', ''),
+                trade=trades[0] if trades else d.get('trade', ''),
+                contractors_json=json.dumps(contractors),
+                trades_json=json.dumps(trades),
+                hidden_from_customer=bool(d.get('hidden_from_customer', False)),
                 rel_type=d.get('rel_type', 'FS'),
                 lag_days=int(d.get('lag_days', 0) or 0),
             )
@@ -2736,14 +2788,24 @@ def add_schedule_item(pid):
     # Only set baselines if project is already live
     proj = Projects.query.get(pid)
     is_live = proj and proj.go_live
+    # Support both single and multi contractor/trade
+    contractors = data.get('contractors', [])
+    if not contractors and data.get('contractor'):
+        contractors = [data['contractor']]
+    trades = data.get('trades', [])
+    if not trades and data.get('trade'):
+        trades = [data['trade']]
     item = Schedule(
         job_id=pid, task=data.get('task', ''),
         start_date=start, end_date=end,
         baseline_start=start if is_live else '',
         baseline_end=end if is_live else '',
         progress=data.get('progress', 0),
-        contractor=data.get('contractor', ''),
-        trade=data.get('trade', ''),
+        contractor=contractors[0] if contractors else data.get('contractor', ''),
+        trade=trades[0] if trades else data.get('trade', ''),
+        contractors_json=json.dumps(contractors),
+        trades_json=json.dumps(trades),
+        hidden_from_customer=bool(data.get('hidden_from_customer', False)),
         predecessor_id=data.get('predecessor_id'),
         rel_type=data.get('rel_type', 'FS'),
         lag_days=int(data.get('lag_days', 0)),
@@ -2778,9 +2840,17 @@ def update_schedule_item(item_id):
                 return jsonify({'error': 'Cannot extend task end date after Go Live'}), 400
 
     for k in ('task', 'start_date', 'end_date', 'baseline_start', 'baseline_end',
-              'progress', 'contractor', 'trade', 'predecessor_id', 'rel_type', 'lag_days'):
+              'progress', 'contractor', 'trade', 'predecessor_id', 'rel_type', 'lag_days',
+              'hidden_from_customer'):
         if k in data:
             setattr(item, k, data[k])
+    # Handle multi-contractor and multi-trade arrays
+    if 'contractors' in data:
+        item.contractors_json = json.dumps(data['contractors'])
+        item.contractor = data['contractors'][0] if data['contractors'] else ''
+    if 'trades' in data:
+        item.trades_json = json.dumps(data['trades'])
+        item.trade = data['trades'][0] if data['trades'] else ''
     db.session.commit()
     sync_project_dates(item.job_id)
     return jsonify(item.to_dict())
@@ -3050,7 +3120,7 @@ def edit_schedule_with_reason(item_id):
     # Enforce go_live restrictions (exceptions are exempt)
     is_live = proj and proj.go_live and not item.is_exception
     for k in ('task', 'start_date', 'end_date', 'progress', 'contractor', 'trade',
-              'predecessor_id', 'rel_type', 'lag_days'):
+              'predecessor_id', 'rel_type', 'lag_days', 'hidden_from_customer'):
         if k in data and str(getattr(item, k)) != str(data[k]):
             # Block backward movement or extension when live
             if is_live and k == 'start_date' and data[k] > (item.start_date or ''):
@@ -3064,6 +3134,22 @@ def edit_schedule_with_reason(item_id):
             })
             setattr(item, k, data[k])
 
+    # Handle multi-contractor and multi-trade arrays
+    if 'contractors' in data:
+        old_json = item.contractors_json or '[]'
+        new_json = json.dumps(data['contractors'])
+        if old_json != new_json:
+            changes.append({'field': 'contractors', 'old': old_json, 'new': new_json})
+        item.contractors_json = new_json
+        item.contractor = data['contractors'][0] if data['contractors'] else ''
+    if 'trades' in data:
+        old_json = item.trades_json or '[]'
+        new_json = json.dumps(data['trades'])
+        if old_json != new_json:
+            changes.append({'field': 'trades', 'old': old_json, 'new': new_json})
+        item.trades_json = new_json
+        item.trade = data['trades'][0] if data['trades'] else ''
+
     # Log each field change
     now = datetime.utcnow().isoformat()
     for c in changes:
@@ -3076,7 +3162,7 @@ def edit_schedule_with_reason(item_id):
         db.session.add(log)
 
     # Propagate contractor change to all tasks with the same trade in this project
-    contractor_changed = any(c['field'] == 'contractor' for c in changes)
+    contractor_changed = any(c['field'] in ('contractor', 'contractors') for c in changes)
     if contractor_changed and item.trade:
         all_items = Schedule.query.filter_by(job_id=item.job_id).all()
         for t in all_items:

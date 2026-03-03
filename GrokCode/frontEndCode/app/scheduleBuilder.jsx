@@ -252,7 +252,10 @@ const buildFromTemplate = (template, startDate) => {
     _id: now + i,
     task: t.task,
     contractor: '',
-    trade: t.trade || '',
+    trade: (t.trades || [])[0] || t.trade || '',
+    trades: t.trades || (t.trade ? [t.trade] : []),
+    contractors: [],
+    hidden_from_customer: t.hidden_from_customer || false,
     workdays: t.workdays,
     start_date: '',
     end_date: '',
@@ -577,10 +580,13 @@ const PredecessorSelect = ({ tasks, currentIdx, value, relType, lag, onChangePre
 // CONTRACTOR SELECT DROPDOWN
 // ============================================================
 const ContractorSelect = ({ value, onChange, subs }) => {
+  // value is now an array of contractor names (backwards compat: string → [string])
   const C = React.useContext(ThemeContext);
   const st = React.useMemo(() => getStyles(C), [C]);
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
+
+  const selected = Array.isArray(value) ? value : (value ? [value] : []);
 
   const filtered = subs.filter(s => {
     if (!search.trim()) return true;
@@ -590,6 +596,14 @@ const ContractorSelect = ({ value, onChange, subs }) => {
       (s.trades || '').toLowerCase().includes(q);
   });
 
+  const toggle = (name) => {
+    if (selected.includes(name)) {
+      onChange(selected.filter(n => n !== name));
+    } else {
+      onChange([...selected, name]);
+    }
+  };
+
   return (
     <View style={{ flex: 1 }}>
       <TouchableOpacity
@@ -597,8 +611,8 @@ const ContractorSelect = ({ value, onChange, subs }) => {
         style={[st.inp, { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]}
         activeOpacity={0.7}
       >
-        <Text style={[{ fontSize: 20, flex: 1 }, value ? { color: C.text } : { color: C.ph }]} numberOfLines={1}>
-          {value || 'Contractor'}
+        <Text style={[{ fontSize: 20, flex: 1 }, selected.length > 0 ? { color: C.text } : { color: C.ph }]} numberOfLines={1}>
+          {selected.length > 0 ? selected.join(', ') : 'Contractors'}
         </Text>
         <Text style={{ fontSize: 15, color: C.dm, marginLeft: 4 }}>▾</Text>
       </TouchableOpacity>
@@ -607,7 +621,19 @@ const ContractorSelect = ({ value, onChange, subs }) => {
         <TouchableOpacity style={st.dropOverlay} activeOpacity={1} onPress={() => setOpen(false)}>
           <TouchableOpacity activeOpacity={1} onPress={e => e.stopPropagation()}>
             <View style={st.dropPopup}>
-              <Text style={st.dropTitle}>Select Contractor</Text>
+              <Text style={st.dropTitle}>Select Contractors</Text>
+              {selected.length > 0 && (
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginBottom: 8 }}>
+                  {selected.map(name => (
+                    <View key={name} style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(16,185,129,0.1)', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4, gap: 4 }}>
+                      <Text style={{ fontSize: 14, color: '#10b981', fontWeight: '600' }} numberOfLines={1}>{name}</Text>
+                      <TouchableOpacity onPress={() => toggle(name)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                        <Text style={{ fontSize: 16, color: '#f87171', fontWeight: '600' }}>×</Text>
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                </View>
+              )}
               <TextInput
                 value={search}
                 onChangeText={setSearch}
@@ -621,12 +647,12 @@ const ContractorSelect = ({ value, onChange, subs }) => {
                   <Text style={st.dropEmpty}>No subcontractors found</Text>
                 ) : (
                   filtered.map(s => {
-                    const isActive = value === s.name;
+                    const isActive = selected.includes(s.name);
                     const tradesArr = s.trades ? s.trades.split(',').map(t => t.trim()).filter(Boolean) : [];
                     return (
                       <TouchableOpacity
                         key={s.id}
-                        onPress={() => { onChange(s.name); setOpen(false); }}
+                        onPress={() => toggle(s.name)}
                         style={[st.dropItem, isActive && st.dropItemOn]}
                         activeOpacity={0.7}
                       >
@@ -653,9 +679,9 @@ const ContractorSelect = ({ value, onChange, subs }) => {
                   })
                 )}
               </ScrollView>
-              {value && (
-                <TouchableOpacity onPress={() => { onChange(''); setOpen(false); }} style={st.dropClear}>
-                  <Text style={st.dropClearTxt}>Remove Contractor</Text>
+              {selected.length > 0 && (
+                <TouchableOpacity onPress={() => { onChange([]); setOpen(false); }} style={st.dropClear}>
+                  <Text style={st.dropClearTxt}>Remove All Contractors</Text>
                 </TouchableOpacity>
               )}
             </View>
@@ -679,16 +705,26 @@ export const TEMPLATE_TRADES = [
 ];
 
 const TradeSelect = ({ value, onChange, trades }) => {
+  // value is now an array of trade names (backwards compat: string → [string])
   const C = React.useContext(ThemeContext);
   const st = React.useMemo(() => getStyles(C), [C]);
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
 
+  const selected = Array.isArray(value) ? value : (value ? [value] : []);
   const tradeList = trades || TEMPLATE_TRADES;
   const filtered = tradeList.filter(t => {
     if (!search.trim()) return true;
     return t.toLowerCase().includes(search.toLowerCase());
   });
+
+  const toggle = (trade) => {
+    if (selected.includes(trade)) {
+      onChange(selected.filter(t => t !== trade));
+    } else {
+      onChange([...selected, trade]);
+    }
+  };
 
   return (
     <View style={{ flex: 1 }}>
@@ -697,8 +733,8 @@ const TradeSelect = ({ value, onChange, trades }) => {
         style={[st.inp, { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]}
         activeOpacity={0.7}
       >
-        <Text style={[{ fontSize: 20, flex: 1 }, value ? { color: C.bl } : { color: C.ph }]} numberOfLines={1}>
-          {value || 'Trade'}
+        <Text style={[{ fontSize: 20, flex: 1 }, selected.length > 0 ? { color: C.bl } : { color: C.ph }]} numberOfLines={1}>
+          {selected.length > 0 ? selected.join(', ') : 'Trades'}
         </Text>
         <Text style={{ fontSize: 15, color: C.dm, marginLeft: 4 }}>▾</Text>
       </TouchableOpacity>
@@ -707,7 +743,19 @@ const TradeSelect = ({ value, onChange, trades }) => {
         <TouchableOpacity style={st.dropOverlay} activeOpacity={1} onPress={() => setOpen(false)}>
           <TouchableOpacity activeOpacity={1} onPress={e => e.stopPropagation()}>
             <View style={st.dropPopup}>
-              <Text style={st.dropTitle}>Select Trade</Text>
+              <Text style={st.dropTitle}>Select Trades</Text>
+              {selected.length > 0 && (
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginBottom: 8 }}>
+                  {selected.map(t => (
+                    <View key={t} style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(59,130,246,0.1)', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4, gap: 4 }}>
+                      <Text style={{ fontSize: 14, color: '#3b82f6', fontWeight: '600' }}>{t}</Text>
+                      <TouchableOpacity onPress={() => toggle(t)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                        <Text style={{ fontSize: 16, color: '#f87171', fontWeight: '600' }}>×</Text>
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                </View>
+              )}
               <TextInput
                 value={search}
                 onChangeText={setSearch}
@@ -721,11 +769,11 @@ const TradeSelect = ({ value, onChange, trades }) => {
                   <Text style={st.dropEmpty}>No trades found</Text>
                 ) : (
                   filtered.map(trade => {
-                    const isActive = value === trade;
+                    const isActive = selected.includes(trade);
                     return (
                       <TouchableOpacity
                         key={trade}
-                        onPress={() => { onChange(trade); setOpen(false); }}
+                        onPress={() => toggle(trade)}
                         style={[st.dropItem, isActive && { backgroundColor: 'rgba(59,130,246,0.12)' }]}
                         activeOpacity={0.7}
                       >
@@ -738,9 +786,9 @@ const TradeSelect = ({ value, onChange, trades }) => {
                   })
                 )}
               </ScrollView>
-              {value && (
-                <TouchableOpacity onPress={() => { onChange(''); setOpen(false); }} style={st.dropClear}>
-                  <Text style={st.dropClearTxt}>Remove Trade</Text>
+              {selected.length > 0 && (
+                <TouchableOpacity onPress={() => { onChange([]); setOpen(false); }} style={st.dropClear}>
+                  <Text style={st.dropClearTxt}>Remove All Trades</Text>
                 </TouchableOpacity>
               )}
             </View>
@@ -782,7 +830,8 @@ export default function ScheduleBuilder({ tasks, onTasksChange, templateMode, co
 
   const addTask = () => {
     onTasksChange([...tasks, {
-      _id: Date.now(), task: '', contractor: '', trade: '', start_date: '', workdays: '1', end_date: '',
+      _id: Date.now(), task: '', contractor: '', trade: '', contractors: [], trades: [],
+      hidden_from_customer: false, start_date: '', workdays: '1', end_date: '',
       predecessor: null, relType: 'FS', lag: '0',
     }]);
   };
@@ -792,6 +841,9 @@ export default function ScheduleBuilder({ tasks, onTasksChange, templateMode, co
     let updated = tasks.map((t, i) => {
       if (i !== idx) return t;
       const next = { ...t, [field]: value };
+      // Keep legacy fields in sync with arrays
+      if (field === 'contractors') next.contractor = (value || [])[0] || '';
+      if (field === 'trades') next.trade = (value || [])[0] || '';
 
       // If setting predecessor/relType/lag, calculate start from predecessor
       if (field === 'predecessor' || field === 'relType' || field === 'lag') {
@@ -827,13 +879,16 @@ export default function ScheduleBuilder({ tasks, onTasksChange, templateMode, co
     // Cascade to all dependent tasks
     updated = cascadeAll(updated);
 
-    // When assigning a contractor to a task with a trade, auto-assign to all tasks with same trade
-    if (field === 'contractor' && !templateMode && value) {
-      const trade = updated[idx]?.trade;
-      if (trade) {
+    // When assigning contractors to a task with trades, auto-assign to tasks sharing any trade
+    if (field === 'contractors' && !templateMode && Array.isArray(value) && value.length > 0) {
+      const taskTrades = updated[idx]?.trades || [];
+      if (taskTrades.length > 0) {
         updated = updated.map((t, i) => {
-          if (i !== idx && t.trade === trade && t.contractor !== value) {
-            return { ...t, contractor: value };
+          if (i === idx) return t;
+          const tTrades = t.trades || [];
+          const hasSharedTrade = tTrades.some(tr => taskTrades.includes(tr));
+          if (hasSharedTrade) {
+            return { ...t, contractors: value, contractor: value[0] || '' };
           }
           return t;
         });
@@ -956,27 +1011,48 @@ export default function ScheduleBuilder({ tasks, onTasksChange, templateMode, co
               </View>
 
               <View style={{ flex: 1, gap: 6 }}>
-                {/* Row 1: name + contractor/trade */}
+                {/* Row 1: name + trades */}
                 <View style={{ flexDirection: 'row', gap: 8 }}>
                   <TextInput
                     value={task.task} onChangeText={v => updateTask(idx, 'task', v)}
                     placeholder="Task name" placeholderTextColor={C.ph}
                     style={[st.inp, { flex: 2 }]}
                   />
-                  {templateMode ? (
-                    <TradeSelect
-                      value={task.trade || ''}
-                      onChange={v => updateTask(idx, 'trade', v)}
-                      trades={tradesList}
-                    />
-                  ) : (
-                    <ContractorSelect
-                      value={task.contractor}
-                      onChange={v => updateTask(idx, 'contractor', v)}
-                      subs={subs}
-                    />
-                  )}
+                  <TradeSelect
+                    value={task.trades || (task.trade ? [task.trade] : [])}
+                    onChange={v => updateTask(idx, 'trades', v)}
+                    trades={tradesList}
+                  />
                 </View>
+
+                {/* Row 1b: contractors (not in template mode) */}
+                {!templateMode && (
+                  <ContractorSelect
+                    value={task.contractors || (task.contractor ? [task.contractor] : [])}
+                    onChange={v => updateTask(idx, 'contractors', v)}
+                    subs={subs}
+                  />
+                )}
+
+                {/* Row 1c: hide from customer toggle */}
+                <TouchableOpacity
+                  onPress={() => updateTask(idx, 'hidden_from_customer', !task.hidden_from_customer)}
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 2 }}
+                  activeOpacity={0.7}
+                >
+                  <View style={{
+                    width: 20, height: 20, borderRadius: 4, borderWidth: 2,
+                    borderColor: task.hidden_from_customer ? '#f59e0b' : C.w10,
+                    backgroundColor: task.hidden_from_customer ? '#f59e0b' : 'transparent',
+                    alignItems: 'center', justifyContent: 'center',
+                  }}>
+                    {task.hidden_from_customer && <Feather name="check" size={14} color="#fff" />}
+                  </View>
+                  <Feather name="eye-off" size={14} color={task.hidden_from_customer ? '#f59e0b' : C.dm} />
+                  <Text style={{ fontSize: 14, color: task.hidden_from_customer ? '#f59e0b' : C.dm }}>
+                    Hide from customer
+                  </Text>
+                </TouchableOpacity>
 
                 {/* Row 2: predecessor */}
                 <PredecessorSelect
