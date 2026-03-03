@@ -444,8 +444,8 @@ class Schedule(db.Model):
     progress = db.Column(db.Integer, default=0)
     contractor = db.Column(db.String(100), default='')
     trade = db.Column(db.String(100), default='')
-    contractors_json = db.Column(db.Text, default='[]')   # JSON array of contractor names
-    trades_json = db.Column(db.Text, default='[]')        # JSON array of trade names
+    contractors_json = db.Column(db.Text, nullable=True)   # JSON array of contractor names
+    trades_json = db.Column(db.Text, nullable=True)        # JSON array of trade names
     hidden_from_customer = db.Column(db.Boolean, default=False)
     predecessor_id = db.Column(db.Integer, nullable=True)
     rel_type = db.Column(db.String(5), default='FS')
