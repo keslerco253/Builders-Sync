@@ -3211,7 +3211,7 @@ ${sectionsHtml}
               <View style={{ marginTop: 14 }}>
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
                   {(sel.options || []).filter(opt => {
-                    if (!hasSelection) return true; // show all when nothing selected
+                    if (!isLocked) return true; // show all until confirmed/awaiting_price
                     const name = typeof opt === 'object' ? opt.name : opt;
                     return selectedArr.includes(name);
                   }).map((opt, i) => {
