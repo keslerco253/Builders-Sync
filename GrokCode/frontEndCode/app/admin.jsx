@@ -8,7 +8,7 @@ import { AuthContext, ThemeContext, API_BASE, apiFetch } from './context';
 export default function AdminDashboard() {
   const C = React.useContext(ThemeContext);
   const { user, signout } = React.useContext(AuthContext);
-  const sty = useMemo(() => getStyles(C), [C]);
+  const st = useMemo(() => getStyles(C), [C]);
   const { width } = useWindowDimensions();
   const isWide = width >= 900;
 
@@ -266,7 +266,7 @@ export default function AdminDashboard() {
       <ScrollView contentContainerStyle={{ padding: 20, gap: 14, maxWidth: 800 }}>
         <Text style={{ fontSize: 24, fontWeight: '800', color: C.textBold, marginBottom: 6 }}>Overview</Text>
         {cards.map(c => (
-          <View key={c.label} style={[sty.card, { flexDirection: 'row', alignItems: 'center', gap: 16 }]}>
+          <View key={c.label} style={[st.card, { flexDirection: 'row', alignItems: 'center', gap: 16 }]}>
             <View style={{ width: 56, height: 56, borderRadius: 14, backgroundColor: c.color + '18', alignItems: 'center', justifyContent: 'center' }}>
               <Text style={{ fontSize: 22, fontWeight: '800', color: c.color }}>{c.val}</Text>
             </View>
@@ -280,7 +280,7 @@ export default function AdminDashboard() {
         {/* Danger Zone */}
         <View style={{ marginTop: 24 }}>
           <Text style={{ fontSize: 14, fontWeight: '700', color: C.rd, marginBottom: 10, letterSpacing: 0.5 }}>DANGER ZONE</Text>
-          <View style={[sty.card, { borderColor: C.rd + '44' }]}>
+          <View style={[st.card, { borderColor: C.rd + '44' }]}>
             <Text style={{ fontSize: 14, fontWeight: '600', color: C.textBold, marginBottom: 4 }}>Reset Database</Text>
             <Text style={{ fontSize: 12, color: C.dm, marginBottom: 12 }}>
               Permanently delete all companies, users, projects, and data. Only the admin account will be kept.
@@ -303,12 +303,12 @@ export default function AdminDashboard() {
         Pending Users {pendingUsers.length > 0 && <Text style={{ color: C.rd }}>({pendingUsers.length})</Text>}
       </Text>
       {pendingUsers.length === 0 && (
-        <View style={[sty.card, { alignItems: 'center', paddingVertical: 40 }]}>
+        <View style={[st.card, { alignItems: 'center', paddingVertical: 40 }]}>
           <Text style={{ fontSize: 16, color: C.dm }}>No pending users</Text>
         </View>
       )}
       {pendingUsers.map(u => (
-        <View key={u.id} style={[sty.card, { flexDirection: 'row', alignItems: 'center', gap: 12 }]}>
+        <View key={u.id} style={[st.card, { flexDirection: 'row', alignItems: 'center', gap: 12 }]}>
           <View style={{ flex: 1 }}>
             <Text style={{ fontSize: 15, fontWeight: '600', color: C.textBold }}>{u.name}</Text>
             <Text style={{ fontSize: 13, color: C.dm, marginTop: 2 }}>{u.username}</Text>
@@ -384,7 +384,7 @@ export default function AdminDashboard() {
         </View>
 
         {/* Users */}
-        <View style={sty.card}>
+        <View style={st.card}>
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
             <Text style={{ fontSize: 16, fontWeight: '700', color: C.textBold }}>Users</Text>
             <TouchableOpacity onPress={() => setShowInvite(true)}
@@ -459,7 +459,7 @@ export default function AdminDashboard() {
         <TextInput
           value={search} onChangeText={setSearch}
           placeholder="Search companies..." placeholderTextColor={C.ph}
-          style={[sty.inp, { marginBottom: 0 }]}
+          style={[st.inp, { marginBottom: 0 }]}
         />
       </View>
       <ScrollView contentContainerStyle={{ padding: 16, paddingTop: 4, gap: 8 }}>
@@ -472,7 +472,7 @@ export default function AdminDashboard() {
           const selected = selectedCompany?.id === c.id;
           return (
             <TouchableOpacity key={c.id} onPress={() => selectCompany(c)}
-              style={[sty.card, selected && { borderColor: C.gd, borderWidth: 2 }, { marginBottom: 0 }]}
+              style={[st.card, selected && { borderColor: C.gd, borderWidth: 2 }, { marginBottom: 0 }]}
               activeOpacity={0.7}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
                 <View style={{ flex: 1 }}>
@@ -493,23 +493,23 @@ export default function AdminDashboard() {
   // ── New Company Modal ──
   const renderNewCompanyModal = () => (
     <Modal visible={showNewCompany} transparent animationType="fade">
-      <View style={sty.modalBg}>
-        <View style={sty.modalContent}>
-          <View style={sty.modalHead}>
-            <Text style={sty.modalTitle}>Add Company</Text>
+      <View style={st.modalBg}>
+        <View style={st.modalContent}>
+          <View style={st.modalHead}>
+            <Text style={st.modalTitle}>Add Company</Text>
             <TouchableOpacity onPress={() => { setShowNewCompany(false); setNewCompanyName(''); }}>
               <Text style={{ color: C.mt, fontSize: 28 }}>x</Text>
             </TouchableOpacity>
           </View>
-          <Text style={sty.lbl}>COMPANY NAME</Text>
+          <Text style={st.lbl}>COMPANY NAME</Text>
           <TextInput
             value={newCompanyName} onChangeText={setNewCompanyName}
             placeholder="e.g. Liberty Homes" placeholderTextColor={C.ph}
-            style={sty.inp} autoFocus
+            style={st.inp} autoFocus
             onSubmitEditing={createCompany}
           />
           <TouchableOpacity onPress={createCompany} disabled={!newCompanyName.trim() || saving}
-            style={[sty.submitBtn, (!newCompanyName.trim() || saving) && { backgroundColor: C.dm }]}
+            style={[st.submitBtn, (!newCompanyName.trim() || saving) && { backgroundColor: C.dm }]}
             activeOpacity={0.7}>
             <Text style={{ fontSize: 15, fontWeight: '700', color: C.textBold, textAlign: 'center' }}>
               {saving ? 'Creating...' : 'Create Company'}
@@ -530,21 +530,21 @@ export default function AdminDashboard() {
   // ── Invite User Modal ──
   const renderInviteModal = () => (
     <Modal visible={showInvite} transparent animationType="fade">
-      <View style={sty.modalBg}>
-        <View style={sty.modalContent}>
-          <View style={sty.modalHead}>
-            <Text style={sty.modalTitle}>Add User to {selectedCompany?.name}</Text>
+      <View style={st.modalBg}>
+        <View style={st.modalContent}>
+          <View style={st.modalHead}>
+            <Text style={st.modalTitle}>Add User to {selectedCompany?.name}</Text>
             <TouchableOpacity onPress={() => { setShowInvite(false); setInviteEmail(''); setInviteRole('builder'); }}>
               <Text style={{ color: C.mt, fontSize: 28 }}>x</Text>
             </TouchableOpacity>
           </View>
-          <Text style={sty.lbl}>EMAIL</Text>
+          <Text style={st.lbl}>EMAIL</Text>
           <TextInput
             value={inviteEmail} onChangeText={setInviteEmail}
             placeholder="user@example.com" placeholderTextColor={C.ph}
-            style={sty.inp} autoFocus keyboardType="email-address" autoCapitalize="none"
+            style={st.inp} autoFocus keyboardType="email-address" autoCapitalize="none"
           />
-          <Text style={[sty.lbl, { marginTop: 16 }]}>ROLE</Text>
+          <Text style={[st.lbl, { marginTop: 16 }]}>ROLE</Text>
           <View style={{ gap: 8, marginBottom: 8 }}>
             {ROLE_OPTIONS.map(r => (
               <TouchableOpacity key={r.value} onPress={() => setInviteRole(r.value)}
@@ -563,7 +563,7 @@ export default function AdminDashboard() {
             ))}
           </View>
           <TouchableOpacity onPress={inviteUser} disabled={!inviteEmail.trim().includes('@') || saving}
-            style={[sty.submitBtn, (!inviteEmail.trim().includes('@') || saving) && { backgroundColor: C.dm }]}
+            style={[st.submitBtn, (!inviteEmail.trim().includes('@') || saving) && { backgroundColor: C.dm }]}
             activeOpacity={0.7}>
             <Text style={{ fontSize: 15, fontWeight: '700', color: '#fff', textAlign: 'center' }}>
               {saving ? 'Adding...' : 'Add User'}

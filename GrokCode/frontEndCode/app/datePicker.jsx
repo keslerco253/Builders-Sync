@@ -49,7 +49,7 @@ const displayDate = (dateStr) => {
 // ============================================================
 export default function DatePicker({ value, onChange, label, placeholder, style: wrapStyle }) {
   const C = React.useContext(ThemeContext);
-  const sty = React.useMemo(() => getStyles(C), [C]);
+  const st = React.useMemo(() => getStyles(C), [C]);
   const [open, setOpen] = useState(false);
   const [year, setYear] = useState(() => {
     if (value) { const d = new Date(value + 'T00:00:00'); if (!isNaN(d.getTime())) return d.getFullYear(); }
@@ -85,50 +85,50 @@ export default function DatePicker({ value, onChange, label, placeholder, style:
   };
 
   return (
-    <View style={[sty.wrapper, wrapStyle]}>
-      {label && <Text style={sty.label}>{label}</Text>}
+    <View style={[st.wrapper, wrapStyle]}>
+      {label && <Text style={st.label}>{label}</Text>}
 
       {/* Trigger button */}
-      <TouchableOpacity onPress={handleOpen} style={sty.trigger} activeOpacity={0.7}>
+      <TouchableOpacity onPress={handleOpen} style={st.trigger} activeOpacity={0.7}>
         <Feather name="calendar" size={16} color={C.gd} />
-        <Text style={[sty.triggerTxt, !value && sty.placeholderTxt]}>
+        <Text style={[st.triggerTxt, !value && st.placeholderTxt]}>
           {value ? displayDate(value) : (placeholder || 'Select date')}
         </Text>
-        <Text style={sty.chevron}>▾</Text>
+        <Text style={st.chevron}>▾</Text>
       </TouchableOpacity>
 
       {/* Calendar popup */}
       <Modal visible={open} transparent animationType="fade">
         <TouchableOpacity
-          style={sty.overlay}
+          style={st.overlay}
           activeOpacity={1}
           onPress={() => setOpen(false)}
         >
           <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()}>
-            <View style={sty.popup}>
+            <View style={st.popup}>
               {/* Header with month/year nav */}
-              <View style={sty.popupHeader}>
-                <TouchableOpacity onPress={prevMonth} style={sty.navBtn}>
-                  <Text style={sty.navBtnTxt}>‹</Text>
+              <View style={st.popupHeader}>
+                <TouchableOpacity onPress={prevMonth} style={st.navBtn}>
+                  <Text style={st.navBtnTxt}>‹</Text>
                 </TouchableOpacity>
-                <Text style={sty.monthYearTxt}>{MONTHS[month]} {year}</Text>
-                <TouchableOpacity onPress={nextMonth} style={sty.navBtn}>
-                  <Text style={sty.navBtnTxt}>›</Text>
+                <Text style={st.monthYearTxt}>{MONTHS[month]} {year}</Text>
+                <TouchableOpacity onPress={nextMonth} style={st.navBtn}>
+                  <Text style={st.navBtnTxt}>›</Text>
                 </TouchableOpacity>
               </View>
 
               {/* Day-of-week headers */}
-              <View style={sty.dowRow}>
+              <View style={st.dowRow}>
                 {DAYS.map(d => (
-                  <View key={d} style={sty.dowCell}>
-                    <Text style={sty.dowTxt}>{d}</Text>
+                  <View key={d} style={st.dowCell}>
+                    <Text style={st.dowTxt}>{d}</Text>
                   </View>
                 ))}
               </View>
 
               {/* Calendar grid */}
               {weeks.map((week, wi) => (
-                <View key={wi} style={sty.weekRow}>
+                <View key={wi} style={st.weekRow}>
                   {week.map((day, di) => {
                     const isToday2 = isSameDay(day, today);
                     const isMonth = day.getMonth() === month;
@@ -140,18 +140,18 @@ export default function DatePicker({ value, onChange, label, placeholder, style:
                         key={di}
                         onPress={() => handleSelect(day)}
                         style={[
-                          sty.dayCell,
-                          isSelected && sty.dayCellSelected,
-                          isToday2 && !isSelected && sty.dayCellToday,
+                          st.dayCell,
+                          isSelected && st.dayCellSelected,
+                          isToday2 && !isSelected && st.dayCellToday,
                         ]}
                         activeOpacity={0.6}
                       >
                         <Text style={[
-                          sty.dayTxt,
-                          !isMonth && sty.dayTxtOther,
-                          isWeekend && isMonth && sty.dayTxtWeekend,
-                          isSelected && sty.dayTxtSelected,
-                          isToday2 && !isSelected && sty.dayTxtToday,
+                          st.dayTxt,
+                          !isMonth && st.dayTxtOther,
+                          isWeekend && isMonth && st.dayTxtWeekend,
+                          isSelected && st.dayTxtSelected,
+                          isToday2 && !isSelected && st.dayTxtToday,
                         ]}>
                           {day.getDate()}
                         </Text>
@@ -162,18 +162,18 @@ export default function DatePicker({ value, onChange, label, placeholder, style:
               ))}
 
               {/* Footer */}
-              <View style={sty.popupFooter}>
-                <TouchableOpacity onPress={() => handleSelect(today)} style={sty.todayBtn}>
-                  <Text style={sty.todayBtnTxt}>Today</Text>
+              <View style={st.popupFooter}>
+                <TouchableOpacity onPress={() => handleSelect(today)} style={st.todayBtn}>
+                  <Text style={st.todayBtnTxt}>Today</Text>
                 </TouchableOpacity>
                 {value && (
-                  <TouchableOpacity onPress={() => { onChange(''); setOpen(false); }} style={sty.clearBtn}>
-                    <Text style={sty.clearBtnTxt}>Clear</Text>
+                  <TouchableOpacity onPress={() => { onChange(''); setOpen(false); }} style={st.clearBtn}>
+                    <Text style={st.clearBtnTxt}>Clear</Text>
                   </TouchableOpacity>
                 )}
                 <View style={{ flex: 1 }} />
-                <TouchableOpacity onPress={() => setOpen(false)} style={sty.doneBtn}>
-                  <Text style={sty.doneBtnTxt}>Done</Text>
+                <TouchableOpacity onPress={() => setOpen(false)} style={st.doneBtn}>
+                  <Text style={st.doneBtnTxt}>Done</Text>
                 </TouchableOpacity>
               </View>
             </View>
