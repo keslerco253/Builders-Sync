@@ -181,6 +181,8 @@ export default function UserManagement() {
 
 // Add User Modal
 const AddUserModal = ({ onClose, onCreated }) => {
+  const C = React.useContext(ThemeContext);
+  const st = React.useMemo(() => getStyles(C), [C]);
   const { user } = React.useContext(AuthContext);
   const [f, sF] = useState({ email: '', password: '', name: '', firstName: '', lastName: '', role: 'contractor', company: '', phone: '', trades: '' });
   const [err, sErr] = useState('');
