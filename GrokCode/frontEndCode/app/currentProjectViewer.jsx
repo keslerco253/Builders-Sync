@@ -3244,6 +3244,8 @@ ${sectionsHtml}
                           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>{active && <Feather name="check" size={16} color={C.gd} />}<Text style={{ fontSize: 20, fontWeight: '600', color: active ? C.gd : C.text }} numberOfLines={2}>{optName}</Text></View>
                           {standard ? (
                             <Text style={{ fontSize: 18, color: C.gn, fontWeight: '600', marginTop: 4 }}>Standard</Text>
+                          ) : priceTbd && isConfirmed && sel.price_override != null ? (
+                            <Text style={{ fontSize: 18, color: C.mt, fontWeight: '600', marginTop: 4 }}>+{f$(sel.price_override)}</Text>
                           ) : priceTbd ? (
                             <Text style={{ fontSize: 18, color: '#f59e0b', fontWeight: '600', marginTop: 4 }}>Price TBD</Text>
                           ) : price != null && price > 0 ? (
@@ -3291,8 +3293,8 @@ ${sectionsHtml}
                     ))}
                   </View>
                 )}
-                {/* Builder price override for TBD / awaiting_price selections */}
-                {hasTbd && isB && (isAwaitingPrice || isConfirmed) && (
+                {/* Builder price override for TBD / awaiting_price selections (locked once confirmed) */}
+                {hasTbd && isB && isAwaitingPrice && (
                   <View style={{ marginTop: 12, padding: 12, backgroundColor: C.mode === 'dark' ? 'rgba(245,158,11,0.08)' : 'rgba(245,158,11,0.06)', borderRadius: 8, borderWidth: 1, borderColor: 'rgba(245,158,11,0.25)' }}>
                     <Text style={{ fontSize: 16, fontWeight: '700', color: '#f59e0b', marginBottom: 8 }}>SET TBD PRICE</Text>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
