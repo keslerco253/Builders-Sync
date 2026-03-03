@@ -123,6 +123,77 @@ export const getAllDependents = (taskId, depMap) => {
   return result;
 };
 
+// Get all predecessors (reverse chain traversal)
+export const getAllPredecessors = (taskId, schedule) => {
+  const result = new Set();
+  const byId = {};
+  schedule.forEach(t => { byId[t.id] = t; });
+  const queue = [taskId];
+  while (queue.length > 0) {
+    const id = queue.shift();
+    const task = byId[id];
+    if (task && task.predecessor_id && byId[task.predecessor_id] && !result.has(task.predecessor_id)) {
+      result.add(task.predecessor_id);
+      queue.push(task.predecessor_id);
+    }
+  }
+  return result;
+};
+
+// Shift entire linked chain by a calendar-day offset, then cascade outsiders
+export const chainShiftDates = (schedule, movedId, dayOffset) => {
+  const dm = buildDepMap(schedule);
+  const deps = getAllDependents(movedId, dm);
+  const preds = getAllPredecessors(movedId, schedule);
+  const chain = new Set([movedId, ...deps, ...preds]);
+
+  const byId = {};
+  schedule.forEach(t => { byId[t.id] = { ...t }; });
+
+  // Shift all chain members by the same calendar day offset
+  chain.forEach(id => {
+    const t = byId[id];
+    if (!t) return;
+    const s = toDate(t.start_date), e = toDate(t.end_date);
+    if (s) t.start_date = fmt(addDays(s, dayOffset));
+    if (e) t.end_date = fmt(addDays(e, dayOffset));
+  });
+
+  // Recalculate lag for chain boundary tasks (predecessor is outside chain)
+  const lagUpdates = {};
+  chain.forEach(id => {
+    const t = byId[id];
+    if (t && t.predecessor_id && !chain.has(t.predecessor_id)) {
+      const pred = byId[t.predecessor_id];
+      if (pred) {
+        const newLag = calcLagFromPosition(t, pred);
+        t.lag_days = newLag;
+        lagUpdates[id] = newLag;
+      }
+    }
+  });
+
+  // Cascade non-chain tasks that depend on chain members
+  for (let pass = 0; pass < schedule.length + 1; pass++) {
+    let changed = false;
+    Object.values(byId).forEach(t => {
+      if (chain.has(t.id)) return;
+      if (!t.predecessor_id) return;
+      const pred = byId[t.predecessor_id];
+      if (!pred) return;
+      const ns = calcStartFromPred(pred, t.rel_type || 'FS', t.lag_days || 0);
+      if (!ns || ns === t.start_date) return;
+      const dur = workdayCount(t.start_date, t.end_date);
+      t.start_date = ns;
+      t.end_date = calcEndFromWorkdays(ns, dur);
+      changed = true;
+    });
+    if (!changed) break;
+  }
+
+  return { byId, chain, lagUpdates };
+};
+
 // Calculate lag_days from a task's actual start relative to its predecessor
 const calcLagFromPosition = (task, pred) => {
   const relType = task.rel_type || 'FS';
@@ -394,19 +465,35 @@ export default function ScheduleCalendar({ schedule, onUpdateTask, onEditTask, o
 
     dr.lastOffset = offset;
 
-    const dur = daysBetween(dr.origStart, dr.origEnd);
-    const ns = addDays(dr.origStart, offset);
-    const ne = addDays(ns, dur);
-    const nsStr = fmt(ns), neStr = fmt(ne);
-
     const sched = scheduleRef.current;
-    const { byId: pm } = cascadeDates(sched, dr.taskId, nsStr, neStr);
-    const dm = buildDepMap(sched);
-    const deps = getAllDependents(dr.taskId, dm);
-    deps.add(dr.taskId);
 
-    setPreviewMap(pm);
-    setAffectedIds(deps);
+    if (dr.isChainDrag) {
+      // Chain drag: shift entire linked chain + cascade outsiders
+      const { byId: pm, chain } = chainShiftDates(sched, dr.taskId, offset);
+      const affected = new Set(chain);
+      // Include any non-chain tasks that got cascaded
+      sched.forEach(t => {
+        if (pm[t.id] && (t.start_date !== pm[t.id].start_date || t.end_date !== pm[t.id].end_date)) {
+          affected.add(t.id);
+        }
+      });
+      setPreviewMap(pm);
+      setAffectedIds(affected);
+    } else {
+      // Normal drag: move single task + cascade dependents
+      const dur = daysBetween(dr.origStart, dr.origEnd);
+      const ns = addDays(dr.origStart, offset);
+      const ne = addDays(ns, dur);
+      const nsStr = fmt(ns), neStr = fmt(ne);
+
+      const { byId: pm } = cascadeDates(sched, dr.taskId, nsStr, neStr);
+      const dm = buildDepMap(sched);
+      const deps = getAllDependents(dr.taskId, dm);
+      deps.add(dr.taskId);
+
+      setPreviewMap(pm);
+      setAffectedIds(deps);
+    }
   }).current;
 
   const handlePointerUp = useRef(() => {
@@ -423,29 +510,49 @@ export default function ScheduleCalendar({ schedule, onUpdateTask, onEditTask, o
     // Commit changes
     if (dr && dr.lastOffset !== null && dr.lastOffset !== 0) {
       const sched = scheduleRef.current;
-      const dur = daysBetween(dr.origStart, dr.origEnd);
-      const ns = addDays(dr.origStart, dr.lastOffset);
-      const ne = addDays(ns, dur);
-      const { byId: pm, movedLag } = cascadeDates(sched, dr.taskId, fmt(ns), fmt(ne));
-      const dm = buildDepMap(sched);
-      const deps = getAllDependents(dr.taskId, dm);
-      deps.add(dr.taskId);
 
-      const updates = [];
-      deps.forEach(id => {
-        const orig = sched.find(t => t.id === id);
-        const upd = pm[id];
-        if (orig && upd && (orig.start_date !== upd.start_date || orig.end_date !== upd.end_date)) {
-          const entry = { id, start_date: upd.start_date, end_date: upd.end_date };
-          // Include new lag_days for the dragged task
-          if (id === dr.taskId && movedLag !== null) {
-            entry.lag_days = movedLag;
+      if (dr.isChainDrag) {
+        // Chain drag commit: shift entire chain + cascade outsiders
+        const { byId: pm, chain, lagUpdates } = chainShiftDates(sched, dr.taskId, dr.lastOffset);
+        const updates = [];
+        sched.forEach(t => {
+          const upd = pm[t.id];
+          if (upd && (t.start_date !== upd.start_date || t.end_date !== upd.end_date)) {
+            const entry = { id: t.id, start_date: upd.start_date, end_date: upd.end_date };
+            if (lagUpdates[t.id] !== undefined) {
+              entry.lag_days = lagUpdates[t.id];
+            }
+            updates.push(entry);
           }
-          updates.push(entry);
+        });
+        if (updates.length > 0 && onUpdateRef.current) {
+          onUpdateRef.current(updates);
         }
-      });
-      if (updates.length > 0 && onUpdateRef.current) {
-        onUpdateRef.current(updates);
+      } else {
+        // Normal drag commit
+        const dur = daysBetween(dr.origStart, dr.origEnd);
+        const ns = addDays(dr.origStart, dr.lastOffset);
+        const ne = addDays(ns, dur);
+        const { byId: pm, movedLag } = cascadeDates(sched, dr.taskId, fmt(ns), fmt(ne));
+        const dm = buildDepMap(sched);
+        const deps = getAllDependents(dr.taskId, dm);
+        deps.add(dr.taskId);
+
+        const updates = [];
+        deps.forEach(id => {
+          const orig = sched.find(t => t.id === id);
+          const upd = pm[id];
+          if (orig && upd && (orig.start_date !== upd.start_date || orig.end_date !== upd.end_date)) {
+            const entry = { id, start_date: upd.start_date, end_date: upd.end_date };
+            if (id === dr.taskId && movedLag !== null) {
+              entry.lag_days = movedLag;
+            }
+            updates.push(entry);
+          }
+        });
+        if (updates.length > 0 && onUpdateRef.current) {
+          onUpdateRef.current(updates);
+        }
       }
     }
 
@@ -457,22 +564,32 @@ export default function ScheduleCalendar({ schedule, onUpdateTask, onEditTask, o
   const handleDragStart = (task, e) => {
     if (!isBuilder || Platform.OS !== 'web' || typeof document === 'undefined') return;
     if (onHold) return; // Block all dragging while on hold
-    if (e.button !== 0) return; // Only left-click starts drag
+    if (e.button !== 0 && e.button !== 2) return; // Left-click or right-click
 
-    // Double-click detection: if same task tapped within 350ms, fire double-click callback
-    const now = Date.now();
-    const dbl = dblClickRef.current;
-    if (dbl.taskId === task.id && now - dbl.time < 350) {
-      dblClickRef.current = { taskId: null, time: 0 };
-      if (onTaskDoubleClickRef.current) {
-        e.preventDefault(); e.stopPropagation();
-        suppressDayPress.current = true;
-        setTimeout(() => { suppressDayPress.current = false; }, 500);
-        onTaskDoubleClickRef.current(task);
-      }
-      return; // Don't start drag
+    const isChainDrag = e.button === 2;
+
+    // Prevent context menu for right-click drag
+    if (isChainDrag) {
+      e.preventDefault();
+      e.stopPropagation();
     }
-    dblClickRef.current = { taskId: task.id, time: now };
+
+    // Double-click detection (left-click only)
+    if (!isChainDrag) {
+      const now = Date.now();
+      const dbl = dblClickRef.current;
+      if (dbl.taskId === task.id && now - dbl.time < 350) {
+        dblClickRef.current = { taskId: null, time: 0 };
+        if (onTaskDoubleClickRef.current) {
+          e.preventDefault(); e.stopPropagation();
+          suppressDayPress.current = true;
+          setTimeout(() => { suppressDayPress.current = false; }, 500);
+          onTaskDoubleClickRef.current(task);
+        }
+        return;
+      }
+      dblClickRef.current = { taskId: task.id, time: now };
+    }
 
     measureGrid();
     const ts = toDate(task.start_date), te = toDate(task.end_date);
@@ -488,8 +605,16 @@ export default function ScheduleCalendar({ schedule, onUpdateTask, onEditTask, o
       startX: e.clientX,
       startY: e.clientY,
       isException: !!task.is_exception,
+      isChainDrag,
       _setDraggedId: setDraggedId,
     };
+
+    // For chain drag, prevent context menu during the drag
+    if (isChainDrag) {
+      const preventCtx = (ev) => { ev.preventDefault(); };
+      document.addEventListener('contextmenu', preventCtx, { once: true });
+    }
+
     document.addEventListener('pointermove', handlePointerMove);
     document.addEventListener('pointerup', handlePointerUp);
   };
@@ -714,6 +839,7 @@ export default function ScheduleCalendar({ schedule, onUpdateTask, onEditTask, o
                         ]}
                         {...(Platform.OS === 'web' && isBuilder ? {
                           onPointerDown: (e) => handleDragStart(task, e),
+                          onContextMenu: (e) => e.preventDefault(),
                         } : {})}
                       >
                         {task.progress === 100 && <Feather name="check" size={12} color={(isExc || isOnHold) ? '#fff' : C.gn} />}
@@ -731,7 +857,7 @@ export default function ScheduleCalendar({ schedule, onUpdateTask, onEditTask, o
 
       {isBuilder && Platform.OS === 'web' && (
         <View style={st.hint}>
-          <Text style={st.hintTxt}>Click a day to add · Drag to move · Double-click to edit · Right-click to assign contractor</Text>
+          <Text style={st.hintTxt}>Click a day to add · Drag to move · Right-drag to move entire chain · Double-click to edit</Text>
         </View>
       )}
       </>
@@ -807,6 +933,7 @@ export default function ScheduleCalendar({ schedule, onUpdateTask, onEditTask, o
                             ]}
                             {...(Platform.OS === 'web' && isBuilder ? {
                               onPointerDown: (e) => { suppressDayPress.current = true; setTimeout(() => { suppressDayPress.current = false; }, 500); handleDragStart(task, e); },
+                              onContextMenu: (e) => e.preventDefault(),
                             } : {})}
                           >
                             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
@@ -829,7 +956,7 @@ export default function ScheduleCalendar({ schedule, onUpdateTask, onEditTask, o
 
       {isBuilder && Platform.OS === 'web' && (
         <View style={st.hint}>
-          <Text style={st.hintTxt}>Click a day to add · Drag to move · Double-click to edit · Right-click to assign contractor</Text>
+          <Text style={st.hintTxt}>Click a day to add · Drag to move · Right-drag to move entire chain · Double-click to edit</Text>
         </View>
       )}
       </>

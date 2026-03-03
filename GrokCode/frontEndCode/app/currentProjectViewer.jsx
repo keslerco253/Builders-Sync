@@ -584,6 +584,8 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
   const [photos, setPhotos] = useState([]);
   const [videos, setVideos] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [assigningTrade, setAssigningTrade] = useState(null); // trade name being assigned
+  const [assigningSaving, setAssigningSaving] = useState(false);
 
   // API helper
   const api = useCallback(async (path, opts = {}) => {
@@ -1644,11 +1646,33 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
         }
       });
 
+      // Build contractor display names list for the picker
+      const contractorOptions = subsList.map(u => {
+        const first = u.first_name || u.firstName || '';
+        const last = u.last_name || u.lastName || '';
+        const name = `${first} ${last}`.trim();
+        const company = u.company_name || u.companyName || '';
+        return { id: u.id, name: company ? `${company} (${name})` : name, role: u.role };
+      });
+
+      const handleAssignTrade = async (trade, contractorName) => {
+        setAssigningSaving(true);
+        try {
+          const result = await api(`/projects/${project.id}/assign-trade-contractor`, {
+            method: 'PUT', body: { trade, contractor_name: contractorName },
+          });
+          if (result) setSchedule(result);
+        } catch (e) { console.warn('Assign trade error:', e); }
+        setAssigningSaving(false);
+        setAssigningTrade(null);
+      };
+
       const renderTradeCard = (trade) => {
         const tasks = tradeMap[trade];
         const contractors = [...new Set(tasks.flatMap(t => (t.contractors || []).length > 0 ? t.contractors : (t.contractor ? [t.contractor] : [])))];
         const hasAssignment = contractors.length > 0;
         const unassignedCount = tasks.filter(t => (t.contractors || []).length === 0 && !t.contractor).length;
+        const isAssigning = assigningTrade === trade;
 
         return (
           <View key={trade} style={{ marginBottom: 10 }}>
@@ -1656,11 +1680,23 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
               padding: 14, backgroundColor: C.card, borderRadius: 10,
               borderWidth: 1, borderColor: hasAssignment ? C.gd + '40' : C.w08,
             }}>
-              <Text style={{ fontSize: 17, fontWeight: '700', color: C.textBold }}>{trade}</Text>
-              <Text style={{ fontSize: 13, color: C.dm, marginTop: 2 }}>
-                {tasks.length} task{tasks.length !== 1 ? 's' : ''}
-                {unassignedCount > 0 && hasAssignment ? ` · ${unassignedCount} unassigned` : ''}
-              </Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 17, fontWeight: '700', color: C.textBold }}>{trade}</Text>
+                  <Text style={{ fontSize: 13, color: C.dm, marginTop: 2 }}>
+                    {tasks.length} task{tasks.length !== 1 ? 's' : ''}
+                    {unassignedCount > 0 && hasAssignment ? ` · ${unassignedCount} unassigned` : ''}
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  onPress={() => setAssigningTrade(isAssigning ? null : trade)}
+                  style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 6, backgroundColor: C.bl + '15' }}
+                  activeOpacity={0.7}>
+                  <Text style={{ fontSize: 13, fontWeight: '600', color: C.bl }}>
+                    {isAssigning ? 'Cancel' : (hasAssignment ? 'Reassign' : 'Assign')}
+                  </Text>
+                </TouchableOpacity>
+              </View>
               {contractors.length > 0 ? (
                 <View style={{ marginTop: 10, gap: 6 }}>
                   {contractors.map(name => {
@@ -1692,6 +1728,41 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
               ) : (
                 <View style={{ marginTop: 8, paddingVertical: 6, paddingHorizontal: 10, backgroundColor: C.w04, borderRadius: 6 }}>
                   <Text style={{ fontSize: 14, color: C.dm, fontStyle: 'italic' }}>No contractor assigned</Text>
+                </View>
+              )}
+              {/* Contractor picker dropdown */}
+              {isAssigning && (
+                <View style={{ marginTop: 10, borderRadius: 8, borderWidth: 1, borderColor: C.bl + '30', overflow: 'hidden', maxHeight: 220 }}>
+                  <ScrollView nestedScrollEnabled keyboardShouldPersistTaps="handled">
+                    {hasAssignment && (
+                      <TouchableOpacity
+                        onPress={() => handleAssignTrade(trade, '')}
+                        disabled={assigningSaving}
+                        style={{ paddingVertical: 10, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: C.w04, backgroundColor: 'rgba(239,68,68,0.06)' }}
+                        activeOpacity={0.7}>
+                        <Text style={{ fontSize: 15, fontWeight: '500', color: '#ef4444' }}>Unassign All</Text>
+                      </TouchableOpacity>
+                    )}
+                    {contractorOptions.map(opt => (
+                      <TouchableOpacity key={opt.id}
+                        onPress={() => handleAssignTrade(trade, opt.name)}
+                        disabled={assigningSaving}
+                        style={{ paddingVertical: 10, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: C.w04,
+                          backgroundColor: contractors.includes(opt.name) ? C.gd + '15' : 'transparent' }}
+                        activeOpacity={0.7}>
+                        <Text style={{ fontSize: 15, fontWeight: contractors.includes(opt.name) ? '700' : '500',
+                          color: contractors.includes(opt.name) ? C.gd : C.text }}>{opt.name}</Text>
+                        <Text style={{ fontSize: 12, color: C.dm, marginTop: 1 }}>
+                          {opt.role === 'builder' || opt.role === 'company_admin' ? 'Builder' : 'Subcontractor'}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                    {contractorOptions.length === 0 && (
+                      <View style={{ padding: 14, alignItems: 'center' }}>
+                        <Text style={{ fontSize: 14, color: C.dm }}>No contractors in company</Text>
+                      </View>
+                    )}
+                  </ScrollView>
                 </View>
               )}
             </View>

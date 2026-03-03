@@ -5736,8 +5736,10 @@ const NewProjectModal = ({ onClose, onCreated, subdivisions = [], builderTrades 
   const [f, sF] = useState({
     name: '', street_address: '', city: '', addr_state: '', zip_code: '', email: '',
     customer_first_name: '', customer_last_name: '', customer_phone: '',
+    homeowner2_first_name: '', homeowner2_last_name: '', homeowner2_phone: '', homeowner2_email: '',
     original_price: '', subdivision_id: null,
   });
+  const [showHomeowner2, setShowHomeowner2] = useState(false);
   const [loading, setLoading] = useState(false);
   const [scheduleTasks, setScheduleTasks] = useState([]);
   const [showAddrState, setShowAddrState] = useState(false);
@@ -5780,6 +5782,13 @@ const NewProjectModal = ({ onClose, onCreated, subdivisions = [], builderTrades 
         selection_template_id: selectedSelTmplId || null,
         created_by: user.id,
       };
+      // Include second homeowner if enabled and email provided
+      if (showHomeowner2 && f.homeowner2_email.trim()) {
+        body.homeowner2_first_name = f.homeowner2_first_name.trim();
+        body.homeowner2_last_name = f.homeowner2_last_name.trim();
+        body.homeowner2_phone = f.homeowner2_phone.trim();
+        body.homeowner2_email = f.homeowner2_email.trim();
+      }
       const res = await apiFetch(`/projects`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
@@ -5904,6 +5913,37 @@ const NewProjectModal = ({ onClose, onCreated, subdivisions = [], builderTrades 
               <Text style={{ fontSize: 16, color: C.dm, marginTop: -10, marginBottom: 14 }}>
                 An account will be created automatically · Default password: Liberty
               </Text>
+
+              {/* Second Homeowner Toggle */}
+              <TouchableOpacity
+                onPress={() => setShowHomeowner2(p => !p)}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8, marginBottom: showHomeowner2 ? 10 : 14 }}
+                activeOpacity={0.7}>
+                <View style={{
+                  width: 22, height: 22, borderRadius: 4, borderWidth: 2,
+                  borderColor: showHomeowner2 ? C.bl : C.w12,
+                  backgroundColor: showHomeowner2 ? C.bl : 'transparent',
+                  alignItems: 'center', justifyContent: 'center',
+                }}>
+                  {showHomeowner2 && <Feather name="check" size={14} color="#fff" />}
+                </View>
+                <Text style={{ fontSize: 16, fontWeight: '600', color: C.text }}>Add Second Homeowner</Text>
+              </TouchableOpacity>
+
+              {showHomeowner2 && (
+                <View style={{ marginBottom: 14, paddingLeft: 4 }}>
+                  <Text style={[st.formLbl, { color: C.gd, marginBottom: 10 }]}>SECOND HOMEOWNER</Text>
+                  <View style={{ flexDirection: 'row', gap: 12 }}>
+                    <Inp2 label="FIRST NAME" value={f.homeowner2_first_name} onChange={v => set('homeowner2_first_name', v)} placeholder="John" style={{ flex: 1 }} />
+                    <Inp2 label="LAST NAME" value={f.homeowner2_last_name} onChange={v => set('homeowner2_last_name', v)} placeholder="Parker" style={{ flex: 1 }} />
+                  </View>
+                  <Inp2 label="PHONE" value={f.homeowner2_phone} onChange={v => set('homeowner2_phone', v)} placeholder="(208) 555-5678" type="phone" />
+                  <Inp2 label="EMAIL" value={f.homeowner2_email} onChange={v => set('homeowner2_email', v)} placeholder="john@email.com" type="email" />
+                  <Text style={{ fontSize: 16, color: C.dm, marginTop: -10, marginBottom: 4 }}>
+                    A separate login will be created · Same project access · Default password: Liberty
+                  </Text>
+                </View>
+              )}
 
               <Inp2 label="STREET ADDRESS" value={f.street_address} onChange={v => set('street_address', v)} placeholder="1245 Oakwood Dr" />
               <View style={{ flexDirection: 'row', gap: 12, zIndex: 10 }}>
