@@ -5418,6 +5418,9 @@ const TemplateManagerModal = ({ onClose, builderTrades = [] }) => {
       task: t.task || '',
       contractor: t.contractor || '',
       trade: t.trade || '',
+      contractors: t.contractors || (t.contractor ? [t.contractor] : []),
+      trades: t.trades || (t.trade ? [t.trade] : []),
+      hidden_from_customer: t.hidden_from_customer || false,
       start_date: '',
       workdays: String(t.workdays || '1'),
       end_date: '',
@@ -5438,7 +5441,9 @@ const TemplateManagerModal = ({ onClose, builderTrades = [] }) => {
           : null;
         return {
           task: t.task || '',
-          trade: t.trade || '',
+          trade: (t.trades || [])[0] || t.trade || '',
+          trades: t.trades || (t.trade ? [t.trade] : []),
+          hidden_from_customer: t.hidden_from_customer || false,
           workdays: t.workdays || '1',
           predIdx: predIdx >= 0 ? predIdx : null,
           relType: t.relType || 'FS',
@@ -5694,8 +5699,11 @@ const NewProjectModal = ({ onClose, onCreated, subdivisions = [], builderTrades 
           }
           return {
             task: t.task.trim(),
-            contractor: t.contractor?.trim() || '',
-            trade: t.trade || '',
+            contractor: (t.contractors || [])[0] || t.contractor?.trim() || '',
+            contractors: t.contractors || (t.contractor ? [t.contractor] : []),
+            trade: (t.trades || [])[0] || t.trade || '',
+            trades: t.trades || (t.trade ? [t.trade] : []),
+            hidden_from_customer: t.hidden_from_customer || false,
             start_date: t.start_date,
             end_date: t.end_date,
             baseline_start: t.start_date,

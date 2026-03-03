@@ -622,7 +622,10 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
       id: task.id,
       task: task.task || '',
       trade: task.trade || '',
+      trades: task.trades || (task.trade ? [task.trade] : []),
       contractor: task.contractor || '',
+      contractors: task.contractors || (task.contractor ? [task.contractor] : []),
+      hidden_from_customer: task.hidden_from_customer || false,
       workdays: String((() => {
         if (!task.start_date || !task.end_date) return 1;
         const s = new Date(task.start_date + 'T00:00:00');
@@ -1599,9 +1602,11 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
       // Build trade→tasks mapping from schedule data
       const tradeMap = {};
       schedule.forEach(task => {
-        const trade = task.trade || 'Unassigned Trade';
-        if (!tradeMap[trade]) tradeMap[trade] = [];
-        tradeMap[trade].push(task);
+        const taskTrades = (task.trades || []).length > 0 ? task.trades : (task.trade ? [task.trade] : ['Unassigned Trade']);
+        taskTrades.forEach(trade => {
+          if (!tradeMap[trade]) tradeMap[trade] = [];
+          tradeMap[trade].push(task);
+        });
       });
       const allTrades = Object.keys(tradeMap).sort((a, b) => {
         if (a === 'Unassigned Trade') return 1;
@@ -1629,7 +1634,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
       const unassignedTrades = [];
       allTrades.forEach(t => {
         const tasks = tradeMap[t];
-        const assignedNames = [...new Set(tasks.map(tk => tk.contractor).filter(Boolean))];
+        const assignedNames = [...new Set(tasks.flatMap(tk => (tk.contractors || []).length > 0 ? tk.contractors : (tk.contractor ? [tk.contractor] : [])))];
         if (assignedNames.length === 0) {
           unassignedTrades.push(t);
         } else {
@@ -1641,9 +1646,9 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
 
       const renderTradeCard = (trade) => {
         const tasks = tradeMap[trade];
-        const contractors = [...new Set(tasks.map(t => t.contractor).filter(Boolean))];
+        const contractors = [...new Set(tasks.flatMap(t => (t.contractors || []).length > 0 ? t.contractors : (t.contractor ? [t.contractor] : [])))];
         const hasAssignment = contractors.length > 0;
-        const unassignedCount = tasks.filter(t => !t.contractor).length;
+        const unassignedCount = tasks.filter(t => (t.contractors || []).length === 0 && !t.contractor).length;
 
         return (
           <View key={trade} style={{ marginBottom: 10 }}>
@@ -1659,7 +1664,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
               {contractors.length > 0 ? (
                 <View style={{ marginTop: 10, gap: 6 }}>
                   {contractors.map(name => {
-                    const subTasks = tasks.filter(t => t.contractor === name);
+                    const subTasks = tasks.filter(t => (t.contractors || []).includes(name) || t.contractor === name);
                     return (
                       <View key={name} style={{
                         flexDirection: 'row', alignItems: 'center', padding: 10,
@@ -2267,7 +2272,7 @@ ${sectionsHtml}
 
                   {/* Trade filter panel */}
                   {showTradeFilter && (() => {
-                    const usedTrades = [...new Set(schedule.map(t => t.trade).filter(Boolean))].sort();
+                    const usedTrades = [...new Set(schedule.flatMap(t => (t.trades || []).length > 0 ? t.trades : (t.trade ? [t.trade] : [])))].sort();
                     if (usedTrades.length === 0) return (
                       <View style={{ padding: 14, marginBottom: 10, backgroundColor: C.w04, borderRadius: 10, alignItems: 'center' }}>
                         <Text style={{ fontSize: 17, color: C.dm }}>No trades assigned to tasks yet</Text>
@@ -2286,7 +2291,7 @@ ${sectionsHtml}
                         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
                           {usedTrades.map(trade => {
                             const isOn = tradeFilter.includes(trade);
-                            const count = schedule.filter(t => t.trade === trade).length;
+                            const count = schedule.filter(t => ((t.trades || []).length > 0 ? t.trades : (t.trade ? [t.trade] : [])).includes(trade)).length;
                             return (
                               <TouchableOpacity
                                 key={trade}
@@ -2305,7 +2310,10 @@ ${sectionsHtml}
                   })()}
 
                   {(() => {
-                    const filtered = tradeFilter.length > 0 ? schedule.filter(t => t.trade && tradeFilter.includes(t.trade)) : schedule;
+                    const filtered = tradeFilter.length > 0 ? schedule.filter(t => {
+                      const taskTrades = (t.trades || []).length > 0 ? t.trades : (t.trade ? [t.trade] : []);
+                      return taskTrades.some(tr => tradeFilter.includes(tr));
+                    }) : schedule;
                     if (filtered.length === 0) return <Empty text={tradeFilter.length > 0 ? "No tasks match filter" : "No schedule items"} />;
 
                     const completedTasks = filtered.filter(item => calcTaskProgress(item).status === 'complete');
@@ -2337,7 +2345,10 @@ ${sectionsHtml}
                                 id: item.id,
                                 task: item.task || '',
                                 trade: item.trade || '',
+                                trades: item.trades || (item.trade ? [item.trade] : []),
                                 contractor: item.contractor || '',
+                                contractors: item.contractors || (item.contractor ? [item.contractor] : []),
+                                hidden_from_customer: item.hidden_from_customer || false,
                                 workdays: String((() => {
                                   if (!item.start_date || !item.end_date) return 1;
                                   const s2 = new Date(item.start_date + 'T00:00:00');
@@ -2368,13 +2379,19 @@ ${sectionsHtml}
                                   <Text style={{ fontSize: 21, fontWeight: '600', color: C.text }}>{item.task}</Text>
                                   {hasSlip && <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}><Feather name="alert-triangle" size={14} color={C.rd} /><Text style={{ fontSize: 15, color: C.rd }}>slipped</Text></View>}
                                 </View>
-                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 }}>
-                                  <Text style={{ fontSize: 18, color: C.dm }}>{item.contractor || 'Unassigned'}</Text>
-                                  {item.trade ? (
-                                    <View style={{ backgroundColor: 'rgba(59,130,246,0.1)', paddingHorizontal: 6, paddingVertical: 1, borderRadius: 4 }}>
-                                      <Text style={{ fontSize: 13, fontWeight: '600', color: C.bl }}>{item.trade}</Text>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2, flexWrap: 'wrap' }}>
+                                  <Text style={{ fontSize: 18, color: C.dm }}>{(item.contractors || []).length > 0 ? item.contractors.join(', ') : (item.contractor || 'Unassigned')}</Text>
+                                  {((item.trades || []).length > 0 ? item.trades : (item.trade ? [item.trade] : [])).map(t => (
+                                    <View key={t} style={{ backgroundColor: 'rgba(59,130,246,0.1)', paddingHorizontal: 6, paddingVertical: 1, borderRadius: 4 }}>
+                                      <Text style={{ fontSize: 13, fontWeight: '600', color: C.bl }}>{t}</Text>
                                     </View>
-                                  ) : null}
+                                  ))}
+                                  {item.hidden_from_customer && (
+                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: 'rgba(245,158,11,0.1)', paddingHorizontal: 6, paddingVertical: 1, borderRadius: 4 }}>
+                                      <Feather name="eye-off" size={11} color="#f59e0b" />
+                                      <Text style={{ fontSize: 12, fontWeight: '600', color: '#f59e0b' }}>Hidden</Text>
+                                    </View>
+                                  )}
                                 </View>
                               </View>
                               <View style={{ alignItems: 'flex-end' }}>
@@ -2485,14 +2502,14 @@ ${sectionsHtml}
                               />
                             </View>
                             <View style={{ flex: 2 }}>
-                              <Text style={{ fontSize: 13, fontWeight: '700', color: C.dm, letterSpacing: 1, marginBottom: 5 }}>TRADE</Text>
+                              <Text style={{ fontSize: 13, fontWeight: '700', color: C.dm, letterSpacing: 1, marginBottom: 5 }}>TRADES</Text>
                               <TouchableOpacity
                                 onPress={() => { setPredDropOpen(false); setTradeDropOpen(p => !p); }}
                                 style={[s.listModalInput, { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]}
                                 activeOpacity={0.7}
                               >
-                                <Text style={{ fontSize: 20, color: taskInfoEdit.trade ? C.bl : C.ph, flex: 1 }} numberOfLines={1}>
-                                  {taskInfoEdit.trade || 'Select trade'}
+                                <Text style={{ fontSize: 20, color: (taskInfoEdit.trades || []).length > 0 ? C.bl : C.ph, flex: 1 }} numberOfLines={1}>
+                                  {(taskInfoEdit.trades || []).length > 0 ? taskInfoEdit.trades.join(', ') : 'Select trades'}
                                 </Text>
                                 <Text style={{ fontSize: 14, color: C.dm, marginLeft: 6 }}>{tradeDropOpen ? '▲' : '▼'}</Text>
                               </TouchableOpacity>
@@ -2510,6 +2527,21 @@ ${sectionsHtml}
                             </View>
                           </View>
 
+                          {/* Selected trades chips */}
+                          {(taskInfoEdit.trades || []).length > 0 && (
+                            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4 }}>
+                              {taskInfoEdit.trades.map(t => (
+                                <View key={t} style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(59,130,246,0.1)', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4, gap: 4 }}>
+                                  <Text style={{ fontSize: 14, color: '#3b82f6', fontWeight: '600' }}>{t}</Text>
+                                  <TouchableOpacity onPress={() => setTaskInfoEdit(prev => ({ ...prev, trades: prev.trades.filter(tr => tr !== t), trade: prev.trades.filter(tr => tr !== t)[0] || '' }))}
+                                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                                    <Text style={{ fontSize: 16, color: '#f87171', fontWeight: '600' }}>×</Text>
+                                  </TouchableOpacity>
+                                </View>
+                              ))}
+                            </View>
+                          )}
+
                           {/* Trade dropdown list (collapsed by default) */}
                           {tradeDropOpen && (
                             <View style={{ borderRadius: 8, borderWidth: 1, borderColor: C.w06, overflow: 'hidden', maxHeight: 250 }}>
@@ -2524,23 +2556,25 @@ ${sectionsHtml}
                                 />
                               </View>
                               <ScrollView nestedScrollEnabled keyboardShouldPersistTaps="handled">
-                                {!taskTradeSearch.trim() && (
-                                  <TouchableOpacity
-                                    onPress={() => { setTaskInfoEdit(prev => ({ ...prev, trade: '' })); setTradeDropOpen(false); setTaskTradeSearch(''); }}
-                                    style={{ paddingVertical: 9, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: C.w04, backgroundColor: !taskInfoEdit.trade ? 'rgba(59,130,246,0.08)' : 'transparent' }}
-                                  >
-                                    <Text style={{ fontSize: 18, color: !taskInfoEdit.trade ? C.bl : C.dm, fontWeight: !taskInfoEdit.trade ? '600' : '400' }}>None</Text>
-                                  </TouchableOpacity>
-                                )}
                                 {(builderTradesProp || TEMPLATE_TRADES).filter(t => !taskTradeSearch.trim() || t.toLowerCase().includes(taskTradeSearch.toLowerCase())).map(t => {
-                                  const isActive = taskInfoEdit.trade === t;
+                                  const isActive = (taskInfoEdit.trades || []).includes(t);
                                   return (
                                     <TouchableOpacity
                                       key={t}
-                                      onPress={() => { setTaskInfoEdit(prev => ({ ...prev, trade: t })); setTradeDropOpen(false); setTaskTradeSearch(''); }}
+                                      onPress={() => {
+                                        setTaskInfoEdit(prev => {
+                                          const cur = prev.trades || [];
+                                          const next = cur.includes(t) ? cur.filter(tr => tr !== t) : [...cur, t];
+                                          return { ...prev, trades: next, trade: next[0] || '' };
+                                        });
+                                        setTaskTradeSearch('');
+                                      }}
                                       style={{ paddingVertical: 9, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: C.w04, backgroundColor: isActive ? 'rgba(59,130,246,0.08)' : 'transparent' }}
                                     >
-                                      <Text style={{ fontSize: 18, color: isActive ? C.bl : C.text, fontWeight: isActive ? '600' : '400' }}>{t}</Text>
+                                      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                                        <Text style={{ fontSize: 18, color: isActive ? C.bl : C.text, fontWeight: isActive ? '600' : '400' }}>{t}</Text>
+                                        {isActive && <Feather name="check" size={17} color={C.bl} />}
+                                      </View>
                                     </TouchableOpacity>
                                   );
                                 })}
@@ -2641,21 +2675,25 @@ ${sectionsHtml}
                             </View>
                           )}
 
-                          {/* Subcontractor Selection */}
+                          {/* Subcontractor Selection (multi-select) */}
                           {isB && (
                             <View>
-                              <Text style={{ fontSize: 13, fontWeight: '700', color: C.dm, letterSpacing: 1, marginBottom: 5 }}>SUBCONTRACTOR</Text>
-                              {taskInfoEdit.contractor ? (
-                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                                  <View style={{ flex: 1, backgroundColor: 'rgba(16,185,129,0.08)', borderRadius: 8, padding: 10, borderWidth: 1, borderColor: 'rgba(16,185,129,0.2)' }}>
-                                    <Text style={{ fontSize: 17, fontWeight: '600', color: '#10b981' }}>{taskInfoEdit.contractor}</Text>
-                                  </View>
-                                  <TouchableOpacity onPress={() => setTaskInfoEdit(prev => ({ ...prev, contractor: '' }))}
-                                    style={{ paddingHorizontal: 8, paddingVertical: 6 }} activeOpacity={0.7}>
-                                    <Feather name="x" size={16} color={C.rd} />
-                                  </TouchableOpacity>
+                              <Text style={{ fontSize: 13, fontWeight: '700', color: C.dm, letterSpacing: 1, marginBottom: 5 }}>SUBCONTRACTORS</Text>
+                              {(taskInfoEdit.contractors || []).length > 0 && (
+                                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+                                  {taskInfoEdit.contractors.map(name => (
+                                    <View key={name} style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(16,185,129,0.08)', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, gap: 6, borderWidth: 1, borderColor: 'rgba(16,185,129,0.2)' }}>
+                                      <Text style={{ fontSize: 15, fontWeight: '600', color: '#10b981' }}>{name}</Text>
+                                      <TouchableOpacity onPress={() => setTaskInfoEdit(prev => {
+                                        const next = (prev.contractors || []).filter(n => n !== name);
+                                        return { ...prev, contractors: next, contractor: next[0] || '' };
+                                      })} style={{ paddingHorizontal: 2 }} activeOpacity={0.7}>
+                                        <Feather name="x" size={14} color={C.rd} />
+                                      </TouchableOpacity>
+                                    </View>
+                                  ))}
                                 </View>
-                              ) : null}
+                              )}
                               <TextInput
                                 value={subsSearch}
                                 onChangeText={setSubsSearch}
@@ -2666,7 +2704,7 @@ ${sectionsHtml}
                               <View style={{ borderRadius: 8, borderWidth: 1, borderColor: C.w06, overflow: 'hidden', maxHeight: 160 }}>
                                 <ScrollView nestedScrollEnabled keyboardShouldPersistTaps="handled">
                                   {(() => {
-                                    const taskTrade = taskInfoEdit.trade;
+                                    const taskTrades = taskInfoEdit.trades || [];
                                     const filtered = subsList
                                       .filter(sub => {
                                         if (subsSearch.trim()) {
@@ -2682,9 +2720,9 @@ ${sectionsHtml}
                                         const bIsBuilder = b.role === 'builder' || b.role === 'company_admin';
                                         if (aIsBuilder && !bIsBuilder) return -1;
                                         if (!aIsBuilder && bIsBuilder) return 1;
-                                        if (taskTrade) {
-                                          const aMatch = (a.trades || '').split(',').map(t => t.trim()).includes(taskTrade);
-                                          const bMatch = (b.trades || '').split(',').map(t => t.trim()).includes(taskTrade);
+                                        if (taskTrades.length > 0) {
+                                          const aMatch = taskTrades.some(tt => (a.trades || '').split(',').map(t => t.trim()).includes(tt));
+                                          const bMatch = taskTrades.some(tt => (b.trades || '').split(',').map(t => t.trim()).includes(tt));
                                           if (aMatch && !bMatch) return -1;
                                           if (!aMatch && bMatch) return 1;
                                         }
@@ -2699,20 +2737,24 @@ ${sectionsHtml}
                                       const name = `${sub.first_name || sub.firstName || ''} ${sub.last_name || sub.lastName || ''}`.trim();
                                       const company = sub.company_name || sub.companyName || '';
                                       const display = company ? `${company} (${name})` : name;
-                                      const isActive = taskInfoEdit.contractor === display || taskInfoEdit.contractor === name;
+                                      const isActive = (taskInfoEdit.contractors || []).includes(display) || (taskInfoEdit.contractors || []).includes(name);
                                       const subTrades = (sub.trades || '').split(',').map(t => t.trim()).filter(Boolean);
-                                      const tradeMatch = taskTrade && subTrades.includes(taskTrade);
+                                      const matchingTrades = taskTrades.filter(tt => subTrades.includes(tt));
                                       return (
                                         <TouchableOpacity
                                           key={sub.id}
-                                          onPress={() => setTaskInfoEdit(prev => ({ ...prev, contractor: display }))}
+                                          onPress={() => setTaskInfoEdit(prev => {
+                                            const cur = prev.contractors || [];
+                                            const next = cur.includes(display) ? cur.filter(n => n !== display) : [...cur, display];
+                                            return { ...prev, contractors: next, contractor: next[0] || '' };
+                                          })}
                                           style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 9, paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: C.w04,
                                             backgroundColor: isActive ? 'rgba(16,185,129,0.1)' : 'transparent' }}
                                           activeOpacity={0.7}
                                         >
                                           <View style={{ flex: 1 }}>
                                             <Text style={{ fontSize: 16, color: isActive ? '#10b981' : C.text, fontWeight: isActive ? '600' : '400' }} numberOfLines={1}>{display}</Text>
-                                            {tradeMatch && <Text style={{ fontSize: 12, color: C.bl, fontWeight: '600' }}>{taskTrade}</Text>}
+                                            {matchingTrades.length > 0 && <Text style={{ fontSize: 12, color: C.bl, fontWeight: '600' }}>{matchingTrades.join(', ')}</Text>}
                                           </View>
                                           {isActive && <Feather name="check" size={17} color="#10b981" />}
                                         </TouchableOpacity>
@@ -2722,6 +2764,28 @@ ${sectionsHtml}
                                 </ScrollView>
                               </View>
                             </View>
+                          )}
+
+                          {/* Hide from Customer toggle */}
+                          {isB && (
+                            <TouchableOpacity
+                              onPress={() => setTaskInfoEdit(prev => ({ ...prev, hidden_from_customer: !prev.hidden_from_customer }))}
+                              style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 4 }}
+                              activeOpacity={0.7}
+                            >
+                              <View style={{
+                                width: 22, height: 22, borderRadius: 5, borderWidth: 2,
+                                borderColor: taskInfoEdit.hidden_from_customer ? '#f59e0b' : C.w10,
+                                backgroundColor: taskInfoEdit.hidden_from_customer ? '#f59e0b' : 'transparent',
+                                alignItems: 'center', justifyContent: 'center',
+                              }}>
+                                {taskInfoEdit.hidden_from_customer && <Feather name="check" size={15} color="#fff" />}
+                              </View>
+                              <Feather name="eye-off" size={16} color={taskInfoEdit.hidden_from_customer ? '#f59e0b' : C.dm} />
+                              <Text style={{ fontSize: 15, color: taskInfoEdit.hidden_from_customer ? '#f59e0b' : C.dm, fontWeight: taskInfoEdit.hidden_from_customer ? '600' : '400' }}>
+                                Hide from customer
+                              </Text>
+                            </TouchableOpacity>
                           )}
                         </View>
                         </ScrollView>
@@ -2736,8 +2800,11 @@ ${sectionsHtml}
                               const wd = parseInt(taskInfoEdit.workdays) || 1;
                               const updates = {
                                 task: taskInfoEdit.task.trim(),
-                                trade: taskInfoEdit.trade.trim(),
-                                contractor: taskInfoEdit.contractor || '',
+                                trade: (taskInfoEdit.trades || [])[0] || '',
+                                trades: taskInfoEdit.trades || [],
+                                contractor: (taskInfoEdit.contractors || [])[0] || '',
+                                contractors: taskInfoEdit.contractors || [],
+                                hidden_from_customer: taskInfoEdit.hidden_from_customer || false,
                                 predecessor_id: taskInfoEdit.predecessor_id,
                                 rel_type: taskInfoEdit.rel_type || 'FS',
                                 lag_days: parseInt(taskInfoEdit.lag_days) || 0,
@@ -4427,8 +4494,8 @@ const NewChangeOrderModal = ({ project, api, onClose, onCreated, user, schedule 
                 activeOpacity={0.7}
               >
                 <Text style={{ fontSize: 17, fontWeight: '500', color: C.text }}>{t.task}</Text>
-                {t.contractor ? (
-                  <Text style={{ fontSize: 14, color: C.dm, marginTop: 2 }}>Sub: {t.contractor}</Text>
+                {((t.contractors || []).length > 0 || t.contractor) ? (
+                  <Text style={{ fontSize: 14, color: C.dm, marginTop: 2 }}>Sub: {(t.contractors || []).length > 0 ? t.contractors.join(', ') : t.contractor}</Text>
                 ) : null}
               </TouchableOpacity>
             ))}
@@ -4716,7 +4783,7 @@ const SubChangeOrderModal = ({ project, api, user, task: initialTask, schedule, 
                       style={{ paddingVertical: 10, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: C.w04 }}
                       activeOpacity={0.7}>
                       <Text style={{ fontSize: 17, fontWeight: '500', color: C.text }}>{t.task}</Text>
-                      {t.contractor ? <Text style={{ fontSize: 14, color: C.dm, marginTop: 2 }}>{t.contractor}</Text> : null}
+                      {((t.contractors || []).length > 0 || t.contractor) ? <Text style={{ fontSize: 14, color: C.dm, marginTop: 2 }}>{(t.contractors || []).length > 0 ? t.contractors.join(', ') : t.contractor}</Text> : null}
                     </TouchableOpacity>
                   ))}
                 </ScrollView>
