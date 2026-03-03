@@ -21,7 +21,7 @@ const fD = d => {
 // ============================================================
 export default function ReportsScreen() {
   const C = React.useContext(ThemeContext);
-  const styles = useMemo(() => getStyles(C), [C]);
+  const sty = useMemo(() => getStyles(C), [C]);
   const { user } = React.useContext(AuthContext);
   const navigation = useNavigation();
 
@@ -32,45 +32,45 @@ export default function ReportsScreen() {
   }
 
   return (
-    <View style={styles.container}>
+    <View style={sty.container}>
       {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn} activeOpacity={0.7}>
+      <View style={sty.header}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={sty.backBtn} activeOpacity={0.7}>
           <Feather name="chevron-left" size={24} color={C.gd} />
           <Text style={{ fontSize: 17, color: C.gd, fontWeight: '600' }}>Back</Text>
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Reports</Text>
+        <Text style={sty.headerTitle}>Reports</Text>
         <View style={{ width: 80 }} />
       </View>
 
       {/* Report list */}
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.scrollContent}>
-        <Text style={styles.sectionTitle}>Available Reports</Text>
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={sty.scrollContent}>
+        <Text style={sty.sectionTitle}>Available Reports</Text>
 
-        <View style={styles.cardGrid}>
+        <View style={sty.cardGrid}>
           {/* ── Spec Report (live) ── */}
-          <TouchableOpacity style={[styles.card, { borderColor: C.gd, borderWidth: 2 }]} activeOpacity={0.7}
+          <TouchableOpacity style={[sty.card, { borderColor: C.gd, borderWidth: 2 }]} activeOpacity={0.7}
             onPress={() => setActiveReport('spec')}>
             <Feather name="tool" size={32} color={C.gd} />
-            <Text style={styles.cardTitle}>Spec Report</Text>
-            <Text style={styles.cardDesc}>Projects without a client — sortable by subdivision, plan, task & date</Text>
-            <View style={[styles.cardBadge, { backgroundColor: C.gd + '30' }]}>
-              <Text style={styles.cardBadgeTxt}>View Report</Text>
+            <Text style={sty.cardTitle}>Spec Report</Text>
+            <Text style={sty.cardDesc}>Projects without a client — sortable by subdivision, plan, task & date</Text>
+            <View style={[sty.cardBadge, { backgroundColor: C.gd + '30' }]}>
+              <Text style={sty.cardBadgeTxt}>View Report</Text>
             </View>
           </TouchableOpacity>
 
           {/* ── Coming soon cards ── */}
-          <ReportCard C={C} styles={styles} icon="calendar" title="Schedule Report"
+          <ReportCard C={C} sty={sty} icon="calendar" title="Schedule Report"
             description="View full project schedule details and timeline" />
-          <ReportCard C={C} styles={styles} icon="dollar-sign" title="Budget Report"
+          <ReportCard C={C} sty={sty} icon="dollar-sign" title="Budget Report"
             description="Project costs, change orders, and financial summary" />
-          <ReportCard C={C} styles={styles} icon="edit-3" title="Change Order Report"
+          <ReportCard C={C} sty={sty} icon="edit-3" title="Change Order Report"
             description="All change orders with status and signature details" />
-          <ReportCard C={C} styles={styles} icon="users" title="Subcontractor Report"
+          <ReportCard C={C} sty={sty} icon="users" title="Subcontractor Report"
             description="Contractor assignments, trades, and task progress" />
-          <ReportCard C={C} styles={styles} icon="file-text" title="Document Report"
+          <ReportCard C={C} sty={sty} icon="file-text" title="Document Report"
             description="All project documents, photos, and files" />
-          <ReportCard C={C} styles={styles} icon="bar-chart-2" title="Progress Report"
+          <ReportCard C={C} sty={sty} icon="bar-chart-2" title="Progress Report"
             description="Overall project progress and milestone tracking" />
         </View>
       </ScrollView>
@@ -84,7 +84,7 @@ export default function ReportsScreen() {
 function SpecReport({ C, user, onBack, navigation }) {
   const { width: winW } = useWindowDimensions();
   const isWide = winW > 800;
-  const styles = useMemo(() => getSpecStyles(C, isWide), [C, isWide]);
+  const sty = useMemo(() => getSpecStyles(C, isWide), [C, isWide]);
 
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -227,14 +227,14 @@ ${filterDesc ? `<div class="report-subtitle">${filterDesc}</div>` : ''}
   ];
 
   return (
-    <View style={styles.container}>
+    <View style={sty.container}>
       {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={onBack} style={styles.backBtn} activeOpacity={0.7}>
+      <View style={sty.header}>
+        <TouchableOpacity onPress={onBack} style={sty.backBtn} activeOpacity={0.7}>
           <Feather name="chevron-left" size={24} color={C.gd} />
           <Text style={{ fontSize: 17, color: C.gd, fontWeight: '600' }}>Back</Text>
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Spec Report</Text>
+        <Text style={sty.headerTitle}>Spec Report</Text>
         {Platform.OS === 'web' && sorted.length > 0 ? (
           <TouchableOpacity
             onPress={printSpecReport}
@@ -254,28 +254,28 @@ ${filterDesc ? `<div class="report-subtitle">${filterDesc}</div>` : ''}
         <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: isWide ? 24 : 14, paddingBottom: 60 }}>
 
           {/* Filter bar */}
-          <View style={styles.filterBar}>
+          <View style={sty.filterBar}>
             {/* Subdivision filter */}
             <View style={{ position: 'relative', zIndex: 20 }}>
-              <Text style={styles.filterLabel}>Subdivision</Text>
-              <TouchableOpacity style={styles.filterBtn} activeOpacity={0.7}
+              <Text style={sty.filterLabel}>Subdivision</Text>
+              <TouchableOpacity style={sty.filterBtn} activeOpacity={0.7}
                 onPress={() => { setShowSubdivDrop(p => !p); setShowPlanDrop(false); }}>
-                <Text style={[styles.filterBtnTxt, !filterSubdiv && { color: C.dm }]} numberOfLines={1}>
+                <Text style={[sty.filterBtnTxt, !filterSubdiv && { color: C.dm }]} numberOfLines={1}>
                   {filterSubdiv || 'All'}
                 </Text>
                 <Feather name="chevron-down" size={13} color={C.dm} />
               </TouchableOpacity>
               {showSubdivDrop && (
-                <View style={styles.dropdown}>
+                <View style={sty.dropdown}>
                   <ScrollView style={{ maxHeight: 250 }} nestedScrollEnabled keyboardShouldPersistTaps="handled">
-                    <TouchableOpacity style={[styles.dropItem, !filterSubdiv && styles.dropItemActive]}
+                    <TouchableOpacity style={[sty.dropItem, !filterSubdiv && sty.dropItemActive]}
                       onPress={() => { setFilterSubdiv(''); setShowSubdivDrop(false); }}>
-                      <Text style={[styles.dropItemTxt, !filterSubdiv && { color: C.gd }]}>All</Text>
+                      <Text style={[sty.dropItemTxt, !filterSubdiv && { color: C.gd }]}>All</Text>
                     </TouchableOpacity>
                     {subdivisions.map(s => (
-                      <TouchableOpacity key={s} style={[styles.dropItem, filterSubdiv === s && styles.dropItemActive]}
+                      <TouchableOpacity key={s} style={[sty.dropItem, filterSubdiv === s && sty.dropItemActive]}
                         onPress={() => { setFilterSubdiv(s); setShowSubdivDrop(false); }}>
-                        <Text style={[styles.dropItemTxt, filterSubdiv === s && { color: C.gd }]}>{s}</Text>
+                        <Text style={[sty.dropItemTxt, filterSubdiv === s && { color: C.gd }]}>{s}</Text>
                       </TouchableOpacity>
                     ))}
                   </ScrollView>
@@ -285,25 +285,25 @@ ${filterDesc ? `<div class="report-subtitle">${filterDesc}</div>` : ''}
 
             {/* Plan Name filter */}
             <View style={{ position: 'relative', zIndex: 19 }}>
-              <Text style={styles.filterLabel}>Plan Name</Text>
-              <TouchableOpacity style={styles.filterBtn} activeOpacity={0.7}
+              <Text style={sty.filterLabel}>Plan Name</Text>
+              <TouchableOpacity style={sty.filterBtn} activeOpacity={0.7}
                 onPress={() => { setShowPlanDrop(p => !p); setShowSubdivDrop(false); }}>
-                <Text style={[styles.filterBtnTxt, !filterPlan && { color: C.dm }]} numberOfLines={1}>
+                <Text style={[sty.filterBtnTxt, !filterPlan && { color: C.dm }]} numberOfLines={1}>
                   {filterPlan || 'All'}
                 </Text>
                 <Feather name="chevron-down" size={13} color={C.dm} />
               </TouchableOpacity>
               {showPlanDrop && (
-                <View style={styles.dropdown}>
+                <View style={sty.dropdown}>
                   <ScrollView style={{ maxHeight: 250 }} nestedScrollEnabled keyboardShouldPersistTaps="handled">
-                    <TouchableOpacity style={[styles.dropItem, !filterPlan && styles.dropItemActive]}
+                    <TouchableOpacity style={[sty.dropItem, !filterPlan && sty.dropItemActive]}
                       onPress={() => { setFilterPlan(''); setShowPlanDrop(false); }}>
-                      <Text style={[styles.dropItemTxt, !filterPlan && { color: C.gd }]}>All</Text>
+                      <Text style={[sty.dropItemTxt, !filterPlan && { color: C.gd }]}>All</Text>
                     </TouchableOpacity>
                     {planNames.map(p => (
-                      <TouchableOpacity key={p} style={[styles.dropItem, filterPlan === p && styles.dropItemActive]}
+                      <TouchableOpacity key={p} style={[sty.dropItem, filterPlan === p && sty.dropItemActive]}
                         onPress={() => { setFilterPlan(p); setShowPlanDrop(false); }}>
-                        <Text style={[styles.dropItemTxt, filterPlan === p && { color: C.gd }]}>{p}</Text>
+                        <Text style={[sty.dropItemTxt, filterPlan === p && { color: C.gd }]}>{p}</Text>
                       </TouchableOpacity>
                     ))}
                   </ScrollView>
@@ -329,13 +329,13 @@ ${filterDesc ? `<div class="report-subtitle">${filterDesc}</div>` : ''}
           )}
 
           {/* Table */}
-          <View style={styles.table}>
+          <View style={sty.table}>
             {/* Column headers */}
-            <View style={styles.tableHeaderRow}>
+            <View style={sty.tableHeaderRow}>
               {COLS.map(col => (
-                <TouchableOpacity key={col.key} style={[styles.tableHeaderCell, { flex: col.flex }]}
+                <TouchableOpacity key={col.key} style={[sty.tableHeaderCell, { flex: col.flex }]}
                   activeOpacity={0.7} onPress={() => toggleSort(col.key)}>
-                  <Text style={styles.tableHeaderTxt} numberOfLines={1}>{col.label}{arrow(col.key)}</Text>
+                  <Text style={sty.tableHeaderTxt} numberOfLines={1}>{col.label}{arrow(col.key)}</Text>
                 </TouchableOpacity>
               ))}
             </View>
@@ -347,21 +347,21 @@ ${filterDesc ? `<div class="report-subtitle">${filterDesc}</div>` : ''}
               </View>
             ) : (
               sorted.map((row, idx) => (
-                <View key={row.id} style={[styles.tableRow, idx % 2 === 1 && styles.tableRowAlt]}>
-                  <View style={[styles.tableCell, { flex: 1.2 }]}>
-                    <Text style={styles.tableCellTxt} numberOfLines={1}>{row.subdivision || '—'}</Text>
+                <View key={row.id} style={[sty.tableRow, idx % 2 === 1 && sty.tableRowAlt]}>
+                  <View style={[sty.tableCell, { flex: 1.2 }]}>
+                    <Text style={sty.tableCellTxt} numberOfLines={1}>{row.subdivision || '—'}</Text>
                   </View>
-                  <View style={[styles.tableCell, { flex: 1.5 }]}>
-                    <Text style={styles.tableCellTxt} numberOfLines={1}>{row.address || '—'}</Text>
+                  <View style={[sty.tableCell, { flex: 1.5 }]}>
+                    <Text style={sty.tableCellTxt} numberOfLines={1}>{row.address || '—'}</Text>
                   </View>
-                  <View style={[styles.tableCell, { flex: 1 }]}>
-                    <Text style={styles.tableCellTxt} numberOfLines={1}>{row.plan_name || '—'}</Text>
+                  <View style={[sty.tableCell, { flex: 1 }]}>
+                    <Text style={sty.tableCellTxt} numberOfLines={1}>{row.plan_name || '—'}</Text>
                   </View>
-                  <View style={[styles.tableCell, { flex: 1.3 }]}>
-                    <Text style={styles.tableCellTxt} numberOfLines={1}>{row.current_task || '—'}</Text>
+                  <View style={[sty.tableCell, { flex: 1.3 }]}>
+                    <Text style={sty.tableCellTxt} numberOfLines={1}>{row.current_task || '—'}</Text>
                   </View>
-                  <View style={[styles.tableCell, { flex: 0.9 }]}>
-                    <Text style={styles.tableCellTxt} numberOfLines={1}>{fD(row.end_date)}</Text>
+                  <View style={[sty.tableCell, { flex: 0.9 }]}>
+                    <Text style={sty.tableCellTxt} numberOfLines={1}>{fD(row.end_date)}</Text>
                   </View>
                 </View>
               ))
@@ -376,14 +376,14 @@ ${filterDesc ? `<div class="report-subtitle">${filterDesc}</div>` : ''}
 // ============================================================
 // REPORT CARD (coming soon)
 // ============================================================
-function ReportCard({ C, styles, icon, title, description }) {
+function ReportCard({ C, sty, icon, title, description }) {
   return (
-    <TouchableOpacity style={styles.card} activeOpacity={0.7}>
+    <TouchableOpacity style={sty.card} activeOpacity={0.7}>
       <Feather name={icon} size={32} color={C.dm} />
-      <Text style={styles.cardTitle}>{title}</Text>
-      <Text style={styles.cardDesc}>{description}</Text>
-      <View style={styles.cardBadge}>
-        <Text style={styles.cardBadgeTxt}>Coming Soon</Text>
+      <Text style={sty.cardTitle}>{title}</Text>
+      <Text style={sty.cardDesc}>{description}</Text>
+      <View style={sty.cardBadge}>
+        <Text style={sty.cardBadgeTxt}>Coming Soon</Text>
       </View>
     </TouchableOpacity>
   );

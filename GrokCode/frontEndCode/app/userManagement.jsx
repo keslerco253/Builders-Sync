@@ -14,30 +14,30 @@ const rBg = (r, C) => _isBld(r) ? C.gd + '22' : r === 'contractor' ? C.bl + '22'
 const rCl = (r, C) => _isBld(r) ? C.gd : r === 'contractor' ? C.blB : C.gnB;
 const roleLabel = r => r === 'company_admin' ? 'admin' : r;
 
-const Lbl = ({ children }) => { const C = React.useContext(ThemeContext); const styles = React.useMemo(() => getStyles(C), [C]); return <Text style={styles.lbl}>{children}</Text>; };
+const Lbl = ({ children }) => { const C = React.useContext(ThemeContext); const sty = React.useMemo(() => getStyles(C), [C]); return <Text style={sty.lbl}>{children}</Text>; };
 const Inp = ({ label, value, onChange, placeholder, type, style: ss }) => {
   const C = React.useContext(ThemeContext);
-  const styles = React.useMemo(() => getStyles(C), [C]);
+  const sty = React.useMemo(() => getStyles(C), [C]);
   return (
   <View style={[{ marginBottom: 14 }, ss]}>
     {label && <Lbl>{label}</Lbl>}
     <TextInput value={value} onChangeText={onChange} placeholder={placeholder}
       placeholderTextColor={C.ph} secureTextEntry={type === 'password'}
       keyboardType={type === 'email' ? 'email-address' : 'default'} autoCapitalize="none"
-      style={styles.inp} />
+      style={sty.inp} />
   </View>
   );
 };
 const ModalSheet = ({ visible, onClose, title, children }) => {
   const C = React.useContext(ThemeContext);
-  const styles = React.useMemo(() => getStyles(C), [C]);
+  const sty = React.useMemo(() => getStyles(C), [C]);
   return (
   <Modal visible={visible} animationType="slide" transparent>
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
-      <View style={styles.modalBg}>
-        <View style={styles.modalContent}>
-          <View style={styles.modalHead}>
-            <Text style={styles.modalTitle}>{title}</Text>
+      <View style={sty.modalBg}>
+        <View style={sty.modalContent}>
+          <View style={sty.modalHead}>
+            <Text style={sty.modalTitle}>{title}</Text>
             <TouchableOpacity onPress={onClose}><Text style={{ color: C.mt, fontSize: 28 }}>×</Text></TouchableOpacity>
           </View>
           <ScrollView showsVerticalScrollIndicator={false}>{children}</ScrollView>
@@ -50,7 +50,7 @@ const ModalSheet = ({ visible, onClose, title, children }) => {
 
 export default function UserManagement() {
   const C = React.useContext(ThemeContext);
-  const styles = React.useMemo(() => getStyles(C), [C]);
+  const sty = React.useMemo(() => getStyles(C), [C]);
   const { user } = React.useContext(AuthContext);
   const isCompanyAdmin = user?.role === 'company_admin';
   const [users, setUsers] = useState([]);
@@ -122,7 +122,7 @@ export default function UserManagement() {
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
           <Text style={{ fontSize: 22, fontWeight: '700', color: C.textBold }}>Users</Text>
-          <TouchableOpacity onPress={() => setModal(isCompanyAdmin ? 'invite' : 'adduser')} style={styles.addBtn}>
+          <TouchableOpacity onPress={() => setModal(isCompanyAdmin ? 'invite' : 'adduser')} style={sty.addBtn}>
             <Text style={{ color: '#fff', fontSize: 14, fontWeight: '700' }}>{isCompanyAdmin ? '+ Invite User' : '+ Add User'}</Text>
           </TouchableOpacity>
         </View>
@@ -130,8 +130,8 @@ export default function UserManagement() {
         {users.map(u => {
           const invited = u.registered === false;
           return (
-            <View key={u.id} style={[styles.userCard, !u.active && { opacity: 0.5 }]}>
-              <View style={[styles.userAvatar, { backgroundColor: invited ? C.yl : rG(u.role, C) }]}>
+            <View key={u.id} style={[sty.userCard, !u.active && { opacity: 0.5 }]}>
+              <View style={[sty.userAvatar, { backgroundColor: invited ? C.yl : rG(u.role, C) }]}>
                 {invited
                   ? <Text style={{ fontSize: 16, color: '#fff' }}>@</Text>
                   : <Text style={{ fontSize: 14, fontWeight: '700', color: '#fff' }}>{ini(u.name)}</Text>
@@ -154,20 +154,20 @@ export default function UserManagement() {
                   </>
                 )}
               </View>
-              <View style={[styles.roleBadge, { backgroundColor: rBg(u.role, C) }]}>
+              <View style={[sty.roleBadge, { backgroundColor: rBg(u.role, C) }]}>
                 <Text style={{ fontSize: 10, fontWeight: '600', color: rCl(u.role, C), textTransform: 'uppercase' }}>{roleLabel(u.role)}</Text>
               </View>
               {!invited && (
-                <TouchableOpacity onPress={() => setModal({ type: 'resetpw', data: u })} style={styles.iconBtn}>
+                <TouchableOpacity onPress={() => setModal({ type: 'resetpw', data: u })} style={sty.iconBtn}>
                   <Feather name="key" size={14} color={C.dm} />
                 </TouchableOpacity>
               )}
               {isCompanyAdmin && u.id !== user.id ? (
-                <TouchableOpacity onPress={() => removeUser(u)} style={styles.iconBtn}>
+                <TouchableOpacity onPress={() => removeUser(u)} style={sty.iconBtn}>
                   <Text style={{ fontSize: 14, color: C.rd }}>x</Text>
                 </TouchableOpacity>
               ) : !isCompanyAdmin && (
-                <TouchableOpacity onPress={() => toggleActive(u)} style={styles.iconBtn}>
+                <TouchableOpacity onPress={() => toggleActive(u)} style={sty.iconBtn}>
                   <Feather name={u.active ? 'slash' : 'check'} size={14} color={u.active ? C.rd : C.gn} />
                 </TouchableOpacity>
               )}
@@ -215,7 +215,7 @@ const AddUserModal = ({ onClose, onCreated }) => {
 
   return (
     <ModalSheet visible title="Add New User" onClose={onClose}>
-      {err ? <View style={styles.errBox}><Text style={{ color: C.rd, fontSize: 13 }}>{err}</Text></View> : null}
+      {err ? <View style={sty.errBox}><Text style={{ color: C.rd, fontSize: 13 }}>{err}</Text></View> : null}
       <View style={{ flexDirection: 'row', gap: 12 }}>
         <Inp label="FIRST NAME" value={f.firstName} onChange={v => sF({ ...f, firstName: v })} placeholder="Jane" style={{ flex: 1 }} />
         <Inp label="LAST NAME" value={f.lastName} onChange={v => sF({ ...f, lastName: v })} placeholder="Smith" style={{ flex: 1 }} />
@@ -226,7 +226,7 @@ const AddUserModal = ({ onClose, onCreated }) => {
       <View style={{ marginBottom: 14 }}>
         {ROLES.map(r => (
           <TouchableOpacity key={r.value} onPress={() => sF({ ...f, role: r.value })}
-            style={[styles.roleOpt, f.role === r.value && { borderColor: rCl(r.value, C), backgroundColor: rBg(r.value, C) }]}>
+            style={[sty.roleOpt, f.role === r.value && { borderColor: rCl(r.value, C), backgroundColor: rBg(r.value, C) }]}>
             <Text style={[{ fontSize: 13, color: C.mt }, f.role === r.value && { color: rCl(r.value, C), fontWeight: '600' }]}>{r.label}</Text>
           </TouchableOpacity>
         ))}
@@ -234,7 +234,7 @@ const AddUserModal = ({ onClose, onCreated }) => {
       <Inp label="COMPANY" value={f.company} onChange={v => sF({ ...f, company: v })} placeholder="Optional" />
       <Inp label="PHONE" value={f.phone} onChange={v => sF({ ...f, phone: v })} placeholder="Optional" />
       {f.role === 'contractor' && <Inp label="TRADES" value={f.trades} onChange={v => sF({ ...f, trades: v })} placeholder="Plumbing, Electrical..." />}
-      <TouchableOpacity onPress={create} disabled={loading} style={[styles.addBtn, { width: '100%', paddingVertical: 14, marginTop: 4 }, loading && { backgroundColor: C.dm }]}>
+      <TouchableOpacity onPress={create} disabled={loading} style={[sty.addBtn, { width: '100%', paddingVertical: 14, marginTop: 4 }, loading && { backgroundColor: C.dm }]}>
         <Text style={{ color: C.textBold, fontSize: 15, fontWeight: '700', textAlign: 'center' }}>{loading ? 'Creating...' : 'Create User'}</Text>
       </TouchableOpacity>
     </ModalSheet>
@@ -244,7 +244,7 @@ const AddUserModal = ({ onClose, onCreated }) => {
 // Invite User Modal (for company admins)
 const InviteUserModal = ({ onClose, onInvited }) => {
   const C = React.useContext(ThemeContext);
-  const styles = React.useMemo(() => getStyles(C), [C]);
+  const sty = React.useMemo(() => getStyles(C), [C]);
   const { user } = React.useContext(AuthContext);
   const [email, setEmail] = useState('');
   const [role, setRole] = useState('builder');
@@ -279,7 +279,7 @@ const InviteUserModal = ({ onClose, onInvited }) => {
 
   return (
     <ModalSheet visible title="Invite User" onClose={onClose}>
-      {err ? <View style={styles.errBox}><Text style={{ color: C.rd, fontSize: 13 }}>{err}</Text></View> : null}
+      {err ? <View style={sty.errBox}><Text style={{ color: C.rd, fontSize: 13 }}>{err}</Text></View> : null}
       <Text style={{ fontSize: 13, color: C.mt, marginBottom: 16 }}>
         Enter an email address. They will complete registration on their own.
       </Text>
@@ -288,13 +288,13 @@ const InviteUserModal = ({ onClose, onInvited }) => {
       <View style={{ marginBottom: 14 }}>
         {ROLES.map(r => (
           <TouchableOpacity key={r.value} onPress={() => setRole(r.value)}
-            style={[styles.roleOpt, role === r.value && { borderColor: rCl(r.value, C), backgroundColor: rBg(r.value, C) }]}>
+            style={[sty.roleOpt, role === r.value && { borderColor: rCl(r.value, C), backgroundColor: rBg(r.value, C) }]}>
             <Text style={[{ fontSize: 13, color: C.mt }, role === r.value && { color: rCl(r.value, C), fontWeight: '600' }]}>{r.label}</Text>
           </TouchableOpacity>
         ))}
       </View>
       <TouchableOpacity onPress={invite} disabled={!email.trim().includes('@') || loading}
-        style={[styles.addBtn, { width: '100%', paddingVertical: 14, marginTop: 4 }, (!email.trim().includes('@') || loading) && { backgroundColor: C.dm }]}>
+        style={[sty.addBtn, { width: '100%', paddingVertical: 14, marginTop: 4 }, (!email.trim().includes('@') || loading) && { backgroundColor: C.dm }]}>
         <Text style={{ color: '#fff', fontSize: 15, fontWeight: '700', textAlign: 'center' }}>{loading ? 'Inviting...' : 'Send Invitation'}</Text>
       </TouchableOpacity>
     </ModalSheet>
@@ -304,7 +304,7 @@ const InviteUserModal = ({ onClose, onInvited }) => {
 // Reset Password Modal
 const ResetPasswordModal = ({ user: targetUser, onClose, onReset }) => {
   const C = React.useContext(ThemeContext);
-  const styles = React.useMemo(() => getStyles(C), [C]);
+  const sty = React.useMemo(() => getStyles(C), [C]);
   const [pw, setPw] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -327,7 +327,7 @@ const ResetPasswordModal = ({ user: targetUser, onClose, onReset }) => {
       <Text style={{ fontSize: 13, color: C.mt, marginBottom: 16 }}>Enter a new password for this user.</Text>
       <Inp label="NEW PASSWORD (MIN 8)" value={pw} onChange={setPw} type="password" placeholder="New password" />
       <TouchableOpacity onPress={reset} disabled={pw.length < 8 || loading}
-        style={[styles.addBtn, { width: '100%', paddingVertical: 14 }, (pw.length < 8 || loading) && { backgroundColor: C.dm }]}>
+        style={[sty.addBtn, { width: '100%', paddingVertical: 14 }, (pw.length < 8 || loading) && { backgroundColor: C.dm }]}>
         <Text style={{ color: C.textBold, fontSize: 15, fontWeight: '700', textAlign: 'center' }}>{loading ? 'Resetting...' : 'Reset Password'}</Text>
       </TouchableOpacity>
     </ModalSheet>
