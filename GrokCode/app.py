@@ -787,6 +787,29 @@ class BidLineItem(db.Model):
         }
 
 
+class BidTemplate(db.Model):
+    __tablename__ = 'bid_template'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(255), nullable=False)
+    description = db.Column(db.String(500), default='')
+    categories_json = db.Column(db.Text, default='[]')  # JSON: [{title, line_items: [{name, quantity, price_per_item, included, is_allowance}]}]
+    lot_overhead = db.Column(db.Float, default=0)
+    commission = db.Column(db.Float, default=0)
+    company_id = db.Column(db.Integer, db.ForeignKey('company.id'), nullable=True)
+    created_by = db.Column(db.Integer, db.ForeignKey('login_info.id'), nullable=True)
+    created_at = db.Column(db.String(30), default='')
+
+    def to_dict(self):
+        return {
+            'id': self.id, 'name': self.name, 'description': self.description,
+            'categories': json.loads(self.categories_json) if self.categories_json else [],
+            'lot_overhead': self.lot_overhead or 0,
+            'commission': self.commission or 0,
+            'company_id': self.company_id, 'created_by': self.created_by,
+            'created_at': self.created_at,
+        }
+
+
 class ClientTask(db.Model):
     __tablename__ = 'client_task'
     id = db.Column(db.Integer, primary_key=True)
@@ -4297,6 +4320,149 @@ def delete_bid_line_item(lid):
     db.session.commit()
     cat = BidCategory.query.get(cid)
     return jsonify(cat.to_dict())
+
+
+# ============================================================
+# BID TEMPLATES
+# ============================================================
+
+@app.route('/bid-templates', methods=['GET'])
+def get_bid_templates():
+    uid = getattr(g, 'user_id', None)
+    u = LoginInfo.query.get(uid) if uid else None
+    if not u:
+        return jsonify([])
+    tmpls = BidTemplate.query.filter_by(company_id=u.company_id).all()
+    return jsonify([t.to_dict() for t in tmpls])
+
+
+@app.route('/bid-templates', methods=['POST'])
+def create_bid_template():
+    data = request.get_json()
+    name = (data.get('name') or '').strip()
+    if not name:
+        return jsonify({'error': 'Name is required'}), 400
+    uid = getattr(g, 'user_id', None)
+    u = LoginInfo.query.get(uid) if uid else None
+    from datetime import datetime
+    tmpl = BidTemplate(
+        name=name,
+        description=(data.get('description') or '').strip(),
+        categories_json=json.dumps(data.get('categories', [])),
+        lot_overhead=float(data.get('lot_overhead', 0) or 0),
+        commission=float(data.get('commission', 0) or 0),
+        company_id=u.company_id if u else None,
+        created_by=uid,
+        created_at=datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S'),
+    )
+    db.session.add(tmpl)
+    db.session.commit()
+    return jsonify(tmpl.to_dict()), 201
+
+
+@app.route('/bid-templates/<int:tid>', methods=['PUT'])
+def update_bid_template(tid):
+    tmpl = BidTemplate.query.get(tid)
+    if not tmpl:
+        return jsonify({'error': 'Not found'}), 404
+    data = request.get_json()
+    if 'name' in data:
+        tmpl.name = (data['name'] or '').strip()
+    if 'description' in data:
+        tmpl.description = (data['description'] or '').strip()
+    if 'categories' in data:
+        tmpl.categories_json = json.dumps(data['categories'])
+    if 'lot_overhead' in data:
+        tmpl.lot_overhead = float(data['lot_overhead'] or 0)
+    if 'commission' in data:
+        tmpl.commission = float(data['commission'] or 0)
+    db.session.commit()
+    return jsonify(tmpl.to_dict())
+
+
+@app.route('/bid-templates/<int:tid>', methods=['DELETE'])
+def delete_bid_template(tid):
+    tmpl = BidTemplate.query.get(tid)
+    if not tmpl:
+        return jsonify({'error': 'Not found'}), 404
+    db.session.delete(tmpl)
+    db.session.commit()
+    return jsonify({'deleted': tid})
+
+
+@app.route('/projects/<int:pid>/apply-bid-template', methods=['POST'])
+def apply_bid_template(pid):
+    data = request.get_json()
+    tmpl_id = data.get('template_id')
+    tmpl = BidTemplate.query.get(tmpl_id)
+    if not tmpl:
+        return jsonify({'error': 'Template not found'}), 404
+    proj = Projects.query.get(pid)
+    if not proj:
+        return jsonify({'error': 'Project not found'}), 404
+    categories = json.loads(tmpl.categories_json) if tmpl.categories_json else []
+    max_order = db.session.query(db.func.max(BidCategory.sort_order)).filter_by(job_id=pid).scalar() or 0
+    for i, cat_data in enumerate(categories):
+        cat = BidCategory(job_id=pid, title=cat_data.get('title', ''), sort_order=max_order + i + 1)
+        db.session.add(cat)
+        db.session.flush()
+        for li_data in cat_data.get('line_items', []):
+            li = BidLineItem(
+                category_id=cat.id,
+                name=li_data.get('name', ''),
+                quantity=float(li_data.get('quantity', 1) or 1),
+                price_per_item=float(li_data.get('price_per_item', 0) or 0),
+                included=bool(li_data.get('included', False)),
+                is_allowance=bool(li_data.get('is_allowance', False)),
+            )
+            db.session.add(li)
+    # Apply lot_overhead and commission if template has them
+    if tmpl.lot_overhead:
+        proj.bid_lot_overhead = tmpl.lot_overhead
+    if tmpl.commission:
+        proj.bid_commission = tmpl.commission
+    db.session.commit()
+    cats = BidCategory.query.filter_by(job_id=pid).order_by(BidCategory.sort_order).all()
+    return jsonify({'categories': [c.to_dict() for c in cats], 'lot_overhead': proj.bid_lot_overhead or 0, 'commission': proj.bid_commission or 0})
+
+
+@app.route('/projects/<int:pid>/save-as-bid-template', methods=['POST'])
+def save_as_bid_template(pid):
+    """Save the current bid of a project as a new bid template."""
+    data = request.get_json()
+    name = (data.get('name') or '').strip()
+    if not name:
+        return jsonify({'error': 'Name is required'}), 400
+    uid = getattr(g, 'user_id', None)
+    u = LoginInfo.query.get(uid) if uid else None
+    proj = Projects.query.get(pid)
+    if not proj:
+        return jsonify({'error': 'Project not found'}), 404
+    cats = BidCategory.query.filter_by(job_id=pid).order_by(BidCategory.sort_order).all()
+    categories_data = []
+    for cat in cats:
+        items = []
+        for li in cat.line_items:
+            items.append({
+                'name': li.name, 'quantity': li.quantity,
+                'price_per_item': li.price_per_item,
+                'included': bool(li.included), 'is_allowance': bool(li.is_allowance),
+            })
+        categories_data.append({'title': cat.title, 'line_items': items})
+    from datetime import datetime
+    tmpl = BidTemplate(
+        name=name,
+        description=(data.get('description') or '').strip(),
+        categories_json=json.dumps(categories_data),
+        lot_overhead=proj.bid_lot_overhead or 0,
+        commission=proj.bid_commission or 0,
+        company_id=u.company_id if u else None,
+        created_by=uid,
+        created_at=datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S'),
+    )
+    db.session.add(tmpl)
+    db.session.commit()
+    return jsonify(tmpl.to_dict()), 201
 
 
 # ============================================================

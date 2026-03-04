@@ -90,6 +90,7 @@ export default function Dashboard() {
   const [builderTrades, setBuilderTrades] = useState(DEFAULT_TRADES);
   const [newTradeName, setNewTradeName] = useState('');
   const [showFloorPlanManager, setShowFloorPlanManager] = useState(false);
+  const [showBidTemplateManager, setShowBidTemplateManager] = useState(false);
   const [floorPlans, setFloorPlans] = useState([]);
   const [newFloorPlanName, setNewFloorPlanName] = useState('');
   const [clientView, setClientView] = useState(false);
@@ -4149,6 +4150,11 @@ export default function Dashboard() {
         <DocumentManagerModal onClose={() => setShowDocumentManager(false)} />
       )}
 
+      {/* Bid Template Manager Modal */}
+      {showBidTemplateManager && (
+        <BidTemplateManagerModal onClose={() => setShowBidTemplateManager(false)} />
+      )}
+
       {/* Manage Trades Modal */}
       {showTradeManager && (
         <Modal visible animationType="fade" transparent>
@@ -4980,6 +4986,14 @@ export default function Dashboard() {
                   >
                     <Feather name="home" size={20} color={C.text} />
                     <Text style={st.settingsItemTxt}>Manage Floor Plans</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => { setShowSettings(false); setShowBidTemplateManager(true); }}
+                    style={st.settingsItem}
+                    activeOpacity={0.7}
+                  >
+                    <Feather name="clipboard" size={20} color={C.text} />
+                    <Text style={st.settingsItemTxt}>Manage Bid Templates</Text>
                   </TouchableOpacity>
                   {user?.role === 'company_admin' && (
                     <TouchableOpacity
@@ -7859,6 +7873,272 @@ const WorkdayExemptionsModal = ({ onClose }) => {
 
 
 // ============================================================
+// BID TEMPLATE MANAGER MODAL
+// ============================================================
+const BidTemplateManagerModal = ({ onClose }) => {
+  const C = React.useContext(ThemeContext);
+  const { user } = React.useContext(AuthContext);
+  const st = React.useMemo(() => getStyles(C), [C]);
+  const [templates, setTemplates] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [editTmpl, setEditTmpl] = useState(null); // null=list, 'new'=create, {id,...}=editing
+  const [editName, setEditName] = useState('');
+  const [editDesc, setEditDesc] = useState('');
+  const [editCategories, setEditCategories] = useState([]); // [{title, line_items:[{name,quantity,price_per_item,included,is_allowance}]}]
+  const [editLotOverhead, setEditLotOverhead] = useState('0');
+  const [editCommission, setEditCommission] = useState('0');
+  const [saving, setSaving] = useState(false);
+  const [newCatTitle, setNewCatTitle] = useState('');
+
+  const fetchTemplates = useCallback(async () => {
+    try {
+      const res = await apiFetch('/bid-templates');
+      if (res.ok) setTemplates(await res.json());
+    } catch (e) { /* */ }
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { fetchTemplates(); }, [fetchTemplates]);
+
+  const loadTemplate = (tmpl) => {
+    setEditTmpl(tmpl);
+    setEditName(tmpl.name);
+    setEditDesc(tmpl.description || '');
+    setEditCategories(tmpl.categories || []);
+    setEditLotOverhead(String(tmpl.lot_overhead || 0));
+    setEditCommission(String(tmpl.commission || 0));
+  };
+
+  const startNew = () => {
+    setEditTmpl('new');
+    setEditName('');
+    setEditDesc('');
+    setEditCategories([]);
+    setEditLotOverhead('0');
+    setEditCommission('0');
+  };
+
+  const addCategory = () => {
+    if (!newCatTitle.trim()) return;
+    setEditCategories(prev => [...prev, { title: newCatTitle.trim(), line_items: [] }]);
+    setNewCatTitle('');
+  };
+
+  const removeCategory = (idx) => {
+    setEditCategories(prev => prev.filter((_, i) => i !== idx));
+  };
+
+  const addLineItem = (catIdx) => {
+    setEditCategories(prev => prev.map((cat, i) =>
+      i === catIdx ? { ...cat, line_items: [...cat.line_items, { name: '', quantity: 1, price_per_item: 0, included: false, is_allowance: false }] } : cat
+    ));
+  };
+
+  const updateLineItem = (catIdx, liIdx, field, value) => {
+    setEditCategories(prev => prev.map((cat, ci) =>
+      ci === catIdx ? {
+        ...cat,
+        line_items: cat.line_items.map((li, li2) =>
+          li2 === liIdx ? { ...li, [field]: value } : li
+        ),
+      } : cat
+    ));
+  };
+
+  const removeLineItem = (catIdx, liIdx) => {
+    setEditCategories(prev => prev.map((cat, ci) =>
+      ci === catIdx ? { ...cat, line_items: cat.line_items.filter((_, i) => i !== liIdx) } : cat
+    ));
+  };
+
+  const handleSave = async () => {
+    if (!editName.trim()) return Alert.alert('Error', 'Template name is required');
+    setSaving(true);
+    try {
+      const isNew = editTmpl === 'new';
+      const path = isNew ? '/bid-templates' : `/bid-templates/${editTmpl.id}`;
+      const method = isNew ? 'POST' : 'PUT';
+      const res = await apiFetch(path, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: editName.trim(),
+          description: editDesc.trim(),
+          categories: editCategories,
+          lot_overhead: parseFloat(editLotOverhead) || 0,
+          commission: parseFloat(editCommission) || 0,
+          created_by: user.id,
+        }),
+      });
+      if (!res.ok) throw new Error(`Failed to ${isNew ? 'create' : 'update'} template`);
+      Alert.alert('Success', `Template ${isNew ? 'created' : 'updated'}`);
+      setEditTmpl(null);
+      fetchTemplates();
+    } catch (e) { Alert.alert('Error', e.message); }
+    setSaving(false);
+  };
+
+  const handleDelete = (tmpl) => {
+    const doDelete = async () => {
+      try {
+        const res = await apiFetch(`/bid-templates/${tmpl.id}`, { method: 'DELETE' });
+        if (!res.ok) throw new Error('Failed to delete');
+        if (editTmpl?.id === tmpl.id) setEditTmpl(null);
+        fetchTemplates();
+      } catch (e) { Alert.alert('Error', e.message); }
+    };
+    if (Platform.OS === 'web') {
+      if (window.confirm(`Delete "${tmpl.name}"? This cannot be undone.`)) doDelete();
+    } else {
+      Alert.alert('Delete Template', `Delete "${tmpl.name}"? This cannot be undone.`, [
+        { text: 'Cancel' },
+        { text: 'Delete', style: 'destructive', onPress: doDelete },
+      ]);
+    }
+  };
+
+  const isWide = Dimensions.get('window').width > 600;
+
+  return (
+    <Modal visible animationType="fade" transparent>
+      <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }}>
+        <View style={{ width: isWide ? 700 : '95%', maxHeight: '90%', backgroundColor: C.bg, borderRadius: 16, overflow: 'hidden' }}>
+          {/* Header */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16, borderBottomWidth: 1, borderBottomColor: C.w06 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+              {editTmpl && (
+                <TouchableOpacity onPress={() => setEditTmpl(null)} style={{ marginRight: 4 }}>
+                  <Text style={{ fontSize: 28, color: C.gd, fontWeight: '300' }}>‹</Text>
+                </TouchableOpacity>
+              )}
+              <Feather name="clipboard" size={22} color={C.gd} />
+              <Text style={{ fontSize: 20, fontWeight: '700', color: C.textBold }}>
+                {editTmpl ? (editTmpl === 'new' ? 'New Bid Template' : 'Edit Bid Template') : 'Bid Templates'}
+              </Text>
+            </View>
+            <TouchableOpacity onPress={onClose}>
+              <Text style={{ fontSize: 28, color: C.dm }}>×</Text>
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16 }} keyboardShouldPersistTaps="handled">
+            {!editTmpl ? (
+              /* ---- LIST VIEW ---- */
+              <>
+                <TouchableOpacity onPress={startNew}
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: C.gd, paddingVertical: 12, paddingHorizontal: 16, borderRadius: 10, marginBottom: 16, alignSelf: 'flex-start' }}>
+                  <Feather name="plus" size={18} color="#fff" />
+                  <Text style={{ fontSize: 15, fontWeight: '700', color: '#fff' }}>New Template</Text>
+                </TouchableOpacity>
+                {loading ? (
+                  <ActivityIndicator color={C.gd} size="large" style={{ marginTop: 40 }} />
+                ) : templates.length === 0 ? (
+                  <Text style={{ fontSize: 16, color: C.dm, textAlign: 'center', marginTop: 40 }}>No bid templates yet. Create one to get started.</Text>
+                ) : (
+                  templates.map(tmpl => (
+                    <View key={tmpl.id} style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: C.w06, borderRadius: 12, padding: 14, marginBottom: 10 }}>
+                      <TouchableOpacity style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12 }} activeOpacity={0.7} onPress={() => loadTemplate(tmpl)}>
+                        <Feather name="clipboard" size={32} color={C.dm} />
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ fontSize: 18, fontWeight: '600', color: C.textBold }}>{tmpl.name}</Text>
+                          {tmpl.description ? <Text style={{ fontSize: 14, color: C.dm, marginTop: 2 }} numberOfLines={1}>{tmpl.description}</Text> : null}
+                          <Text style={{ fontSize: 14, color: C.mt, marginTop: 3 }}>{(tmpl.categories || []).length} categor{(tmpl.categories || []).length !== 1 ? 'ies' : 'y'}</Text>
+                        </View>
+                        <Text style={{ fontSize: 18, color: C.gd }}>Edit ›</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity onPress={() => handleDelete(tmpl)} style={{ padding: 8, marginLeft: 8 }} activeOpacity={0.7}>
+                        <Feather name="trash-2" size={20} color={C.rd || '#ef4444'} />
+                      </TouchableOpacity>
+                    </View>
+                  ))
+                )}
+              </>
+            ) : (
+              /* ---- EDIT VIEW ---- */
+              <>
+                {/* Name & Description */}
+                <Text style={{ fontSize: 13, fontWeight: '600', color: C.dm, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>Template Name</Text>
+                <TextInput value={editName} onChangeText={setEditName} placeholder="e.g. Standard Residential"
+                  placeholderTextColor={C.dm + '80'}
+                  style={{ backgroundColor: C.w06, borderRadius: 10, padding: 12, fontSize: 16, color: C.text, marginBottom: 14, borderWidth: 1, borderColor: C.w08 }} />
+                <Text style={{ fontSize: 13, fontWeight: '600', color: C.dm, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>Description (optional)</Text>
+                <TextInput value={editDesc} onChangeText={setEditDesc} placeholder="Brief description..."
+                  placeholderTextColor={C.dm + '80'}
+                  style={{ backgroundColor: C.w06, borderRadius: 10, padding: 12, fontSize: 16, color: C.text, marginBottom: 14, borderWidth: 1, borderColor: C.w08 }} />
+
+                {/* Lot Overhead & Commission */}
+                <View style={{ flexDirection: 'row', gap: 12, marginBottom: 16 }}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 13, fontWeight: '600', color: C.dm, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>Lot Overhead ($)</Text>
+                    <TextInput value={editLotOverhead} onChangeText={setEditLotOverhead} keyboardType="decimal-pad"
+                      style={{ backgroundColor: C.w06, borderRadius: 10, padding: 12, fontSize: 16, color: C.text, borderWidth: 1, borderColor: C.w08 }} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 13, fontWeight: '600', color: C.dm, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>Commission ($)</Text>
+                    <TextInput value={editCommission} onChangeText={setEditCommission} keyboardType="decimal-pad"
+                      style={{ backgroundColor: C.w06, borderRadius: 10, padding: 12, fontSize: 16, color: C.text, borderWidth: 1, borderColor: C.w08 }} />
+                  </View>
+                </View>
+
+                {/* Categories */}
+                <Text style={{ fontSize: 15, fontWeight: '700', color: C.textBold, marginBottom: 10 }}>Categories</Text>
+                {editCategories.map((cat, catIdx) => (
+                  <View key={catIdx} style={{ backgroundColor: C.w06, borderRadius: 12, marginBottom: 12, overflow: 'hidden', borderWidth: 1, borderColor: C.w08 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', padding: 12, borderBottomWidth: 1, borderBottomColor: C.w08 }}>
+                      <Text style={{ flex: 1, fontSize: 16, fontWeight: '700', color: C.textBold }}>{cat.title}</Text>
+                      <TouchableOpacity onPress={() => removeCategory(catIdx)} style={{ padding: 4 }}>
+                        <Feather name="trash-2" size={16} color={C.rd || '#ef4444'} />
+                      </TouchableOpacity>
+                    </View>
+                    {/* Line items */}
+                    {cat.line_items.map((li, liIdx) => (
+                      <View key={liIdx} style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: C.w06, gap: 8 }}>
+                        <TextInput value={li.name} onChangeText={v => updateLineItem(catIdx, liIdx, 'name', v)} placeholder="Item name"
+                          placeholderTextColor={C.dm + '80'} style={{ flex: 2, fontSize: 14, color: C.text, backgroundColor: C.bg, borderRadius: 6, padding: 8, borderWidth: 1, borderColor: C.w08 }} />
+                        <TextInput value={String(li.quantity)} onChangeText={v => updateLineItem(catIdx, liIdx, 'quantity', parseFloat(v) || 0)} placeholder="Qty"
+                          keyboardType="decimal-pad" placeholderTextColor={C.dm + '80'} style={{ width: 60, fontSize: 14, color: C.text, backgroundColor: C.bg, borderRadius: 6, padding: 8, textAlign: 'right', borderWidth: 1, borderColor: C.w08 }} />
+                        <TextInput value={String(li.price_per_item)} onChangeText={v => updateLineItem(catIdx, liIdx, 'price_per_item', parseFloat(v) || 0)} placeholder="Price"
+                          keyboardType="decimal-pad" placeholderTextColor={C.dm + '80'} style={{ width: 80, fontSize: 14, color: C.text, backgroundColor: C.bg, borderRadius: 6, padding: 8, textAlign: 'right', borderWidth: 1, borderColor: C.w08 }} />
+                        <TouchableOpacity onPress={() => removeLineItem(catIdx, liIdx)} style={{ padding: 4 }}>
+                          <Feather name="x" size={16} color={C.rd || '#ef4444'} />
+                        </TouchableOpacity>
+                      </View>
+                    ))}
+                    <TouchableOpacity onPress={() => addLineItem(catIdx)}
+                      style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, padding: 10 }}>
+                      <Feather name="plus" size={14} color={C.gd} />
+                      <Text style={{ fontSize: 13, color: C.gd, fontWeight: '600' }}>Add Line Item</Text>
+                    </TouchableOpacity>
+                  </View>
+                ))}
+
+                {/* Add Category */}
+                <View style={{ flexDirection: 'row', gap: 8, marginBottom: 20 }}>
+                  <TextInput value={newCatTitle} onChangeText={setNewCatTitle} placeholder="New category title..."
+                    placeholderTextColor={C.dm + '80'} onSubmitEditing={addCategory}
+                    style={{ flex: 1, backgroundColor: C.w06, borderRadius: 10, padding: 12, fontSize: 15, color: C.text, borderWidth: 1, borderColor: C.w08 }} />
+                  <TouchableOpacity onPress={addCategory} disabled={!newCatTitle.trim()}
+                    style={{ backgroundColor: C.gd, borderRadius: 10, paddingHorizontal: 16, justifyContent: 'center', opacity: newCatTitle.trim() ? 1 : 0.4 }}>
+                    <Text style={{ fontSize: 14, fontWeight: '700', color: '#fff' }}>Add</Text>
+                  </TouchableOpacity>
+                </View>
+
+                {/* Save button */}
+                <TouchableOpacity onPress={handleSave} disabled={saving}
+                  style={{ backgroundColor: C.gd, borderRadius: 10, paddingVertical: 14, alignItems: 'center', marginBottom: 20, opacity: saving ? 0.6 : 1 }}>
+                  <Text style={{ fontSize: 16, fontWeight: '700', color: '#fff' }}>{saving ? 'Saving...' : (editTmpl === 'new' ? 'Create Template' : 'Save Changes')}</Text>
+                </TouchableOpacity>
+              </>
+            )}
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+  );
+};
+
+
+// ============================================================
 // NEW BID MODAL
 // ============================================================
 const NewBidModal = ({ onClose, onCreated, currentUser }) => {
@@ -7968,6 +8248,7 @@ const NewBidModal = ({ onClose, onCreated, currentUser }) => {
 // ============================================================
 const BidDetailView = ({ project, onProjectUpdate }) => {
   const C = React.useContext(ThemeContext);
+  const { user } = React.useContext(AuthContext);
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [lotOverhead, setLotOverhead] = useState(project.bid_lot_overhead || 0);
@@ -7976,6 +8257,12 @@ const BidDetailView = ({ project, onProjectUpdate }) => {
   const [commissionText, setCommissionText] = useState(String(project.bid_commission || 0));
   const [showCatModal, setShowCatModal] = useState(false);
   const [catTitle, setCatTitle] = useState('');
+  const [showApplyTemplate, setShowApplyTemplate] = useState(false);
+  const [showSaveAsTemplate, setShowSaveAsTemplate] = useState(false);
+  const [bidTemplates, setBidTemplates] = useState([]);
+  const [bidTemplatesLoading, setBidTemplatesLoading] = useState(false);
+  const [saveTemplateName, setSaveTemplateName] = useState('');
+  const [saveTemplateDesc, setSaveTemplateDesc] = useState('');
   const [confirmDeleteCat, setConfirmDeleteCat] = useState(null);
   const [confirmDeleteLine, setConfirmDeleteLine] = useState(null);
   // Inline editing state: { [lineId]: { name, quantity, price_per_item } }
@@ -8023,6 +8310,58 @@ const BidDetailView = ({ project, onProjectUpdate }) => {
     setLotOverheadText(String(project.bid_lot_overhead || 0));
     setCommissionText(String(project.bid_commission || 0));
   }, [project.bid_lot_overhead, project.bid_commission]);
+
+  const fetchBidTemplates = useCallback(async () => {
+    setBidTemplatesLoading(true);
+    try {
+      const res = await apiFetch('/bid-templates');
+      if (res.ok) setBidTemplates(await res.json());
+    } catch (e) { /* */ }
+    setBidTemplatesLoading(false);
+  }, []);
+
+  const applyTemplate = async (tmplId) => {
+    try {
+      const res = await apiFetch(`/projects/${project.id}/apply-bid-template`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ template_id: tmplId }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setCategories(data.categories);
+        setLotOverhead(data.lot_overhead || 0);
+        setCommission(data.commission || 0);
+        setLotOverheadText(String(data.lot_overhead || 0));
+        setCommissionText(String(data.commission || 0));
+        // Re-init edit state
+        const es = {};
+        (data.categories || []).forEach(cat => (cat.line_items || []).forEach(li => {
+          es[li.id] = { name: li.name, quantity: String(li.quantity), price_per_item: String(li.price_per_item) };
+        }));
+        setEditState(es);
+        if (onProjectUpdate) onProjectUpdate({ ...project, bid_lot_overhead: data.lot_overhead, bid_commission: data.commission });
+      }
+    } catch (e) { Alert.alert('Error', e.message); }
+    setShowApplyTemplate(false);
+  };
+
+  const saveAsTemplate = async () => {
+    if (!saveTemplateName.trim()) return Alert.alert('Error', 'Template name is required');
+    try {
+      const res = await apiFetch(`/projects/${project.id}/save-as-bid-template`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: saveTemplateName.trim(), description: saveTemplateDesc.trim() }),
+      });
+      if (res.ok) {
+        Alert.alert('Success', 'Bid saved as template');
+        setSaveTemplateName('');
+        setSaveTemplateDesc('');
+        setShowSaveAsTemplate(false);
+      }
+    } catch (e) { Alert.alert('Error', e.message); }
+  };
 
   // Build flat navigation order: [cellKey, cellKey, ...]
   // cellKey format: "top_lotOverhead", "top_commission", "line_{lineId}_{field}"
@@ -8265,11 +8604,23 @@ const BidDetailView = ({ project, onProjectUpdate }) => {
             <Text style={{ fontSize: 11, fontWeight: '700', color: C.gd }}>BID</Text>
           </View>
         </View>
-        <TouchableOpacity onPress={() => setShowCatModal(true)}
-          style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: C.gd, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8 }}>
-          <Feather name="plus" size={16} color="#fff" />
-          <Text style={{ fontSize: 14, fontWeight: '700', color: '#fff' }}>Add Category</Text>
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <TouchableOpacity onPress={() => { fetchBidTemplates(); setShowApplyTemplate(true); }}
+            style={{ flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderColor: C.gd, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8 }}>
+            <Feather name="download" size={14} color={C.gd} />
+            <Text style={{ fontSize: 13, fontWeight: '600', color: C.gd }}>Apply Template</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => setShowSaveAsTemplate(true)}
+            style={{ flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderColor: C.w12, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8 }}>
+            <Feather name="save" size={14} color={C.dm} />
+            <Text style={{ fontSize: 13, fontWeight: '600', color: C.dm }}>Save as Template</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => setShowCatModal(true)}
+            style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: C.gd, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8 }}>
+            <Feather name="plus" size={16} color="#fff" />
+            <Text style={{ fontSize: 14, fontWeight: '700', color: '#fff' }}>Add Category</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16 }} keyboardShouldPersistTaps="handled">
@@ -8510,6 +8861,76 @@ const BidDetailView = ({ project, onProjectUpdate }) => {
               <TouchableOpacity onPress={() => confirmDeleteLine && deleteLineItem(confirmDeleteLine.id, confirmDeleteLine.catId)}
                 style={{ flex: 1, paddingVertical: 10, borderRadius: 8, backgroundColor: C.rd || '#ef4444', alignItems: 'center' }}>
                 <Text style={{ fontSize: 15, fontWeight: '700', color: '#fff' }}>Delete</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Apply Bid Template Modal */}
+      <Modal visible={showApplyTemplate} transparent animationType="fade">
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }}>
+          <TouchableOpacity style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} activeOpacity={1} onPress={() => setShowApplyTemplate(false)} />
+          <View style={{ width: 420, maxHeight: '70%', backgroundColor: C.modalBg || C.bg, borderRadius: 14, borderWidth: 1, borderColor: C.w12, overflow: 'hidden', ...(Platform.OS === 'web' ? { boxShadow: '0 12px 40px rgba(0,0,0,0.3)' } : { elevation: 20 }) }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16, borderBottomWidth: 1, borderBottomColor: C.w06 }}>
+              <Text style={{ fontSize: 18, fontWeight: '700', color: C.textBold }}>Apply Bid Template</Text>
+              <TouchableOpacity onPress={() => setShowApplyTemplate(false)}><Text style={{ fontSize: 26, color: C.dm }}>×</Text></TouchableOpacity>
+            </View>
+            <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16 }}>
+              {bidTemplatesLoading ? (
+                <ActivityIndicator color={C.gd} size="large" style={{ marginTop: 20 }} />
+              ) : bidTemplates.length === 0 ? (
+                <Text style={{ fontSize: 15, color: C.dm, textAlign: 'center', marginTop: 20 }}>No bid templates available. Create one from the settings menu.</Text>
+              ) : (
+                <>
+                  <Text style={{ fontSize: 13, color: C.dm, marginBottom: 12 }}>Select a template to apply. Categories and line items will be added to this bid.</Text>
+                  {bidTemplates.map(tmpl => (
+                    <TouchableOpacity key={tmpl.id} onPress={() => applyTemplate(tmpl.id)}
+                      style={{ flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: C.w06, borderRadius: 10, padding: 14, marginBottom: 8 }} activeOpacity={0.7}>
+                      <Feather name="clipboard" size={24} color={C.dm} />
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 16, fontWeight: '600', color: C.textBold }}>{tmpl.name}</Text>
+                        {tmpl.description ? <Text style={{ fontSize: 13, color: C.dm, marginTop: 2 }} numberOfLines={1}>{tmpl.description}</Text> : null}
+                        <Text style={{ fontSize: 13, color: C.mt, marginTop: 2 }}>{(tmpl.categories || []).length} categor{(tmpl.categories || []).length !== 1 ? 'ies' : 'y'}</Text>
+                      </View>
+                      <Feather name="chevron-right" size={20} color={C.gd} />
+                    </TouchableOpacity>
+                  ))}
+                </>
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Save as Bid Template Modal */}
+      <Modal visible={showSaveAsTemplate} transparent animationType="fade">
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }}>
+          <TouchableOpacity style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} activeOpacity={1} onPress={() => setShowSaveAsTemplate(false)} />
+          <View style={{ width: 400, backgroundColor: C.modalBg || C.bg, borderRadius: 14, borderWidth: 1, borderColor: C.w12, overflow: 'hidden', ...(Platform.OS === 'web' ? { boxShadow: '0 12px 40px rgba(0,0,0,0.3)' } : { elevation: 20 }) }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16, borderBottomWidth: 1, borderBottomColor: C.w06 }}>
+              <Text style={{ fontSize: 18, fontWeight: '700', color: C.textBold }}>Save Bid as Template</Text>
+              <TouchableOpacity onPress={() => setShowSaveAsTemplate(false)}><Text style={{ fontSize: 26, color: C.dm }}>×</Text></TouchableOpacity>
+            </View>
+            <View style={{ padding: 16, gap: 12 }}>
+              <Text style={{ fontSize: 13, fontWeight: '600', color: C.dm, textTransform: 'uppercase', letterSpacing: 0.5 }}>Template Name</Text>
+              <TextInput value={saveTemplateName} onChangeText={setSaveTemplateName} placeholder="e.g. Standard Residential Bid"
+                placeholderTextColor={C.dm + '80'} style={inputStyle} autoFocus />
+              <Text style={{ fontSize: 13, fontWeight: '600', color: C.dm, textTransform: 'uppercase', letterSpacing: 0.5 }}>Description (optional)</Text>
+              <TextInput value={saveTemplateDesc} onChangeText={setSaveTemplateDesc} placeholder="Brief description..."
+                placeholderTextColor={C.dm + '80'} style={inputStyle} />
+              <Text style={{ fontSize: 12, color: C.mt, marginTop: 4 }}>
+                This will save all {categories.length} categor{categories.length !== 1 ? 'ies' : 'y'} and their line items, plus lot overhead and commission values as a reusable template.
+              </Text>
+            </View>
+            <View style={{ flexDirection: 'row', gap: 10, padding: 16, borderTopWidth: 1, borderTopColor: C.w06 }}>
+              <TouchableOpacity onPress={() => setShowSaveAsTemplate(false)}
+                style={{ flex: 1, paddingVertical: 10, borderRadius: 8, borderWidth: 1, borderColor: C.w12, alignItems: 'center' }}>
+                <Text style={{ fontSize: 15, fontWeight: '600', color: C.dm }}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={saveAsTemplate} disabled={!saveTemplateName.trim()}
+                style={{ flex: 1, paddingVertical: 10, borderRadius: 8, backgroundColor: C.gd, alignItems: 'center', opacity: saveTemplateName.trim() ? 1 : 0.4 }}>
+                <Text style={{ fontSize: 15, fontWeight: '700', color: '#fff' }}>Save Template</Text>
               </TouchableOpacity>
             </View>
           </View>
