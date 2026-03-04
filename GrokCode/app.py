@@ -814,6 +814,37 @@ class BidTemplate(db.Model):
         }
 
 
+class BidAllowanceCategory(db.Model):
+    __tablename__ = 'bid_allowance_category'
+    id = db.Column(db.Integer, primary_key=True)
+    job_id = db.Column(db.Integer, db.ForeignKey('projects.id'), nullable=False)
+    name = db.Column(db.String(255), nullable=False)
+    sort_order = db.Column(db.Integer, default=0)
+    items = db.relationship('BidAllowanceItem', backref='allowance_category', cascade='all, delete-orphan', lazy=True)
+
+    def to_dict(self):
+        item_list = [i.to_dict() for i in (self.items or [])]
+        total = sum(i.get('price', 0) for i in item_list)
+        return {
+            'id': self.id, 'job_id': self.job_id, 'name': self.name,
+            'sort_order': self.sort_order, 'items': item_list, 'total': total,
+        }
+
+
+class BidAllowanceItem(db.Model):
+    __tablename__ = 'bid_allowance_item'
+    id = db.Column(db.Integer, primary_key=True)
+    category_id = db.Column(db.Integer, db.ForeignKey('bid_allowance_category.id'), nullable=False)
+    name = db.Column(db.String(255), nullable=False)
+    price = db.Column(db.Float, default=0)
+
+    def to_dict(self):
+        return {
+            'id': self.id, 'category_id': self.category_id,
+            'name': self.name, 'price': self.price,
+        }
+
+
 class ClientTask(db.Model):
     __tablename__ = 'client_task'
     id = db.Column(db.Integer, primary_key=True)
@@ -4468,6 +4499,92 @@ def save_as_bid_template(pid):
     db.session.add(tmpl)
     db.session.commit()
     return jsonify(tmpl.to_dict()), 201
+
+
+# ============================================================
+# BID ALLOWANCE CATEGORIES & ITEMS
+# ============================================================
+
+@app.route('/projects/<int:pid>/bid-allowance-categories', methods=['GET'])
+def list_bid_allowance_categories(pid):
+    cats = BidAllowanceCategory.query.filter_by(job_id=pid).order_by(BidAllowanceCategory.sort_order).all()
+    return jsonify([c.to_dict() for c in cats])
+
+
+@app.route('/projects/<int:pid>/bid-allowance-categories', methods=['POST'])
+def create_bid_allowance_category(pid):
+    data = request.get_json()
+    name = (data.get('name') or '').strip()
+    if not name:
+        return jsonify({'error': 'Name is required'}), 400
+    max_order = db.session.query(db.func.max(BidAllowanceCategory.sort_order)).filter_by(job_id=pid).scalar() or 0
+    cat = BidAllowanceCategory(job_id=pid, name=name, sort_order=max_order + 1)
+    db.session.add(cat)
+    db.session.commit()
+    return jsonify(cat.to_dict()), 201
+
+
+@app.route('/bid-allowance-categories/<int:cid>', methods=['PUT'])
+def update_bid_allowance_category(cid):
+    cat = BidAllowanceCategory.query.get(cid)
+    if not cat:
+        return jsonify({'error': 'Not found'}), 404
+    data = request.get_json()
+    if 'name' in data:
+        cat.name = data['name']
+    if 'sort_order' in data:
+        cat.sort_order = data['sort_order']
+    db.session.commit()
+    return jsonify(cat.to_dict())
+
+
+@app.route('/bid-allowance-categories/<int:cid>', methods=['DELETE'])
+def delete_bid_allowance_category(cid):
+    cat = BidAllowanceCategory.query.get(cid)
+    if not cat:
+        return jsonify({'error': 'Not found'}), 404
+    job_id = cat.job_id
+    db.session.delete(cat)
+    db.session.commit()
+    cats = BidAllowanceCategory.query.filter_by(job_id=job_id).order_by(BidAllowanceCategory.sort_order).all()
+    return jsonify([c.to_dict() for c in cats])
+
+
+@app.route('/bid-allowance-categories/<int:cid>/items', methods=['POST'])
+def create_bid_allowance_item(cid):
+    cat = BidAllowanceCategory.query.get(cid)
+    if not cat:
+        return jsonify({'error': 'Category not found'}), 404
+    data = request.get_json()
+    item = BidAllowanceItem(category_id=cid, name=data.get('name', 'New Item'), price=data.get('price', 0))
+    db.session.add(item)
+    db.session.commit()
+    return jsonify(cat.to_dict()), 201
+
+
+@app.route('/bid-allowance-items/<int:iid>', methods=['PUT'])
+def update_bid_allowance_item(iid):
+    item = BidAllowanceItem.query.get(iid)
+    if not item:
+        return jsonify({'error': 'Not found'}), 404
+    data = request.get_json()
+    if 'name' in data:
+        item.name = data['name']
+    if 'price' in data:
+        item.price = data['price']
+    db.session.commit()
+    return jsonify(item.allowance_category.to_dict())
+
+
+@app.route('/bid-allowance-items/<int:iid>', methods=['DELETE'])
+def delete_bid_allowance_item(iid):
+    item = BidAllowanceItem.query.get(iid)
+    if not item:
+        return jsonify({'error': 'Not found'}), 404
+    cat = item.allowance_category
+    db.session.delete(item)
+    db.session.commit()
+    return jsonify(cat.to_dict())
 
 
 # ============================================================
