@@ -8266,6 +8266,9 @@ const BidDetailView = ({ project, onProjectUpdate }) => {
   const [saveTemplateDesc, setSaveTemplateDesc] = useState('');
   const [confirmDeleteCat, setConfirmDeleteCat] = useState(null);
   const [confirmDeleteLine, setConfirmDeleteLine] = useState(null);
+  const [priceToQuote, setPriceToQuote] = useState(project.bid_price_to_quote || 0);
+  const [priceToQuoteText, setPriceToQuoteText] = useState(String(project.bid_price_to_quote || 0));
+  const [sqftPercentLines, setSqftPercentLines] = useState([{ id: 1, percent: '10' }]);
   // Inline editing state: { [lineId]: { name, quantity, price_per_item } }
   const [editState, setEditState] = useState({});
   // Ref map for all focusable cells: key -> TextInput ref
@@ -8310,7 +8313,9 @@ const BidDetailView = ({ project, onProjectUpdate }) => {
     setCommission(project.bid_commission || 0);
     setLotOverheadText(String(project.bid_lot_overhead || 0));
     setCommissionText(String(project.bid_commission || 0));
-  }, [project.bid_lot_overhead, project.bid_commission]);
+    setPriceToQuote(project.bid_price_to_quote || 0);
+    setPriceToQuoteText(String(project.bid_price_to_quote || 0));
+  }, [project.bid_lot_overhead, project.bid_commission, project.bid_price_to_quote]);
 
   const fetchBidTemplates = useCallback(async () => {
     setBidTemplatesLoading(true);
@@ -8442,10 +8447,40 @@ const BidDetailView = ({ project, onProjectUpdate }) => {
     if (nextIdx !== undefined) focusCell(navOrder[nextIdx]);
   }, [navOrder, focusCell]);
 
-  // Compute totals
+  // Separate square footage category from normal categories
+  const sqftCategory = categories.find(c => c.is_square_footage);
+  const normalCategories = categories.filter(c => !c.is_square_footage);
+
+  // Compute totals (square footage items also count toward total)
   const categorySubtotals = categories.reduce((sum, c) => sum + (c.subtotal || 0), 0);
   const overhead = Math.round(categorySubtotals * 0.08 * 100) / 100;
   const totalCost = categorySubtotals + overhead + lotOverhead + commission;
+
+  // Square footage computed values
+  const totalSquareFootage = sqftCategory
+    ? (sqftCategory.line_items || []).reduce((sum, li) => {
+        const es = editState[li.id];
+        return sum + (parseFloat(es ? es.quantity : li.quantity) || 0);
+      }, 0)
+    : 0;
+  const pricePerSqft = totalSquareFootage > 0 ? totalCost / totalSquareFootage : 0;
+
+  // Ensure square footage category exists
+  const ensureSqftCategory = useCallback(async () => {
+    if (sqftCategory) return sqftCategory;
+    try {
+      const res = await apiFetch(`/projects/${project.id}/bid-categories`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: 'Square Footage', is_square_footage: true }),
+      });
+      if (res.ok) {
+        const cat = await res.json();
+        setCategories(prev => [...prev, cat]);
+        return cat;
+      }
+    } catch (e) { /* */ }
+    return null;
+  }, [sqftCategory, project.id]);
 
   const saveBidField = async (field, value) => {
     try {
@@ -8671,14 +8706,80 @@ const BidDetailView = ({ project, onProjectUpdate }) => {
           </View>
         </View>
 
+        {/* Square Footage Box */}
+        <View style={{ borderWidth: 1, borderColor: C.w12, borderRadius: 10, overflow: 'hidden', marginBottom: 20 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: C.gd + '15', paddingVertical: 10, paddingHorizontal: 12 }}>
+            <Text style={{ flex: 1, fontSize: 16, fontWeight: '700', color: C.textBold }}>Square Footage</Text>
+            <Text style={{ fontSize: 14, fontWeight: '600', color: C.gd, marginRight: 12 }}>{fmt(sqftCategory?.subtotal || 0)}</Text>
+            <TouchableOpacity onPress={async () => { const cat = await ensureSqftCategory(); if (cat) addLineItem(cat.id); }}>
+              <Feather name="plus-circle" size={20} color={C.gd} />
+            </TouchableOpacity>
+          </View>
+          {sqftCategory && (sqftCategory.line_items || []).length > 0 && (
+            <>
+              <View style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 6, paddingHorizontal: 8, borderTopWidth: 1, borderTopColor: C.w06, backgroundColor: C.w06 }}>
+                <Text style={[headerTxt, { flex: 3, paddingHorizontal: 4 }]}>Name</Text>
+                <Text style={[headerTxt, { flex: 1, textAlign: 'right', paddingHorizontal: 4 }]}>Qty</Text>
+                <Text style={[headerTxt, { flex: 1.5, textAlign: 'right', paddingHorizontal: 4 }]}>Price/Item</Text>
+                <Text style={[headerTxt, { flex: 1.5, textAlign: 'right', paddingHorizontal: 4 }]}>Total</Text>
+                <View style={{ width: 30 }} />
+              </View>
+              {(sqftCategory.line_items || []).map((li, idx) => {
+                const es = editState[li.id] || { name: li.name, quantity: String(li.quantity), price_per_item: String(li.price_per_item) };
+                const lineTotal = (parseFloat(es.quantity) || 0) * (parseFloat(es.price_per_item) || 0);
+                const nameKey = `line_${li.id}_name`;
+                const qtyKey = `line_${li.id}_quantity`;
+                const priceKey = `line_${li.id}_price_per_item`;
+                return (
+                  <View key={li.id} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 2, paddingHorizontal: 8, borderTopWidth: 1, borderTopColor: C.w06, backgroundColor: rowBg(idx) }}>
+                    <View style={{ flex: 3, paddingHorizontal: 2 }}>
+                      <TextInput ref={r => setCellRef(nameKey, r)} value={es.name}
+                        onChangeText={v => handleCellChange(li.id, sqftCategory.id, 'name', v)}
+                        onFocus={() => setFocusedCell(nameKey)} onBlur={() => setFocusedCell(null)}
+                        style={[cellInputStyle, focusedCell === nameKey && cellInputFocused]} />
+                    </View>
+                    <View style={{ flex: 1, paddingHorizontal: 2 }}>
+                      <TextInput ref={r => setCellRef(qtyKey, r)} value={es.quantity}
+                        onChangeText={v => handleCellChange(li.id, sqftCategory.id, 'quantity', v)}
+                        onFocus={() => setFocusedCell(qtyKey)} onBlur={() => setFocusedCell(null)}
+                        keyboardType="decimal-pad"
+                        style={[cellInputStyle, { textAlign: 'right' }, focusedCell === qtyKey && cellInputFocused]} />
+                    </View>
+                    <View style={{ flex: 1.5, paddingHorizontal: 2 }}>
+                      <TextInput ref={r => setCellRef(priceKey, r)} value={es.price_per_item}
+                        onChangeText={v => handleCellChange(li.id, sqftCategory.id, 'price_per_item', v)}
+                        onFocus={() => setFocusedCell(priceKey)} onBlur={() => setFocusedCell(null)}
+                        keyboardType="decimal-pad"
+                        style={[cellInputStyle, { textAlign: 'right' }, focusedCell === priceKey && cellInputFocused]} />
+                    </View>
+                    <View style={{ flex: 1.5, paddingHorizontal: 4 }}>
+                      <Text style={[cellTxt, { textAlign: 'right', fontWeight: '600' }]}>{fmt(lineTotal)}</Text>
+                    </View>
+                    <TouchableOpacity onPress={() => setConfirmDeleteLine({ id: li.id, catId: sqftCategory.id })} style={{ width: 30, alignItems: 'center' }}>
+                      <Feather name="x" size={15} color={C.rd || '#ef4444'} />
+                    </TouchableOpacity>
+                  </View>
+                );
+              })}
+            </>
+          )}
+          {(!sqftCategory || (sqftCategory.line_items || []).length === 0) && (
+            <TouchableOpacity onPress={async () => { const cat = await ensureSqftCategory(); if (cat) addLineItem(cat.id); }}
+              style={{ paddingVertical: 16, alignItems: 'center', borderTopWidth: 1, borderTopColor: C.w06, flexDirection: 'row', justifyContent: 'center', gap: 6 }}>
+              <Feather name="plus" size={16} color={C.gd} />
+              <Text style={{ fontSize: 14, color: C.gd, fontWeight: '600' }}>Add line item</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+
         {/* Categories */}
-        {categories.length === 0 ? (
+        {normalCategories.length === 0 ? (
           <View style={{ paddingVertical: 60, alignItems: 'center' }}>
             <Feather name="layers" size={48} color={C.dm} style={{ marginBottom: 10 }} />
             <Text style={{ fontSize: 20, fontWeight: '600', color: C.text }}>No categories yet</Text>
             <Text style={{ fontSize: 15, color: C.dm, marginTop: 4 }}>Tap "Add Category" to get started</Text>
           </View>
-        ) : categories.map((cat) => (
+        ) : normalCategories.map((cat) => (
           <View key={cat.id} style={{ borderWidth: 1, borderColor: C.w12, borderRadius: 10, overflow: 'hidden', marginBottom: 16 }}>
             {/* Category header */}
             <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: C.gd + '15', paddingVertical: 10, paddingHorizontal: 12 }}>
@@ -8790,11 +8891,74 @@ const BidDetailView = ({ project, onProjectUpdate }) => {
         ))}
 
         {/* Total Cost */}
-        <View style={{ borderWidth: 2, borderColor: C.gd, borderRadius: 10, overflow: 'hidden', marginTop: 8, marginBottom: 40 }}>
+        <View style={{ borderWidth: 2, borderColor: C.gd, borderRadius: 10, overflow: 'hidden', marginTop: 8 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 16, backgroundColor: C.gd + '15' }}>
             <Text style={{ flex: 1, fontSize: 20, fontWeight: '800', color: C.textBold }}>Total Cost</Text>
             <Text style={{ fontSize: 22, fontWeight: '800', color: C.gd }}>{fmt(totalCost)}</Text>
           </View>
+        </View>
+
+        {/* Price to Quote */}
+        <View style={{ borderWidth: 2, borderColor: C.bl || '#3b82f6', borderRadius: 10, overflow: 'hidden', marginTop: 12 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 16, backgroundColor: (C.bl || '#3b82f6') + '15' }}>
+            <Text style={{ flex: 1, fontSize: 18, fontWeight: '700', color: C.textBold }}>Price to Quote</Text>
+            <TextInput
+              value={priceToQuoteText}
+              onChangeText={setPriceToQuoteText}
+              onFocus={() => setFocusedCell('top_priceToQuote')}
+              onBlur={() => { setFocusedCell(null); const v = parseFloat(priceToQuoteText) || 0; setPriceToQuote(v); setPriceToQuoteText(String(v)); saveBidField('bid_price_to_quote', v); }}
+              keyboardType="decimal-pad"
+              style={[cellInputStyle, { textAlign: 'right', width: 160, fontSize: 18, fontWeight: '700', color: C.bl || '#3b82f6' }, focusedCell === 'top_priceToQuote' && cellInputFocused]}
+            />
+          </View>
+        </View>
+
+        {/* Price per Square Foot */}
+        <View style={{ borderWidth: 1, borderColor: C.w12, borderRadius: 10, overflow: 'hidden', marginTop: 12, marginBottom: 40 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: C.w06, paddingVertical: 10, paddingHorizontal: 12 }}>
+            <Text style={{ flex: 1, fontSize: 16, fontWeight: '700', color: C.textBold }}>Price per Square Foot</Text>
+            <TouchableOpacity onPress={() => setSqftPercentLines(prev => [...prev, { id: Date.now(), percent: '10' }])}>
+              <Feather name="plus-circle" size={20} color={C.gd} />
+            </TouchableOpacity>
+          </View>
+          {/* Column headers */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 6, paddingHorizontal: 12, borderTopWidth: 1, borderTopColor: C.w06, backgroundColor: C.w06 }}>
+            <Text style={[headerTxt, { flex: 1 }]}>Total Sq Ft</Text>
+            <Text style={[headerTxt, { flex: 1, textAlign: 'right' }]}>Price/Sq Ft</Text>
+            <Text style={[headerTxt, { flex: 1, textAlign: 'center' }]}>Markup %</Text>
+            <Text style={[headerTxt, { flex: 1.5, textAlign: 'right' }]}>Estimated Price</Text>
+            <View style={{ width: 30 }} />
+          </View>
+          {sqftPercentLines.map((line, idx) => {
+            const pct = parseFloat(line.percent) || 0;
+            const estimatedPrice = totalCost * (1 + pct / 100);
+            const estPricePerSqft = totalSquareFootage > 0 ? estimatedPrice / totalSquareFootage : 0;
+            return (
+              <View key={line.id} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 8, paddingHorizontal: 12, borderTopWidth: 1, borderTopColor: C.w06, backgroundColor: rowBg(idx) }}>
+                <Text style={[cellTxt, { flex: 1 }]}>{totalSquareFootage.toLocaleString()}</Text>
+                <Text style={[cellTxt, { flex: 1, textAlign: 'right' }]}>{fmt(estPricePerSqft)}</Text>
+                <View style={{ flex: 1, alignItems: 'center' }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
+                    <TextInput
+                      value={line.percent}
+                      onChangeText={v => setSqftPercentLines(prev => prev.map(l => l.id === line.id ? { ...l, percent: v } : l))}
+                      keyboardType="decimal-pad"
+                      style={[cellInputStyle, { textAlign: 'center', width: 60 }, focusedCell === `sqft_pct_${line.id}` && cellInputFocused]}
+                      onFocus={() => setFocusedCell(`sqft_pct_${line.id}`)}
+                      onBlur={() => setFocusedCell(null)}
+                    />
+                    <Text style={{ fontSize: 14, color: C.dm }}>%</Text>
+                  </View>
+                </View>
+                <Text style={[cellTxt, { flex: 1.5, textAlign: 'right', fontWeight: '600' }]}>{fmt(estimatedPrice)}</Text>
+                {sqftPercentLines.length > 1 ? (
+                  <TouchableOpacity onPress={() => setSqftPercentLines(prev => prev.filter(l => l.id !== line.id))} style={{ width: 30, alignItems: 'center' }}>
+                    <Feather name="x" size={15} color={C.rd || '#ef4444'} />
+                  </TouchableOpacity>
+                ) : <View style={{ width: 30 }} />}
+              </View>
+            );
+          })}
         </View>
       </ScrollView>
 
