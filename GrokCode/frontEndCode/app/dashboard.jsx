@@ -8269,6 +8269,13 @@ const BidDetailView = ({ project, onProjectUpdate }) => {
   const [priceToQuote, setPriceToQuote] = useState(project.bid_price_to_quote || 0);
   const [priceToQuoteText, setPriceToQuoteText] = useState(String(project.bid_price_to_quote || 0));
   const [sqftPercentLines, setSqftPercentLines] = useState([{ id: 1, percent: '10' }]);
+  // Allowance categories
+  const [allowanceCats, setAllowanceCats] = useState([]);
+  const [showAddAllowanceCat, setShowAddAllowanceCat] = useState(false);
+  const [newAllowanceCatName, setNewAllowanceCatName] = useState('');
+  const [allowanceEditState, setAllowanceEditState] = useState({}); // { [itemId]: { name, price } }
+  const [confirmDeleteAllowanceCat, setConfirmDeleteAllowanceCat] = useState(null);
+  const [confirmDeleteAllowanceItem, setConfirmDeleteAllowanceItem] = useState(null);
   // Inline editing state: { [lineId]: { name, quantity, price_per_item } }
   const [editState, setEditState] = useState({});
   // Ref map for all focusable cells: key -> TextInput ref
@@ -8306,7 +8313,7 @@ const BidDetailView = ({ project, onProjectUpdate }) => {
     setLoading(false);
   }, [project.id]);
 
-  useEffect(() => { fetchCategories(); }, [fetchCategories]);
+  useEffect(() => { fetchCategories(); fetchAllowanceCats(); }, [fetchCategories]);
 
   useEffect(() => {
     setLotOverhead(project.bid_lot_overhead || 0);
@@ -8325,6 +8332,103 @@ const BidDetailView = ({ project, onProjectUpdate }) => {
     } catch (e) { /* */ }
     setBidTemplatesLoading(false);
   }, []);
+
+  // Allowance category CRUD
+  const fetchAllowanceCats = useCallback(async () => {
+    try {
+      const res = await apiFetch(`/projects/${project.id}/bid-allowance-categories`);
+      if (res.ok) {
+        const data = await res.json();
+        setAllowanceCats(data);
+        const es = {};
+        data.forEach(cat => (cat.items || []).forEach(item => {
+          es[item.id] = { name: item.name, price: String(item.price) };
+        }));
+        setAllowanceEditState(es);
+      }
+    } catch (e) { /* */ }
+  }, [project.id]);
+
+  const addAllowanceCat = async () => {
+    if (!newAllowanceCatName.trim()) return;
+    try {
+      const res = await apiFetch(`/projects/${project.id}/bid-allowance-categories`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: newAllowanceCatName.trim() }),
+      });
+      if (res.ok) {
+        const cat = await res.json();
+        setAllowanceCats(prev => [...prev, cat]);
+      }
+    } catch (e) { /* */ }
+    setNewAllowanceCatName('');
+    setShowAddAllowanceCat(false);
+  };
+
+  const deleteAllowanceCat = async (catId) => {
+    try {
+      const res = await apiFetch(`/bid-allowance-categories/${catId}`, { method: 'DELETE' });
+      if (res.ok) setAllowanceCats(await res.json());
+    } catch (e) { /* */ }
+    setConfirmDeleteAllowanceCat(null);
+  };
+
+  const addAllowanceItem = async (catId) => {
+    try {
+      const res = await apiFetch(`/bid-allowance-categories/${catId}/items`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: 'New Item' }),
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setAllowanceCats(prev => prev.map(c => c.id === catId ? updated : c));
+        const newItem = updated.items[updated.items.length - 1];
+        if (newItem) setAllowanceEditState(prev => ({ ...prev, [newItem.id]: { name: newItem.name, price: String(newItem.price) } }));
+      }
+    } catch (e) { /* */ }
+  };
+
+  const allowanceSaveTimers = useRef({});
+  const updateAllowanceItem = async (itemId, data, catId) => {
+    try {
+      const res = await apiFetch(`/bid-allowance-items/${itemId}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setAllowanceCats(prev => prev.map(c => c.id === catId ? updated : c));
+      }
+    } catch (e) { /* */ }
+  };
+
+  const debounceAllowanceSave = useCallback((itemId, catId, field, value) => {
+    const key = `${itemId}_${field}`;
+    if (allowanceSaveTimers.current[key]) clearTimeout(allowanceSaveTimers.current[key]);
+    allowanceSaveTimers.current[key] = setTimeout(() => {
+      const payload = {};
+      if (field === 'name') payload.name = value;
+      else if (field === 'price') payload.price = parseFloat(value) || 0;
+      updateAllowanceItem(itemId, payload, catId);
+    }, 600);
+  }, []);
+
+  const handleAllowanceItemChange = useCallback((itemId, catId, field, value) => {
+    setAllowanceEditState(prev => ({ ...prev, [itemId]: { ...prev[itemId], [field]: value } }));
+    debounceAllowanceSave(itemId, catId, field, value);
+  }, [debounceAllowanceSave]);
+
+  const deleteAllowanceItem = async (itemId, catId) => {
+    try {
+      const res = await apiFetch(`/bid-allowance-items/${itemId}`, { method: 'DELETE' });
+      if (res.ok) {
+        const updated = await res.json();
+        setAllowanceCats(prev => prev.map(c => c.id === catId ? updated : c));
+        setAllowanceEditState(prev => { const n = { ...prev }; delete n[itemId]; return n; });
+      }
+    } catch (e) { /* */ }
+    setConfirmDeleteAllowanceItem(null);
+  };
 
   const applyTemplate = async (tmplId) => {
     try {
@@ -8890,6 +8994,25 @@ const BidDetailView = ({ project, onProjectUpdate }) => {
           </View>
         ))}
 
+        {/* Allowances Summary */}
+        {allowanceCats.length > 0 && (
+          <View style={{ borderWidth: 1, borderColor: C.w12, borderRadius: 10, overflow: 'hidden', marginTop: 8, marginBottom: 8 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: (C.bl || '#3b82f6') + '15', paddingVertical: 10, paddingHorizontal: 12 }}>
+              <Feather name="bookmark" size={16} color={C.bl || '#3b82f6'} style={{ marginRight: 8 }} />
+              <Text style={{ flex: 1, fontSize: 16, fontWeight: '700', color: C.textBold }}>Allowances</Text>
+              <Text style={{ fontSize: 14, fontWeight: '600', color: C.bl || '#3b82f6' }}>
+                {fmt(allowanceCats.reduce((sum, c) => sum + (c.total || 0), 0))}
+              </Text>
+            </View>
+            {allowanceCats.map((cat, idx) => (
+              <View key={cat.id} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 8, paddingHorizontal: 16, borderTopWidth: 1, borderTopColor: C.w06, backgroundColor: rowBg(idx) }}>
+                <Text style={[cellTxt, { flex: 1 }]}>{cat.name}</Text>
+                <Text style={[cellTxt, { fontWeight: '600' }]}>{fmt(cat.total || 0)}</Text>
+              </View>
+            ))}
+          </View>
+        )}
+
         {/* Total Cost */}
         <View style={{ borderWidth: 2, borderColor: C.gd, borderRadius: 10, overflow: 'hidden', marginTop: 8 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 16, backgroundColor: C.gd + '15' }}>
@@ -8960,7 +9083,151 @@ const BidDetailView = ({ project, onProjectUpdate }) => {
             );
           })}
         </View>
+
+        {/* Allowances Break Down */}
+        <View style={{ borderWidth: 1, borderColor: C.w12, borderRadius: 10, overflow: 'hidden', marginTop: 12, marginBottom: 40 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: (C.bl || '#3b82f6') + '15', paddingVertical: 10, paddingHorizontal: 12 }}>
+            <Feather name="bookmark" size={16} color={C.bl || '#3b82f6'} style={{ marginRight: 8 }} />
+            <Text style={{ flex: 1, fontSize: 16, fontWeight: '700', color: C.textBold }}>Allowances Break Down</Text>
+            <TouchableOpacity onPress={() => setShowAddAllowanceCat(true)}>
+              <Feather name="plus-circle" size={20} color={C.gd} />
+            </TouchableOpacity>
+          </View>
+
+          {allowanceCats.length === 0 ? (
+            <TouchableOpacity onPress={() => setShowAddAllowanceCat(true)}
+              style={{ paddingVertical: 20, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 6, borderTopWidth: 1, borderTopColor: C.w06 }}>
+              <Feather name="plus" size={16} color={C.gd} />
+              <Text style={{ fontSize: 14, color: C.gd, fontWeight: '600' }}>Add allowance category</Text>
+            </TouchableOpacity>
+          ) : allowanceCats.map((cat) => (
+            <View key={cat.id} style={{ borderTopWidth: 1, borderTopColor: C.w08 }}>
+              {/* Category header row */}
+              <View style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 8, paddingHorizontal: 12, backgroundColor: C.w06 }}>
+                <Text style={{ flex: 1, fontSize: 15, fontWeight: '700', color: C.textBold }}>{cat.name}</Text>
+                <Text style={{ fontSize: 14, fontWeight: '600', color: C.bl || '#3b82f6', marginRight: 10 }}>{fmt(cat.total || 0)}</Text>
+                <TouchableOpacity onPress={() => addAllowanceItem(cat.id)} style={{ marginRight: 8 }}>
+                  <Feather name="plus-circle" size={18} color={C.gd} />
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => setConfirmDeleteAllowanceCat(cat.id)}>
+                  <Feather name="trash-2" size={16} color={C.rd || '#ef4444'} />
+                </TouchableOpacity>
+              </View>
+              {/* Line items */}
+              {(cat.items || []).length > 0 && (
+                <View>
+                  <View style={{ flexDirection: 'row', paddingVertical: 4, paddingHorizontal: 12, backgroundColor: C.w04 }}>
+                    <Text style={[headerTxt, { flex: 2 }]}>Item</Text>
+                    <Text style={[headerTxt, { flex: 1, textAlign: 'right' }]}>Price</Text>
+                    <View style={{ width: 30 }} />
+                  </View>
+                  {(cat.items || []).map((item, idx) => {
+                    const es = allowanceEditState[item.id] || { name: item.name, price: String(item.price) };
+                    return (
+                      <View key={item.id} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 2, paddingHorizontal: 12, borderTopWidth: 1, borderTopColor: C.w06, backgroundColor: rowBg(idx) }}>
+                        <View style={{ flex: 2, paddingHorizontal: 2 }}>
+                          <TextInput value={es.name}
+                            onChangeText={v => handleAllowanceItemChange(item.id, cat.id, 'name', v)}
+                            onFocus={() => setFocusedCell(`allow_${item.id}_name`)}
+                            onBlur={() => setFocusedCell(null)}
+                            style={[cellInputStyle, focusedCell === `allow_${item.id}_name` && cellInputFocused]} />
+                        </View>
+                        <View style={{ flex: 1, paddingHorizontal: 2 }}>
+                          <TextInput value={es.price}
+                            onChangeText={v => handleAllowanceItemChange(item.id, cat.id, 'price', v)}
+                            onFocus={() => setFocusedCell(`allow_${item.id}_price`)}
+                            onBlur={() => setFocusedCell(null)}
+                            keyboardType="decimal-pad"
+                            style={[cellInputStyle, { textAlign: 'right' }, focusedCell === `allow_${item.id}_price` && cellInputFocused]} />
+                        </View>
+                        <TouchableOpacity onPress={() => setConfirmDeleteAllowanceItem({ id: item.id, catId: cat.id })} style={{ width: 30, alignItems: 'center' }}>
+                          <Feather name="x" size={15} color={C.rd || '#ef4444'} />
+                        </TouchableOpacity>
+                      </View>
+                    );
+                  })}
+                </View>
+              )}
+              {(cat.items || []).length === 0 && (
+                <TouchableOpacity onPress={() => addAllowanceItem(cat.id)}
+                  style={{ paddingVertical: 10, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 6 }}>
+                  <Feather name="plus" size={14} color={C.gd} />
+                  <Text style={{ fontSize: 13, color: C.gd, fontWeight: '600' }}>Add item</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          ))}
+        </View>
       </ScrollView>
+
+      {/* Add Allowance Category Modal */}
+      <Modal visible={showAddAllowanceCat} transparent animationType="fade">
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }}>
+          <TouchableOpacity style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} activeOpacity={1} onPress={() => setShowAddAllowanceCat(false)} />
+          <View style={{ width: 380, backgroundColor: C.modalBg || C.bg, borderRadius: 14, borderWidth: 1, borderColor: C.w12, overflow: 'hidden', ...(Platform.OS === 'web' ? { boxShadow: '0 12px 40px rgba(0,0,0,0.3)' } : { elevation: 20 }) }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16, borderBottomWidth: 1, borderBottomColor: C.w06 }}>
+              <Text style={{ fontSize: 18, fontWeight: '700', color: C.textBold }}>New Allowance Category</Text>
+              <TouchableOpacity onPress={() => setShowAddAllowanceCat(false)}><Text style={{ fontSize: 26, color: C.dm }}>x</Text></TouchableOpacity>
+            </View>
+            <View style={{ padding: 16, gap: 12 }}>
+              <Text style={{ fontSize: 13, fontWeight: '600', color: C.dm, textTransform: 'uppercase', letterSpacing: 0.5 }}>Category Name</Text>
+              <TextInput value={newAllowanceCatName} onChangeText={setNewAllowanceCatName} placeholder="e.g. Flooring, Lighting..."
+                placeholderTextColor={C.dm + '80'} style={inputStyle} autoFocus onSubmitEditing={addAllowanceCat} />
+            </View>
+            <View style={{ flexDirection: 'row', gap: 10, padding: 16, borderTopWidth: 1, borderTopColor: C.w06 }}>
+              <TouchableOpacity onPress={() => setShowAddAllowanceCat(false)}
+                style={{ flex: 1, paddingVertical: 10, borderRadius: 8, borderWidth: 1, borderColor: C.w12, alignItems: 'center' }}>
+                <Text style={{ fontSize: 15, fontWeight: '600', color: C.dm }}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={addAllowanceCat} disabled={!newAllowanceCatName.trim()}
+                style={{ flex: 1, paddingVertical: 10, borderRadius: 8, backgroundColor: C.gd, alignItems: 'center', opacity: newAllowanceCatName.trim() ? 1 : 0.4 }}>
+                <Text style={{ fontSize: 15, fontWeight: '700', color: '#fff' }}>Add</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Confirm Delete Allowance Category */}
+      <Modal visible={confirmDeleteAllowanceCat !== null} transparent animationType="fade">
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }}>
+          <View style={{ width: 340, backgroundColor: C.modalBg || C.bg, borderRadius: 14, borderWidth: 1, borderColor: C.w12, padding: 24, alignItems: 'center', ...(Platform.OS === 'web' ? { boxShadow: '0 12px 40px rgba(0,0,0,0.3)' } : { elevation: 20 }) }}>
+            <Feather name="alert-triangle" size={36} color={C.rd || '#ef4444'} style={{ marginBottom: 12 }} />
+            <Text style={{ fontSize: 18, fontWeight: '700', color: C.textBold, textAlign: 'center', marginBottom: 6 }}>Delete Allowance Category?</Text>
+            <Text style={{ fontSize: 14, color: C.dm, textAlign: 'center', marginBottom: 20 }}>This will also delete all items in this category.</Text>
+            <View style={{ flexDirection: 'row', gap: 10, width: '100%' }}>
+              <TouchableOpacity onPress={() => setConfirmDeleteAllowanceCat(null)}
+                style={{ flex: 1, paddingVertical: 10, borderRadius: 8, borderWidth: 1, borderColor: C.w12, alignItems: 'center' }}>
+                <Text style={{ fontSize: 15, fontWeight: '600', color: C.dm }}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => deleteAllowanceCat(confirmDeleteAllowanceCat)}
+                style={{ flex: 1, paddingVertical: 10, borderRadius: 8, backgroundColor: C.rd || '#ef4444', alignItems: 'center' }}>
+                <Text style={{ fontSize: 15, fontWeight: '700', color: '#fff' }}>Delete</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Confirm Delete Allowance Item */}
+      <Modal visible={confirmDeleteAllowanceItem !== null} transparent animationType="fade">
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }}>
+          <View style={{ width: 340, backgroundColor: C.modalBg || C.bg, borderRadius: 14, borderWidth: 1, borderColor: C.w12, padding: 24, alignItems: 'center', ...(Platform.OS === 'web' ? { boxShadow: '0 12px 40px rgba(0,0,0,0.3)' } : { elevation: 20 }) }}>
+            <Text style={{ fontSize: 18, fontWeight: '700', color: C.textBold, marginBottom: 6 }}>Delete Allowance Item?</Text>
+            <Text style={{ fontSize: 14, color: C.dm, marginBottom: 20 }}>This cannot be undone.</Text>
+            <View style={{ flexDirection: 'row', gap: 10, width: '100%' }}>
+              <TouchableOpacity onPress={() => setConfirmDeleteAllowanceItem(null)}
+                style={{ flex: 1, paddingVertical: 10, borderRadius: 8, borderWidth: 1, borderColor: C.w12, alignItems: 'center' }}>
+                <Text style={{ fontSize: 15, fontWeight: '600', color: C.dm }}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => confirmDeleteAllowanceItem && deleteAllowanceItem(confirmDeleteAllowanceItem.id, confirmDeleteAllowanceItem.catId)}
+                style={{ flex: 1, paddingVertical: 10, borderRadius: 8, backgroundColor: C.rd || '#ef4444', alignItems: 'center' }}>
+                <Text style={{ fontSize: 15, fontWeight: '700', color: '#fff' }}>Delete</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* Add Category Modal (kept since it's a single-field creation) */}
       <Modal visible={showCatModal} transparent animationType="fade">
