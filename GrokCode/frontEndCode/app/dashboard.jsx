@@ -53,6 +53,8 @@ export default function Dashboard() {
   const [showSidebarFilter, setShowSidebarFilter] = useState(false);
   const [projectActionMenu, setProjectActionMenu] = useState(null); // project object or null
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(null); // project object or null
+  const [convertBidProject, setConvertBidProject] = useState(null); // bid project to convert
+  const [convertBidData, setConvertBidData] = useState(null); // transformed initial data for NewProjectModal
   const [deleteConfirmName, setDeleteConfirmName] = useState('');
   const [deletingProject, setDeletingProject] = useState(false);
   const [showExceptionModal, setShowExceptionModal] = useState(null); // project object or null
@@ -241,6 +243,59 @@ export default function Dashboard() {
   useEffect(() => {
     if (dashView !== 'subs') setSubView(false);
   }, [dashView]);
+
+  // Build initialData when converting a bid to a project
+  useEffect(() => {
+    if (!convertBidProject) { setConvertBidData(null); return; }
+    const bid = convertBidProject;
+    (async () => {
+      // Gather allowances from two sources:
+      // 1. Bid line items marked is_allowance (from bid categories)
+      // 2. Bid allowance categories/items
+      const allowances = [];
+      try {
+        const catRes = await apiFetch(`/projects/${bid.id}/bid-categories`);
+        if (catRes.ok) {
+          const cats = await catRes.json();
+          for (const cat of cats) {
+            const allowItems = (cat.line_items || []).filter(li => li.is_allowance);
+            if (allowItems.length > 0) {
+              allowances.push({
+                title: cat.title || 'Bid Items',
+                amount: allowItems.reduce((s, li) => s + (li.quantity || 1) * (li.price_per_item || 0), 0),
+                lineItems: allowItems.map(li => ({ name: li.name, cost: (li.quantity || 1) * (li.price_per_item || 0) })),
+              });
+            }
+          }
+        }
+      } catch (e) { console.warn('Fetch bid categories:', e); }
+      try {
+        const acRes = await apiFetch(`/projects/${bid.id}/bid-allowance-categories`);
+        if (acRes.ok) {
+          const aCats = await acRes.json();
+          for (const ac of aCats) {
+            allowances.push({
+              title: ac.name || 'Allowance',
+              amount: (ac.items || []).reduce((s, i) => s + (i.quantity || 1) * (i.price_per || 0), 0),
+              lineItems: (ac.items || []).map(i => ({ name: i.name, cost: (i.quantity || 1) * (i.price_per || 0) })),
+            });
+          }
+        }
+      } catch (e) { console.warn('Fetch bid allowance categories:', e); }
+      setConvertBidData({
+        name: bid.name || '',
+        street_address: bid.bid_address || '',
+        city: '', addr_state: '', zip_code: '',
+        email: bid.bid_client_email || '',
+        customer_first_name: bid.bid_client_first_name || '',
+        customer_last_name: bid.bid_client_last_name || '',
+        customer_phone: bid.bid_client_phone || '',
+        original_price: bid.bid_price_to_quote ? String(bid.bid_price_to_quote) : '',
+        allowances,
+      });
+    })();
+  }, [convertBidProject]);
+
   const [subs, setSubs] = useState([]);
   const [selectedSub, setSelectedSub] = useState(null);
   const [subProjects, setSubProjects] = useState([]);
@@ -3491,6 +3546,13 @@ export default function Dashboard() {
                     <Text style={{ fontSize: 18, fontWeight: '500', color: C.text }}>Make Client Task</Text>
                   </TouchableOpacity>
                 )}
+                {projectActionMenu.is_bid && (
+                  <TouchableOpacity onPress={() => { setConvertBidProject(projectActionMenu); setProjectActionMenu(null); }}
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 14, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: C.w06 }} activeOpacity={0.7}>
+                    <Feather name="arrow-right-circle" size={20} color={C.gn || '#10b981'} />
+                    <Text style={{ fontSize: 18, fontWeight: '500', color: C.gn || '#10b981' }}>Convert to Project</Text>
+                  </TouchableOpacity>
+                )}
                 <TouchableOpacity onPress={() => { setShowDeleteConfirm(projectActionMenu); setProjectActionMenu(null); setDeleteConfirmName(''); setDeletingProject(false); }}
                   style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 14, paddingHorizontal: 16 }} activeOpacity={0.7}>
                   <Feather name="trash-2" size={20} color={C.rd} />
@@ -4062,6 +4124,24 @@ export default function Dashboard() {
             setSelectedProject(newProj);
             setModal(null);
             Alert.alert('Success', `"${newProj.name}" created`);
+          }}
+        />
+      )}
+
+      {convertBidProject && convertBidData && (
+        <NewProjectModal
+          onClose={() => { setConvertBidProject(null); setConvertBidData(null); }}
+          subdivisions={subdivisions}
+          builderTrades={builderTrades}
+          companyBuilders={companyBuilders}
+          currentUser={user}
+          initialData={convertBidData}
+          onCreated={(newProj) => {
+            setProjects(prev => [newProj, ...prev]);
+            setSelectedProject(newProj);
+            setConvertBidProject(null);
+            setConvertBidData(null);
+            Alert.alert('Success', `Bid converted to project "${newProj.name}"`);
           }}
         />
       )}
@@ -5917,15 +5997,15 @@ const TemplateManagerModal = ({ onClose, builderTrades = [] }) => {
   );
 };
 
-const NewProjectModal = ({ onClose, onCreated, subdivisions = [], builderTrades = [], companyBuilders = [], currentUser }) => {
+const NewProjectModal = ({ onClose, onCreated, subdivisions = [], builderTrades = [], companyBuilders = [], currentUser, initialData = null }) => {
   const C = React.useContext(ThemeContext);
   const { user } = React.useContext(AuthContext);
   const st = React.useMemo(() => getStyles(C), [C]);
   const [f, sF] = useState({
-    name: '', street_address: '', city: '', addr_state: '', zip_code: '', email: '',
-    customer_first_name: '', customer_last_name: '', customer_phone: '',
+    name: initialData?.name || '', street_address: initialData?.street_address || '', city: initialData?.city || '', addr_state: initialData?.addr_state || '', zip_code: initialData?.zip_code || '', email: initialData?.email || '',
+    customer_first_name: initialData?.customer_first_name || '', customer_last_name: initialData?.customer_last_name || '', customer_phone: initialData?.customer_phone || '',
     homeowner2_first_name: '', homeowner2_last_name: '', homeowner2_phone: '', homeowner2_email: '',
-    original_price: '', subdivision_id: null,
+    original_price: initialData?.original_price || '', subdivision_id: null,
   });
   const [showHomeowner2, setShowHomeowner2] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -6042,6 +6122,30 @@ const NewProjectModal = ({ onClose, onCreated, subdivisions = [], builderTrades 
         console.log('[SCHEDULE CREATE] Response:', schedResult.map?.(t => ({
           id: t.id, task: t.task, predecessor_id: t.predecessor_id, rel_type: t.rel_type, lag_days: t.lag_days,
         })));
+      }
+
+      // Create allowances from bid data if converting from a bid
+      if (initialData?.allowances?.length > 0) {
+        for (const allow of initialData.allowances) {
+          try {
+            const aRes = await apiFetch(`/projects/${newProject.id}/allowances`, {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ title: allow.title, amount: allow.amount || 0 }),
+            });
+            if (aRes.ok) {
+              const created = await aRes.json();
+              // Add line items if present
+              if (allow.lineItems?.length > 0) {
+                for (const li of allow.lineItems) {
+                  await apiFetch(`/allowances/${created.id}/line-items`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name: li.name, cost: li.cost || 0 }),
+                  });
+                }
+              }
+            }
+          } catch (e) { console.warn('Failed to create allowance:', e); }
+        }
       }
 
       onCreated(newProject);
@@ -9393,8 +9497,8 @@ const BidDetailView = ({ project, onProjectUpdate }) => {
                 <Text style={[headerTxt, { flex: 1, textAlign: 'right', paddingHorizontal: 4 }]}>Qty</Text>
                 <Text style={[headerTxt, { flex: 1.5, textAlign: 'right', paddingHorizontal: 4 }]}>Price/Item</Text>
                 <Text style={[headerTxt, { flex: 1.5, textAlign: 'right', paddingHorizontal: 4 }]}>Total</Text>
-                <Text style={[headerTxt, { width: 44, textAlign: 'center' }]}>Incl</Text>
-                <Text style={[headerTxt, { width: 44, textAlign: 'center' }]}>Allow</Text>
+                <Text style={[headerTxt, { width: 44, textAlign: 'center' }]}>IN</Text>
+                <Text style={[headerTxt, { width: 44, textAlign: 'center' }]}>AL</Text>
                 <View style={{ width: 30 }} />
               </View>
             )}
