@@ -815,6 +815,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
     if ((tab === 'info' && sub === 'price') || (tab === 'schedule' && sub === 'progress')) {
       api(`/projects/${pid}/change-orders?user_id=${user?.id}&role=${user?.role}`).then(d => d && setChangeOrders(d));
       api(`/projects/${pid}/selections`).then(d => d && setSelections(d));
+      api(`/projects/${pid}/allowances`).then(d => d && setAllowances(d));
     }
     if (tab === 'changeorders') {
       if (sub === 'co' || !sub) api(`/projects/${pid}/change-orders?user_id=${user?.id}&role=${user?.role}`).then(d => d && setChangeOrders(d));
@@ -2111,7 +2112,9 @@ ${sectionsHtml}
         }
       });
       const selectionTotal = selectionLines.reduce((sum, l) => sum + l.price, 0);
-      const grandTotal = baseContract + coTotal + selectionTotal;
+      const totalAllowanceRemaining = allowances.reduce((sum, a) => sum + (a.remaining || 0), 0);
+      const allowanceAdjustment = -totalAllowanceRemaining; // positive remaining = savings, negative = overage
+      const grandTotal = baseContract + coTotal + selectionTotal + allowanceAdjustment;
 
       const printPriceSummary = () => {
         if (Platform.OS !== 'web') return;
@@ -2154,10 +2157,29 @@ ${sectionsHtml}
         }
         coHtml += `<tr class="subtotal"><td>Change Orders Total</td><td class="amt">${coTotal > 0 ? '+' : ''}${fmtMoney(coTotal)}</td></tr>`;
 
+        // Allowances section
+        let allowancesHtml = '';
+        if (allowances.length === 0) {
+          allowancesHtml = `<tr><td colspan="2" class="empty">No allowances yet</td></tr>`;
+        } else {
+          allowances.forEach(a => {
+            allowancesHtml += `<tr style="background:#f8f8f8"><td style="font-weight:700">${esc(a.title)}</td><td class="amt" style="color:#888">Budget: ${fmtMoney(a.amount)}</td></tr>`;
+            (a.line_items || []).forEach(li => {
+              allowancesHtml += `<tr><td style="padding-left:24px">${esc(li.name)}</td><td class="amt">${fmtMoney(li.cost)}</td></tr>`;
+            });
+            const rem = a.remaining || 0;
+            allowancesHtml += `<tr><td style="padding-left:24px;font-weight:600">Remaining</td><td class="amt" style="color:${rem >= 0 ? '#16a34a' : '#dc2626'};font-weight:700">${fmtMoney(rem)}</td></tr>`;
+          });
+        }
+        allowancesHtml += `<tr class="subtotal"><td>Allowances Remaining</td><td class="amt" style="color:${totalAllowanceRemaining >= 0 ? '#16a34a' : '#dc2626'}">${fmtMoney(totalAllowanceRemaining)}</td></tr>`;
+
         // Totals section
         let totalsHtml = `<tr><td>Base Contract</td><td class="amt">${fmtMoney(baseContract)}</td></tr>`;
         totalsHtml += `<tr><td>Change Orders</td><td class="amt">${coTotal > 0 ? '+' : ''}${fmtMoney(coTotal)}</td></tr>`;
         totalsHtml += `<tr><td>Selection Upgrades</td><td class="amt">${selectionTotal > 0 ? '+' : ''}${fmtMoney(selectionTotal)}</td></tr>`;
+        if (allowances.length > 0) {
+          totalsHtml += `<tr><td>Allowance Adjustment</td><td class="amt">${allowanceAdjustment > 0 ? '+' : ''}${fmtMoney(allowanceAdjustment)}</td></tr>`;
+        }
         totalsHtml += `<tr class="grand-total"><td>Current Project Cost</td><td class="amt">${fmtMoney(grandTotal)}</td></tr>`;
 
         const html = `<!DOCTYPE html>
@@ -2195,6 +2217,7 @@ ${sectionsHtml}
 <div class="section"><div class="section-title">Contract Price</div><table>${contractHtml}</table></div>
 <div class="section"><div class="section-title">Selections</div><table>${selectionsHtml}</table></div>
 <div class="section"><div class="section-title">Change Orders</div><table>${coHtml}</table></div>
+<div class="section"><div class="section-title">Allowances</div><table>${allowancesHtml}</table></div>
 <div class="section"><div class="section-title">Totals</div><table>${totalsHtml}</table></div>
 <script>window.onload=function(){window.print();}</script>
 </body></html>`;
@@ -2262,6 +2285,14 @@ ${sectionsHtml}
                   <Text style={s.priceLbl}>Selection Upgrades</Text>
                   <Text style={[s.priceAmt, { color: selectionTotal > 0 ? C.yl : C.mt }]}>{selectionTotal > 0 ? `+${f$(selectionTotal)}` : f$(0)}</Text>
                 </View>
+                {allowances.length > 0 && (
+                  <View style={s.priceRow}>
+                    <Text style={s.priceLbl}>Allowance Adjustment</Text>
+                    <Text style={[s.priceAmt, { color: allowanceAdjustment > 0 ? C.rd : allowanceAdjustment < 0 ? C.gn : C.mt }]}>
+                      {allowanceAdjustment > 0 ? `+${f$(allowanceAdjustment)}` : allowanceAdjustment < 0 ? f$(allowanceAdjustment) : f$(0)}
+                    </Text>
+                  </View>
+                )}
                 <View style={[s.priceRow, { borderTopWidth: 2, borderTopColor: C.gd + '40' }]}>
                   <Text style={{ fontSize: 24, fontWeight: '700', color: C.text }}>Current Project Cost</Text>
                   <Text style={{ fontSize: 30, fontWeight: '700', color: C.gd }}>{f$(grandTotal)}</Text>
@@ -2320,6 +2351,50 @@ ${sectionsHtml}
                   <Text style={{ fontSize: 21, fontWeight: '700', color: C.text }}>Change Orders Total</Text>
                   <Text style={{ fontSize: 24, fontWeight: '700', color: coTotal > 0 ? C.yl : coTotal < 0 ? C.gn : C.mt }}>
                     {coTotal > 0 ? `+${f$(coTotal)}` : f$(coTotal)}
+                  </Text>
+                </View>
+              </Card>
+
+              {/* Allowances */}
+              <Card style={{ padding: 0, overflow: 'hidden', marginTop: 16 }}>
+                <View style={[s.priceRow, { backgroundColor: C.bH05 }]}>
+                  <Text style={[s.lbl, { color: C.gd, marginBottom: 0 }]}>ALLOWANCES</Text>
+                </View>
+                {allowances.length === 0 ? (
+                  <View style={[s.priceRow, { justifyContent: 'center' }]}>
+                    <Text style={{ fontSize: 20, color: C.dm, fontStyle: 'italic' }}>No allowances yet</Text>
+                  </View>
+                ) : (
+                  allowances.map(a => (
+                    <React.Fragment key={a.id}>
+                      <View style={[s.priceRow, { backgroundColor: C.w02 }]}>
+                        <Text style={{ fontSize: 18, fontWeight: '700', color: C.text, flex: 1 }}>{a.title}</Text>
+                        <Text style={{ fontSize: 16, fontWeight: '600', color: C.gd }}>Budget: {f$(a.amount)}</Text>
+                      </View>
+                      {(a.line_items || []).map(li => (
+                        <View key={li.id} style={[s.priceRow, { paddingLeft: 24 }]}>
+                          <Text style={[s.priceLbl, { flex: 1 }]}>{li.name}</Text>
+                          <Text style={s.priceAmt}>{f$(li.cost)}</Text>
+                        </View>
+                      ))}
+                      {(a.line_items || []).length === 0 && (
+                        <View style={[s.priceRow, { paddingLeft: 24, justifyContent: 'center' }]}>
+                          <Text style={{ fontSize: 15, color: C.dm, fontStyle: 'italic' }}>No line items</Text>
+                        </View>
+                      )}
+                      <View style={[s.priceRow, { borderTopWidth: 1, borderTopColor: C.w06, paddingLeft: 24 }]}>
+                        <Text style={{ fontSize: 16, fontWeight: '600', color: C.text }}>Remaining</Text>
+                        <Text style={{ fontSize: 18, fontWeight: '700', color: (a.remaining || 0) >= 0 ? C.gn : C.rd }}>
+                          {f$(a.remaining || 0)}
+                        </Text>
+                      </View>
+                    </React.Fragment>
+                  ))
+                )}
+                <View style={[s.priceRow, { borderTopWidth: 1, borderTopColor: C.w10 }]}>
+                  <Text style={{ fontSize: 21, fontWeight: '700', color: C.text }}>Allowances Remaining</Text>
+                  <Text style={{ fontSize: 24, fontWeight: '700', color: totalAllowanceRemaining >= 0 ? C.gn : C.rd }}>
+                    {f$(totalAllowanceRemaining)}
                   </Text>
                 </View>
               </Card>
