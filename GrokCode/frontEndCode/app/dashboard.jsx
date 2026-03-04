@@ -8937,6 +8937,211 @@ const BidDetailView = ({ project, onProjectUpdate }) => {
     setInfoSaving(false);
   };
 
+  const downloadBid = async () => {
+    if (Platform.OS !== 'web') return;
+    // Fetch company logo
+    let logoHtml = '';
+    try {
+      let logoRes = await apiFetch(`/users/${user.id}/logo`);
+      let logoData = await logoRes.json();
+      if (!logoData.logo) {
+        logoRes = await apiFetch('/builder-logo');
+        logoData = await logoRes.json();
+      }
+      if (logoData.logo) {
+        logoHtml = `<img src="${logoData.logo}" style="max-width:280px;max-height:110px;object-fit:contain;" />`;
+      }
+    } catch (e) { /* */ }
+
+    // Fetch disclaimers
+    let discList = [];
+    try {
+      const dRes = await apiFetch('/bid-disclaimers');
+      if (dRes.ok) discList = await dRes.json();
+    } catch (e) { /* */ }
+
+    const homebuyer = [infoFields.bid_client_first_name, infoFields.bid_client_last_name].filter(Boolean).join(' ');
+    const address = infoFields.bid_address || '';
+    const quoteDate = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+    const homePrice = priceToQuote;
+    const fmtMoney = (n) => {
+      const num = parseFloat(n) || 0;
+      return '$ ' + num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    };
+
+    // Build line items rows - separate regular from allowance
+    let rowIdx = 0;
+    let regularRows = '';
+    let allowanceRows = '';
+    let currentCatTitle = '';
+
+    // Square footage category first
+    if (sqftCategory && (sqftCategory.line_items || []).length > 0) {
+      regularRows += `<tr class="cat-row"><td colspan="2"><b>Square Footage</b></td></tr>`;
+      rowIdx++;
+      (sqftCategory.line_items || []).forEach(li => {
+        const es = editState[li.id] || { name: li.name, quantity: String(li.quantity), price_per_item: String(li.price_per_item) };
+        const bg = rowIdx % 2 === 0 ? '#f5f5f5' : '#ffffff';
+        regularRows += `<tr style="background:${bg}"><td style="padding:6px 12px;">${es.name || ''}</td><td style="padding:6px 12px;text-align:right;">${parseFloat(es.quantity) || 0}</td></tr>`;
+        rowIdx++;
+      });
+    }
+
+    // Normal categories
+    normalCategories.forEach(cat => {
+      const catItems = cat.line_items || [];
+      const nonAllowanceItems = catItems.filter(li => !li.is_allowance);
+      const allowanceItems = catItems.filter(li => li.is_allowance);
+
+      if (nonAllowanceItems.length > 0) {
+        regularRows += `<tr class="cat-row"><td colspan="2"><b>${cat.title}</b></td></tr>`;
+        rowIdx++;
+        nonAllowanceItems.forEach(li => {
+          const es = editState[li.id] || { name: li.name, quantity: String(li.quantity), price_per_item: String(li.price_per_item) };
+          const total = (parseFloat(es.quantity) || 0) * (parseFloat(es.price_per_item) || 0);
+          const bg = rowIdx % 2 === 0 ? '#f5f5f5' : '#ffffff';
+          const priceCell = li.included ? 'Included' : fmtMoney(total);
+          regularRows += `<tr style="background:${bg}"><td style="padding:6px 12px;">${es.name || ''}</td><td style="padding:6px 12px;text-align:right;">${priceCell}</td></tr>`;
+          rowIdx++;
+        });
+      }
+
+      if (allowanceItems.length > 0) {
+        allowanceItems.forEach(li => {
+          const es = editState[li.id] || { name: li.name, quantity: String(li.quantity), price_per_item: String(li.price_per_item) };
+          const total = (parseFloat(es.quantity) || 0) * (parseFloat(es.price_per_item) || 0);
+          allowanceRows += `<tr style="background:#ffffff"><td style="padding:6px 12px;">${es.name || ''} - Allowance</td><td style="padding:6px 12px;text-align:right;">${fmtMoney(total)}</td></tr>`;
+        });
+      }
+    });
+
+    // Allowance categories from the breakdown section
+    allowanceCats.forEach(cat => {
+      (cat.items || []).forEach(item => {
+        const es = allowanceEditState[item.id] || { name: item.name, quantity: String(item.quantity), price_per: String(item.price_per) };
+        const total = (parseFloat(es.quantity) || 0) * (parseFloat(es.price_per) || 0);
+        allowanceRows += `<tr style="background:#ffffff"><td style="padding:6px 12px;">${es.name || ''} - Allowance</td><td style="padding:6px 12px;text-align:right;">${fmtMoney(total)}</td></tr>`;
+      });
+    });
+
+    // Build disclaimers HTML
+    let disclaimerHtml = '';
+    if (discList.length > 0) {
+      disclaimerHtml = `<div class="page-break"></div>`;
+      discList.forEach(d => {
+        disclaimerHtml += `
+          <div style="margin-bottom:28px;">
+            <p style="font-size:14px;margin:0 0 8px 0;"><b>${d.title}</b></p>
+            <p style="font-size:13px;color:#333;margin:0 0 12px 0;white-space:pre-wrap;">${d.description || ''}</p>
+            <p style="font-size:13px;margin:0;">Homebuyer Initial _________</p>
+          </div>
+        `;
+      });
+    }
+
+    const html = `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Home Quote - ${homebuyer || infoFields.name}</title>
+<style>
+  @page { margin: 0.6in 0.7in; size: letter; }
+  * { box-sizing: border-box; }
+  body { font-family: Arial, Helvetica, sans-serif; font-size: 13px; color: #222; margin: 0; padding: 0; }
+  .page-break { page-break-before: always; }
+  table { width: 100%; border-collapse: collapse; }
+  .cat-row td { padding: 8px 12px; background: #e8e8e8; }
+  @media print {
+    body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .no-print { display: none; }
+  }
+</style>
+</head>
+<body>
+  <div style="padding:20px 0;">
+    <!-- Header -->
+    <table style="margin-bottom:4px;">
+      <tr>
+        <td style="width:50%;vertical-align:middle;">
+          ${logoHtml || '<div style="font-size:22px;font-weight:bold;color:#333;">Home Quote</div>'}
+        </td>
+        <td style="width:50%;text-align:right;vertical-align:middle;">
+          <div style="font-size:26px;font-weight:bold;color:#222;letter-spacing:1px;">HOME QUOTE</div>
+          <div style="font-size:12px;color:#666;margin-top:4px;">Quote Good for 7 Days</div>
+        </td>
+      </tr>
+    </table>
+
+    <hr style="border:none;border-top:2px solid #222;margin:8px 0 12px 0;">
+
+    <!-- Info section -->
+    <table style="margin-bottom:20px;">
+      <tr>
+        <td style="width:55%;vertical-align:top;padding-right:20px;">
+          <table style="font-size:13px;">
+            <tr><td style="color:#666;padding:3px 10px 3px 0;white-space:nowrap;">Homebuyer:</td><td style="font-weight:600;">${homebuyer}</td></tr>
+            <tr><td style="color:#666;padding:3px 10px 3px 0;white-space:nowrap;">Address:</td><td style="font-weight:600;">${address}</td></tr>
+            <tr><td style="color:#666;padding:3px 10px 3px 0;white-space:nowrap;">Quote Date:</td><td style="font-weight:600;">${quoteDate}</td></tr>
+          </table>
+        </td>
+        <td style="width:45%;vertical-align:top;text-align:right;">
+          <p style="font-size:13px;margin:0 0 8px 0;">Homebuyer Initial: _________</p>
+          <p style="font-size:16px;font-weight:bold;margin:0;">Home Price: ${fmtMoney(homePrice)}</p>
+        </td>
+      </tr>
+    </table>
+
+    <!-- Home Build Description -->
+    <div style="text-align:center;margin-bottom:12px;">
+      <span style="font-size:16px;font-weight:bold;border-bottom:2px solid #222;padding-bottom:2px;">Home Build Description</span>
+    </div>
+
+    <!-- Items Table -->
+    <table style="border:1px solid #ccc;margin-bottom:4px;">
+      <thead>
+        <tr style="background:#d0d0d0;">
+          <th style="text-align:left;padding:8px 12px;font-size:13px;">Description</th>
+          <th style="text-align:right;padding:8px 12px;font-size:13px;width:140px;">Amount</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${regularRows}
+      </tbody>
+    </table>
+
+    <!-- Allowances -->
+    ${allowanceRows ? `
+    <div style="margin-top:16px;">
+      <table style="border:1px solid #ccc;">
+        <thead>
+          <tr style="background:#d0d0d0;">
+            <th style="text-align:left;padding:8px 12px;font-size:13px;" colspan="2"><b>Allowances</b></th>
+          </tr>
+        </thead>
+        <tbody>
+          ${allowanceRows}
+        </tbody>
+      </table>
+    </div>
+    ` : ''}
+
+    <!-- Disclaimers -->
+    ${disclaimerHtml}
+  </div>
+
+  <script>
+    window.onload = function() { window.print(); };
+  </script>
+</body>
+</html>`;
+
+    const w = window.open('', '_blank');
+    if (w) {
+      w.document.write(html);
+      w.document.close();
+    }
+  };
+
   const infoInputStyle = {
     fontSize: 16, color: C.text, borderWidth: 1, borderColor: C.w12,
     borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, backgroundColor: C.w04,
@@ -8991,7 +9196,16 @@ const BidDetailView = ({ project, onProjectUpdate }) => {
       {bidTab === 'info' ? (
         /* ========== INFO TAB ========== */
         <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20, maxWidth: 500 }} keyboardShouldPersistTaps="handled">
-          <Text style={{ fontSize: 18, fontWeight: '700', color: C.textBold, marginBottom: 16 }}>Homeowner Information</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+            <Text style={{ fontSize: 18, fontWeight: '700', color: C.textBold }}>Homeowner Information</Text>
+            {Platform.OS === 'web' && (
+              <TouchableOpacity onPress={downloadBid}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: C.gd, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8 }} activeOpacity={0.7}>
+                <Feather name="download" size={14} color="#fff" />
+                <Text style={{ fontSize: 13, fontWeight: '700', color: '#fff' }}>Download Bid</Text>
+              </TouchableOpacity>
+            )}
+          </View>
 
           <View>
             <Text style={{ fontSize: 13, fontWeight: '600', color: C.dm, marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5 }}>Bid Name</Text>
