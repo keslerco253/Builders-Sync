@@ -814,6 +814,23 @@ class BidTemplate(db.Model):
         }
 
 
+class BidDisclaimer(db.Model):
+    __tablename__ = 'bid_disclaimer'
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(255), nullable=False)
+    description = db.Column(db.Text, default='')
+    company_id = db.Column(db.Integer, db.ForeignKey('company.id'), nullable=True)
+    created_by = db.Column(db.Integer, db.ForeignKey('login_info.id'), nullable=True)
+    created_at = db.Column(db.String(30), default='')
+
+    def to_dict(self):
+        return {
+            'id': self.id, 'title': self.title, 'description': self.description,
+            'company_id': self.company_id, 'created_by': self.created_by,
+            'created_at': self.created_at,
+        }
+
+
 class BidAllowanceCategory(db.Model):
     __tablename__ = 'bid_allowance_category'
     id = db.Column(db.Integer, primary_key=True)
@@ -4502,6 +4519,65 @@ def save_as_bid_template(pid):
     db.session.add(tmpl)
     db.session.commit()
     return jsonify(tmpl.to_dict()), 201
+
+
+# ============================================================
+# BID DISCLAIMERS
+# ============================================================
+
+@app.route('/bid-disclaimers', methods=['GET'])
+def get_bid_disclaimers():
+    uid = request.current_user.get('user_id')
+    u = LoginInfo.query.get(uid) if uid else None
+    if not u:
+        return jsonify([])
+    disclaimers = BidDisclaimer.query.filter_by(company_id=u.company_id).all()
+    return jsonify([d.to_dict() for d in disclaimers])
+
+
+@app.route('/bid-disclaimers', methods=['POST'])
+def create_bid_disclaimer():
+    data = request.get_json()
+    title = (data.get('title') or '').strip()
+    if not title:
+        return jsonify({'error': 'Title is required'}), 400
+    uid = request.current_user.get('user_id')
+    u = LoginInfo.query.get(uid) if uid else None
+    from datetime import datetime
+    d = BidDisclaimer(
+        title=title,
+        description=(data.get('description') or '').strip(),
+        company_id=u.company_id if u else None,
+        created_by=uid,
+        created_at=datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S'),
+    )
+    db.session.add(d)
+    db.session.commit()
+    return jsonify(d.to_dict()), 201
+
+
+@app.route('/bid-disclaimers/<int:did>', methods=['PUT'])
+def update_bid_disclaimer(did):
+    d = BidDisclaimer.query.get(did)
+    if not d:
+        return jsonify({'error': 'Not found'}), 404
+    data = request.get_json()
+    if 'title' in data:
+        d.title = (data['title'] or '').strip()
+    if 'description' in data:
+        d.description = (data['description'] or '').strip()
+    db.session.commit()
+    return jsonify(d.to_dict())
+
+
+@app.route('/bid-disclaimers/<int:did>', methods=['DELETE'])
+def delete_bid_disclaimer(did):
+    d = BidDisclaimer.query.get(did)
+    if not d:
+        return jsonify({'error': 'Not found'}), 404
+    db.session.delete(d)
+    db.session.commit()
+    return jsonify({'success': True})
 
 
 # ============================================================

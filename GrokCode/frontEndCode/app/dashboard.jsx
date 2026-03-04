@@ -4999,7 +4999,7 @@ export default function Dashboard() {
                     activeOpacity={0.7}
                   >
                     <Feather name="clipboard" size={20} color={C.text} />
-                    <Text style={st.settingsItemTxt}>Manage Bid Templates</Text>
+                    <Text style={st.settingsItemTxt}>Manage Bid Settings</Text>
                   </TouchableOpacity>
                   {user?.role === 'company_admin' && (
                     <TouchableOpacity
@@ -7885,6 +7885,9 @@ const BidTemplateManagerModal = ({ onClose }) => {
   const C = React.useContext(ThemeContext);
   const { user } = React.useContext(AuthContext);
   const st = React.useMemo(() => getStyles(C), [C]);
+  const [topTab, setTopTab] = useState('templates'); // templates | disclaimers
+
+  // --- Template state ---
   const [templates, setTemplates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [editTmpl, setEditTmpl] = useState(null); // null=list, 'new'=create, {id,...}=editing
@@ -7896,6 +7899,14 @@ const BidTemplateManagerModal = ({ onClose }) => {
   const [saving, setSaving] = useState(false);
   const [newCatTitle, setNewCatTitle] = useState('');
 
+  // --- Disclaimer state ---
+  const [disclaimers, setDisclaimers] = useState([]);
+  const [discLoading, setDiscLoading] = useState(true);
+  const [editDisc, setEditDisc] = useState(null); // null=list, 'new'=create, {id,...}=editing
+  const [discTitle, setDiscTitle] = useState('');
+  const [discDescription, setDiscDescription] = useState('');
+  const [discSaving, setDiscSaving] = useState(false);
+
   const fetchTemplates = useCallback(async () => {
     try {
       const res = await apiFetch('/bid-templates');
@@ -7904,8 +7915,17 @@ const BidTemplateManagerModal = ({ onClose }) => {
     setLoading(false);
   }, []);
 
-  useEffect(() => { fetchTemplates(); }, [fetchTemplates]);
+  const fetchDisclaimers = useCallback(async () => {
+    try {
+      const res = await apiFetch('/bid-disclaimers');
+      if (res.ok) setDisclaimers(await res.json());
+    } catch (e) { /* */ }
+    setDiscLoading(false);
+  }, []);
 
+  useEffect(() => { fetchTemplates(); fetchDisclaimers(); }, [fetchTemplates, fetchDisclaimers]);
+
+  // --- Template helpers ---
   const loadTemplate = (tmpl) => {
     setEditTmpl(tmpl);
     setEditName(tmpl.name);
@@ -8003,8 +8023,61 @@ const BidTemplateManagerModal = ({ onClose }) => {
     }
   };
 
+  // --- Disclaimer helpers ---
+  const startNewDisc = () => {
+    setEditDisc('new');
+    setDiscTitle('');
+    setDiscDescription('');
+  };
+
+  const loadDisc = (d) => {
+    setEditDisc(d);
+    setDiscTitle(d.title);
+    setDiscDescription(d.description || '');
+  };
+
+  const handleSaveDisc = async () => {
+    if (!discTitle.trim()) return Alert.alert('Error', 'Title is required');
+    setDiscSaving(true);
+    try {
+      const isNew = editDisc === 'new';
+      const path = isNew ? '/bid-disclaimers' : `/bid-disclaimers/${editDisc.id}`;
+      const method = isNew ? 'POST' : 'PUT';
+      const res = await apiFetch(path, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: discTitle.trim(), description: discDescription.trim() }),
+      });
+      if (!res.ok) throw new Error(`Failed to ${isNew ? 'create' : 'update'} disclaimer`);
+      Alert.alert('Success', `Disclaimer ${isNew ? 'created' : 'updated'}`);
+      setEditDisc(null);
+      fetchDisclaimers();
+    } catch (e) { Alert.alert('Error', e.message); }
+    setDiscSaving(false);
+  };
+
+  const handleDeleteDisc = (d) => {
+    const doDelete = async () => {
+      try {
+        const res = await apiFetch(`/bid-disclaimers/${d.id}`, { method: 'DELETE' });
+        if (!res.ok) throw new Error('Failed to delete');
+        if (editDisc?.id === d.id) setEditDisc(null);
+        fetchDisclaimers();
+      } catch (e) { Alert.alert('Error', e.message); }
+    };
+    if (Platform.OS === 'web') {
+      if (window.confirm(`Delete "${d.title}"? This cannot be undone.`)) doDelete();
+    } else {
+      Alert.alert('Delete Disclaimer', `Delete "${d.title}"? This cannot be undone.`, [
+        { text: 'Cancel' },
+        { text: 'Delete', style: 'destructive', onPress: doDelete },
+      ]);
+    }
+  };
+
   const { width: winWidth } = useWindowDimensions();
   const isWide = winWidth > 600;
+  const showBack = (topTab === 'templates' && editTmpl) || (topTab === 'disclaimers' && editDisc);
 
   return (
     <Modal visible animationType="fade" transparent>
@@ -8013,14 +8086,16 @@ const BidTemplateManagerModal = ({ onClose }) => {
           {/* Header */}
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16, borderBottomWidth: 1, borderBottomColor: C.w06 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-              {editTmpl && (
-                <TouchableOpacity onPress={() => setEditTmpl(null)} style={{ marginRight: 4 }}>
+              {showBack && (
+                <TouchableOpacity onPress={() => { if (topTab === 'templates') setEditTmpl(null); else setEditDisc(null); }} style={{ marginRight: 4 }}>
                   <Text style={{ fontSize: 28, color: C.gd, fontWeight: '300' }}>‹</Text>
                 </TouchableOpacity>
               )}
               <Feather name="clipboard" size={22} color={C.gd} />
               <Text style={{ fontSize: 20, fontWeight: '700', color: C.textBold }}>
-                {editTmpl ? (editTmpl === 'new' ? 'New Bid Template' : 'Edit Bid Template') : 'Bid Templates'}
+                {topTab === 'templates'
+                  ? (editTmpl ? (editTmpl === 'new' ? 'New Bid Template' : 'Edit Bid Template') : 'Bid Settings')
+                  : (editDisc ? (editDisc === 'new' ? 'New Disclaimer' : 'Edit Disclaimer') : 'Bid Settings')}
               </Text>
             </View>
             <TouchableOpacity onPress={onClose}>
@@ -8028,116 +8103,183 @@ const BidTemplateManagerModal = ({ onClose }) => {
             </TouchableOpacity>
           </View>
 
-          <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16 }} keyboardShouldPersistTaps="handled">
-            {!editTmpl ? (
-              /* ---- LIST VIEW ---- */
-              <>
-                <TouchableOpacity onPress={startNew}
-                  style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: C.gd, paddingVertical: 12, paddingHorizontal: 16, borderRadius: 10, marginBottom: 16, alignSelf: 'flex-start' }}>
-                  <Feather name="plus" size={18} color="#fff" />
-                  <Text style={{ fontSize: 15, fontWeight: '700', color: '#fff' }}>New Template</Text>
+          {/* Tab Bar */}
+          {!showBack && (
+            <View style={{ flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: C.w06 }}>
+              {[{ id: 'templates', label: 'Bid Templates' }, { id: 'disclaimers', label: 'Disclaimers' }].map(t => (
+                <TouchableOpacity key={t.id} onPress={() => setTopTab(t.id)}
+                  style={{ flex: 1, paddingVertical: 12, alignItems: 'center', borderBottomWidth: 2, borderBottomColor: topTab === t.id ? C.gd : 'transparent' }}
+                  activeOpacity={0.7}>
+                  <Text style={{ fontSize: 16, fontWeight: topTab === t.id ? '700' : '500', color: topTab === t.id ? C.gd : C.dm }}>{t.label}</Text>
                 </TouchableOpacity>
-                {loading ? (
-                  <ActivityIndicator color={C.gd} size="large" style={{ marginTop: 40 }} />
-                ) : templates.length === 0 ? (
-                  <Text style={{ fontSize: 16, color: C.dm, textAlign: 'center', marginTop: 40 }}>No bid templates yet. Create one to get started.</Text>
-                ) : (
-                  templates.map(tmpl => (
-                    <View key={tmpl.id} style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: C.w06, borderRadius: 12, padding: 14, marginBottom: 10 }}>
-                      <TouchableOpacity style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12 }} activeOpacity={0.7} onPress={() => loadTemplate(tmpl)}>
-                        <Feather name="clipboard" size={32} color={C.dm} />
-                        <View style={{ flex: 1 }}>
-                          <Text style={{ fontSize: 18, fontWeight: '600', color: C.textBold }}>{tmpl.name}</Text>
-                          {tmpl.description ? <Text style={{ fontSize: 14, color: C.dm, marginTop: 2 }} numberOfLines={1}>{tmpl.description}</Text> : null}
-                          <Text style={{ fontSize: 14, color: C.mt, marginTop: 3 }}>{(tmpl.categories || []).length} categor{(tmpl.categories || []).length !== 1 ? 'ies' : 'y'}</Text>
-                        </View>
-                        <Text style={{ fontSize: 18, color: C.gd }}>Edit ›</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity onPress={() => handleDelete(tmpl)} style={{ padding: 8, marginLeft: 8 }} activeOpacity={0.7}>
-                        <Feather name="trash-2" size={20} color={C.rd || '#ef4444'} />
-                      </TouchableOpacity>
-                    </View>
-                  ))
-                )}
-              </>
-            ) : (
-              /* ---- EDIT VIEW ---- */
-              <>
-                {/* Name & Description */}
-                <Text style={{ fontSize: 13, fontWeight: '600', color: C.dm, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>Template Name</Text>
-                <TextInput value={editName} onChangeText={setEditName} placeholder="e.g. Standard Residential"
-                  placeholderTextColor={C.dm + '80'}
-                  style={{ backgroundColor: C.w06, borderRadius: 10, padding: 12, fontSize: 16, color: C.text, marginBottom: 14, borderWidth: 1, borderColor: C.w08 }} />
-                <Text style={{ fontSize: 13, fontWeight: '600', color: C.dm, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>Description (optional)</Text>
-                <TextInput value={editDesc} onChangeText={setEditDesc} placeholder="Brief description..."
-                  placeholderTextColor={C.dm + '80'}
-                  style={{ backgroundColor: C.w06, borderRadius: 10, padding: 12, fontSize: 16, color: C.text, marginBottom: 14, borderWidth: 1, borderColor: C.w08 }} />
+              ))}
+            </View>
+          )}
 
-                {/* Lot Overhead & Commission */}
-                <View style={{ flexDirection: 'row', gap: 12, marginBottom: 16 }}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 13, fontWeight: '600', color: C.dm, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>Lot Overhead ($)</Text>
-                    <TextInput value={editLotOverhead} onChangeText={setEditLotOverhead} keyboardType="decimal-pad"
-                      style={{ backgroundColor: C.w06, borderRadius: 10, padding: 12, fontSize: 16, color: C.text, borderWidth: 1, borderColor: C.w08 }} />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 13, fontWeight: '600', color: C.dm, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>Commission ($)</Text>
-                    <TextInput value={editCommission} onChangeText={setEditCommission} keyboardType="decimal-pad"
-                      style={{ backgroundColor: C.w06, borderRadius: 10, padding: 12, fontSize: 16, color: C.text, borderWidth: 1, borderColor: C.w08 }} />
-                  </View>
-                </View>
-
-                {/* Categories */}
-                <Text style={{ fontSize: 15, fontWeight: '700', color: C.textBold, marginBottom: 10 }}>Categories</Text>
-                {editCategories.map((cat, catIdx) => (
-                  <View key={catIdx} style={{ backgroundColor: C.w06, borderRadius: 12, marginBottom: 12, overflow: 'hidden', borderWidth: 1, borderColor: C.w08 }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', padding: 12, borderBottomWidth: 1, borderBottomColor: C.w08 }}>
-                      <Text style={{ flex: 1, fontSize: 16, fontWeight: '700', color: C.textBold }}>{cat.title}</Text>
-                      <TouchableOpacity onPress={() => removeCategory(catIdx)} style={{ padding: 4 }}>
-                        <Feather name="trash-2" size={16} color={C.rd || '#ef4444'} />
-                      </TouchableOpacity>
-                    </View>
-                    {/* Line items */}
-                    {cat.line_items.map((li, liIdx) => (
-                      <View key={liIdx} style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: C.w06, gap: 8 }}>
-                        <TextInput value={li.name} onChangeText={v => updateLineItem(catIdx, liIdx, 'name', v)} placeholder="Item name"
-                          placeholderTextColor={C.dm + '80'} style={{ flex: 2, fontSize: 14, color: C.text, backgroundColor: C.bg, borderRadius: 6, padding: 8, borderWidth: 1, borderColor: C.w08 }} />
-                        <TextInput value={String(li.quantity)} onChangeText={v => updateLineItem(catIdx, liIdx, 'quantity', parseFloat(v) || 0)} placeholder="Qty"
-                          keyboardType="decimal-pad" placeholderTextColor={C.dm + '80'} style={{ width: 60, fontSize: 14, color: C.text, backgroundColor: C.bg, borderRadius: 6, padding: 8, textAlign: 'right', borderWidth: 1, borderColor: C.w08 }} />
-                        <TextInput value={String(li.price_per_item)} onChangeText={v => updateLineItem(catIdx, liIdx, 'price_per_item', parseFloat(v) || 0)} placeholder="Price"
-                          keyboardType="decimal-pad" placeholderTextColor={C.dm + '80'} style={{ width: 80, fontSize: 14, color: C.text, backgroundColor: C.bg, borderRadius: 6, padding: 8, textAlign: 'right', borderWidth: 1, borderColor: C.w08 }} />
-                        <TouchableOpacity onPress={() => removeLineItem(catIdx, liIdx)} style={{ padding: 4 }}>
-                          <Feather name="x" size={16} color={C.rd || '#ef4444'} />
+          {topTab === 'templates' ? (
+            /* ========== TEMPLATES TAB ========== */
+            <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16 }} keyboardShouldPersistTaps="handled">
+              {!editTmpl ? (
+                /* ---- LIST VIEW ---- */
+                <>
+                  <TouchableOpacity onPress={startNew}
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: C.gd, paddingVertical: 12, paddingHorizontal: 16, borderRadius: 10, marginBottom: 16, alignSelf: 'flex-start' }}>
+                    <Feather name="plus" size={18} color="#fff" />
+                    <Text style={{ fontSize: 15, fontWeight: '700', color: '#fff' }}>New Template</Text>
+                  </TouchableOpacity>
+                  {loading ? (
+                    <ActivityIndicator color={C.gd} size="large" style={{ marginTop: 40 }} />
+                  ) : templates.length === 0 ? (
+                    <Text style={{ fontSize: 16, color: C.dm, textAlign: 'center', marginTop: 40 }}>No bid templates yet. Create one to get started.</Text>
+                  ) : (
+                    templates.map(tmpl => (
+                      <View key={tmpl.id} style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: C.w06, borderRadius: 12, padding: 14, marginBottom: 10 }}>
+                        <TouchableOpacity style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12 }} activeOpacity={0.7} onPress={() => loadTemplate(tmpl)}>
+                          <Feather name="clipboard" size={32} color={C.dm} />
+                          <View style={{ flex: 1 }}>
+                            <Text style={{ fontSize: 18, fontWeight: '600', color: C.textBold }}>{tmpl.name}</Text>
+                            {tmpl.description ? <Text style={{ fontSize: 14, color: C.dm, marginTop: 2 }} numberOfLines={1}>{tmpl.description}</Text> : null}
+                            <Text style={{ fontSize: 14, color: C.mt, marginTop: 3 }}>{(tmpl.categories || []).length} categor{(tmpl.categories || []).length !== 1 ? 'ies' : 'y'}</Text>
+                          </View>
+                          <Text style={{ fontSize: 18, color: C.gd }}>Edit ›</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={() => handleDelete(tmpl)} style={{ padding: 8, marginLeft: 8 }} activeOpacity={0.7}>
+                          <Feather name="trash-2" size={20} color={C.rd || '#ef4444'} />
                         </TouchableOpacity>
                       </View>
-                    ))}
-                    <TouchableOpacity onPress={() => addLineItem(catIdx)}
-                      style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, padding: 10 }}>
-                      <Feather name="plus" size={14} color={C.gd} />
-                      <Text style={{ fontSize: 13, color: C.gd, fontWeight: '600' }}>Add Line Item</Text>
+                    ))
+                  )}
+                </>
+              ) : (
+                /* ---- EDIT VIEW ---- */
+                <>
+                  {/* Name & Description */}
+                  <Text style={{ fontSize: 13, fontWeight: '600', color: C.dm, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>Template Name</Text>
+                  <TextInput value={editName} onChangeText={setEditName} placeholder="e.g. Standard Residential"
+                    placeholderTextColor={C.dm + '80'}
+                    style={{ backgroundColor: C.w06, borderRadius: 10, padding: 12, fontSize: 16, color: C.text, marginBottom: 14, borderWidth: 1, borderColor: C.w08 }} />
+                  <Text style={{ fontSize: 13, fontWeight: '600', color: C.dm, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>Description (optional)</Text>
+                  <TextInput value={editDesc} onChangeText={setEditDesc} placeholder="Brief description..."
+                    placeholderTextColor={C.dm + '80'}
+                    style={{ backgroundColor: C.w06, borderRadius: 10, padding: 12, fontSize: 16, color: C.text, marginBottom: 14, borderWidth: 1, borderColor: C.w08 }} />
+
+                  {/* Lot Overhead & Commission */}
+                  <View style={{ flexDirection: 'row', gap: 12, marginBottom: 16 }}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 13, fontWeight: '600', color: C.dm, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>Lot Overhead ($)</Text>
+                      <TextInput value={editLotOverhead} onChangeText={setEditLotOverhead} keyboardType="decimal-pad"
+                        style={{ backgroundColor: C.w06, borderRadius: 10, padding: 12, fontSize: 16, color: C.text, borderWidth: 1, borderColor: C.w08 }} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 13, fontWeight: '600', color: C.dm, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>Commission ($)</Text>
+                      <TextInput value={editCommission} onChangeText={setEditCommission} keyboardType="decimal-pad"
+                        style={{ backgroundColor: C.w06, borderRadius: 10, padding: 12, fontSize: 16, color: C.text, borderWidth: 1, borderColor: C.w08 }} />
+                    </View>
+                  </View>
+
+                  {/* Categories */}
+                  <Text style={{ fontSize: 15, fontWeight: '700', color: C.textBold, marginBottom: 10 }}>Categories</Text>
+                  {editCategories.map((cat, catIdx) => (
+                    <View key={catIdx} style={{ backgroundColor: C.w06, borderRadius: 12, marginBottom: 12, overflow: 'hidden', borderWidth: 1, borderColor: C.w08 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', padding: 12, borderBottomWidth: 1, borderBottomColor: C.w08 }}>
+                        <Text style={{ flex: 1, fontSize: 16, fontWeight: '700', color: C.textBold }}>{cat.title}</Text>
+                        <TouchableOpacity onPress={() => removeCategory(catIdx)} style={{ padding: 4 }}>
+                          <Feather name="trash-2" size={16} color={C.rd || '#ef4444'} />
+                        </TouchableOpacity>
+                      </View>
+                      {/* Line items */}
+                      {cat.line_items.map((li, liIdx) => (
+                        <View key={liIdx} style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: C.w06, gap: 8 }}>
+                          <TextInput value={li.name} onChangeText={v => updateLineItem(catIdx, liIdx, 'name', v)} placeholder="Item name"
+                            placeholderTextColor={C.dm + '80'} style={{ flex: 2, fontSize: 14, color: C.text, backgroundColor: C.bg, borderRadius: 6, padding: 8, borderWidth: 1, borderColor: C.w08 }} />
+                          <TextInput value={String(li.quantity)} onChangeText={v => updateLineItem(catIdx, liIdx, 'quantity', parseFloat(v) || 0)} placeholder="Qty"
+                            keyboardType="decimal-pad" placeholderTextColor={C.dm + '80'} style={{ width: 60, fontSize: 14, color: C.text, backgroundColor: C.bg, borderRadius: 6, padding: 8, textAlign: 'right', borderWidth: 1, borderColor: C.w08 }} />
+                          <TextInput value={String(li.price_per_item)} onChangeText={v => updateLineItem(catIdx, liIdx, 'price_per_item', parseFloat(v) || 0)} placeholder="Price"
+                            keyboardType="decimal-pad" placeholderTextColor={C.dm + '80'} style={{ width: 80, fontSize: 14, color: C.text, backgroundColor: C.bg, borderRadius: 6, padding: 8, textAlign: 'right', borderWidth: 1, borderColor: C.w08 }} />
+                          <TouchableOpacity onPress={() => removeLineItem(catIdx, liIdx)} style={{ padding: 4 }}>
+                            <Feather name="x" size={16} color={C.rd || '#ef4444'} />
+                          </TouchableOpacity>
+                        </View>
+                      ))}
+                      <TouchableOpacity onPress={() => addLineItem(catIdx)}
+                        style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, padding: 10 }}>
+                        <Feather name="plus" size={14} color={C.gd} />
+                        <Text style={{ fontSize: 13, color: C.gd, fontWeight: '600' }}>Add Line Item</Text>
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+
+                  {/* Add Category */}
+                  <View style={{ flexDirection: 'row', gap: 8, marginBottom: 20 }}>
+                    <TextInput value={newCatTitle} onChangeText={setNewCatTitle} placeholder="New category title..."
+                      placeholderTextColor={C.dm + '80'} onSubmitEditing={addCategory}
+                      style={{ flex: 1, backgroundColor: C.w06, borderRadius: 10, padding: 12, fontSize: 15, color: C.text, borderWidth: 1, borderColor: C.w08 }} />
+                    <TouchableOpacity onPress={addCategory} disabled={!newCatTitle.trim()}
+                      style={{ backgroundColor: C.gd, borderRadius: 10, paddingHorizontal: 16, justifyContent: 'center', opacity: newCatTitle.trim() ? 1 : 0.4 }}>
+                      <Text style={{ fontSize: 14, fontWeight: '700', color: '#fff' }}>Add</Text>
                     </TouchableOpacity>
                   </View>
-                ))}
 
-                {/* Add Category */}
-                <View style={{ flexDirection: 'row', gap: 8, marginBottom: 20 }}>
-                  <TextInput value={newCatTitle} onChangeText={setNewCatTitle} placeholder="New category title..."
-                    placeholderTextColor={C.dm + '80'} onSubmitEditing={addCategory}
-                    style={{ flex: 1, backgroundColor: C.w06, borderRadius: 10, padding: 12, fontSize: 15, color: C.text, borderWidth: 1, borderColor: C.w08 }} />
-                  <TouchableOpacity onPress={addCategory} disabled={!newCatTitle.trim()}
-                    style={{ backgroundColor: C.gd, borderRadius: 10, paddingHorizontal: 16, justifyContent: 'center', opacity: newCatTitle.trim() ? 1 : 0.4 }}>
-                    <Text style={{ fontSize: 14, fontWeight: '700', color: '#fff' }}>Add</Text>
+                  {/* Save button */}
+                  <TouchableOpacity onPress={handleSave} disabled={saving}
+                    style={{ backgroundColor: C.gd, borderRadius: 10, paddingVertical: 14, alignItems: 'center', marginBottom: 20, opacity: saving ? 0.6 : 1 }}>
+                    <Text style={{ fontSize: 16, fontWeight: '700', color: '#fff' }}>{saving ? 'Saving...' : (editTmpl === 'new' ? 'Create Template' : 'Save Changes')}</Text>
                   </TouchableOpacity>
-                </View>
-
-                {/* Save button */}
-                <TouchableOpacity onPress={handleSave} disabled={saving}
-                  style={{ backgroundColor: C.gd, borderRadius: 10, paddingVertical: 14, alignItems: 'center', marginBottom: 20, opacity: saving ? 0.6 : 1 }}>
-                  <Text style={{ fontSize: 16, fontWeight: '700', color: '#fff' }}>{saving ? 'Saving...' : (editTmpl === 'new' ? 'Create Template' : 'Save Changes')}</Text>
-                </TouchableOpacity>
-              </>
-            )}
-          </ScrollView>
+                </>
+              )}
+            </ScrollView>
+          ) : (
+            /* ========== DISCLAIMERS TAB ========== */
+            <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16 }} keyboardShouldPersistTaps="handled">
+              {!editDisc ? (
+                /* ---- LIST VIEW ---- */
+                <>
+                  <TouchableOpacity onPress={startNewDisc}
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: C.gd, paddingVertical: 12, paddingHorizontal: 16, borderRadius: 10, marginBottom: 16, alignSelf: 'flex-start' }}>
+                    <Feather name="plus" size={18} color="#fff" />
+                    <Text style={{ fontSize: 15, fontWeight: '700', color: '#fff' }}>New Disclaimer</Text>
+                  </TouchableOpacity>
+                  {discLoading ? (
+                    <ActivityIndicator color={C.gd} size="large" style={{ marginTop: 40 }} />
+                  ) : disclaimers.length === 0 ? (
+                    <Text style={{ fontSize: 16, color: C.dm, textAlign: 'center', marginTop: 40 }}>No disclaimers yet. Create one to get started.</Text>
+                  ) : (
+                    disclaimers.map(d => (
+                      <View key={d.id} style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: C.w06, borderRadius: 12, padding: 14, marginBottom: 10 }}>
+                        <TouchableOpacity style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12 }} activeOpacity={0.7} onPress={() => loadDisc(d)}>
+                          <Feather name="file-text" size={28} color={C.dm} />
+                          <View style={{ flex: 1 }}>
+                            <Text style={{ fontSize: 18, fontWeight: '600', color: C.textBold }}>{d.title}</Text>
+                            {d.description ? <Text style={{ fontSize: 14, color: C.dm, marginTop: 2 }} numberOfLines={2}>{d.description}</Text> : null}
+                          </View>
+                          <Text style={{ fontSize: 18, color: C.gd }}>Edit ›</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={() => handleDeleteDisc(d)} style={{ padding: 8, marginLeft: 8 }} activeOpacity={0.7}>
+                          <Feather name="trash-2" size={20} color={C.rd || '#ef4444'} />
+                        </TouchableOpacity>
+                      </View>
+                    ))
+                  )}
+                </>
+              ) : (
+                /* ---- EDIT VIEW ---- */
+                <>
+                  <Text style={{ fontSize: 13, fontWeight: '600', color: C.dm, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>Title</Text>
+                  <TextInput value={discTitle} onChangeText={setDiscTitle} placeholder="e.g. Payment Terms"
+                    placeholderTextColor={C.dm + '80'}
+                    style={{ backgroundColor: C.w06, borderRadius: 10, padding: 12, fontSize: 16, color: C.text, marginBottom: 14, borderWidth: 1, borderColor: C.w08 }} />
+                  <Text style={{ fontSize: 13, fontWeight: '600', color: C.dm, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>Description</Text>
+                  <TextInput value={discDescription} onChangeText={setDiscDescription} placeholder="Enter disclaimer text..."
+                    placeholderTextColor={C.dm + '80'} multiline numberOfLines={6} textAlignVertical="top"
+                    style={{ backgroundColor: C.w06, borderRadius: 10, padding: 12, fontSize: 16, color: C.text, marginBottom: 20, borderWidth: 1, borderColor: C.w08, minHeight: 140 }} />
+                  <TouchableOpacity onPress={handleSaveDisc} disabled={discSaving}
+                    style={{ backgroundColor: C.gd, borderRadius: 10, paddingVertical: 14, alignItems: 'center', marginBottom: 20, opacity: discSaving ? 0.6 : 1 }}>
+                    <Text style={{ fontSize: 16, fontWeight: '700', color: '#fff' }}>{discSaving ? 'Saving...' : (editDisc === 'new' ? 'Create Disclaimer' : 'Save Changes')}</Text>
+                  </TouchableOpacity>
+                </>
+              )}
+            </ScrollView>
+          )}
         </View>
       </View>
     </Modal>
