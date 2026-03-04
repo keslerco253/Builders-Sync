@@ -8102,38 +8102,6 @@ const BidDetailView = ({ project, onProjectUpdate }) => {
     if (nextIdx !== undefined) focusCell(navOrder[nextIdx]);
   }, [navOrder, focusCell]);
 
-  const handleCellKeyPress = useCallback((e, cellKey) => {
-    if (Platform.OS !== 'web') return;
-    const key = e.nativeEvent?.key || e.key;
-    if (key === 'Tab') {
-      e.preventDefault?.();
-      navigateFrom(cellKey, e.shiftKey ? 'prev' : 'next');
-    } else if (key === 'ArrowDown') {
-      e.preventDefault?.();
-      navigateFrom(cellKey, 'down');
-    } else if (key === 'ArrowUp') {
-      e.preventDefault?.();
-      navigateFrom(cellKey, 'up');
-    } else if (key === 'ArrowLeft') {
-      // Only navigate if cursor is at start
-      const input = cellRefs.current[cellKey];
-      if (input?.selectionStart === 0 && input?.selectionEnd === 0) {
-        e.preventDefault?.();
-        navigateFrom(cellKey, 'left');
-      }
-    } else if (key === 'ArrowRight') {
-      const input = cellRefs.current[cellKey];
-      const val = input?.value || '';
-      if (input?.selectionStart === val.length && input?.selectionEnd === val.length) {
-        e.preventDefault?.();
-        navigateFrom(cellKey, 'right');
-      }
-    } else if (key === 'Enter') {
-      e.preventDefault?.();
-      navigateFrom(cellKey, 'down');
-    }
-  }, [navigateFrom]);
-
   // Compute totals
   const categorySubtotals = categories.reduce((sum, c) => sum + (c.subtotal || 0), 0);
   const overhead = Math.round(categorySubtotals * 0.08 * 100) / 100;
@@ -8251,24 +8219,36 @@ const BidDetailView = ({ project, onProjectUpdate }) => {
   const headerTxt = { fontSize: 12, fontWeight: '700', color: C.dm, textTransform: 'uppercase', letterSpacing: 0.5 };
   const rowBg = (i) => i % 2 === 0 ? 'transparent' : (C.w04 || 'rgba(255,255,255,0.04)');
 
-  // Register a web keydown listener for Tab interception (RN TextInput onKeyPress doesn't prevent default well)
-  const webKeyHandler = useCallback((cellKey) => {
-    if (Platform.OS !== 'web') return {};
-    return {
-      onKeyDown: (e) => {
-        const key = e.key;
-        if (key === 'Tab') { e.preventDefault(); navigateFrom(cellKey, e.shiftKey ? 'prev' : 'next'); }
-        else if (key === 'ArrowDown') { e.preventDefault(); navigateFrom(cellKey, 'down'); }
-        else if (key === 'ArrowUp') { e.preventDefault(); navigateFrom(cellKey, 'up'); }
-        else if (key === 'Enter') { e.preventDefault(); navigateFrom(cellKey, 'down'); }
-        else if (key === 'ArrowLeft') {
-          const el = e.target; if (el?.selectionStart === 0 && el?.selectionEnd === 0) { e.preventDefault(); navigateFrom(cellKey, 'left'); }
-        } else if (key === 'ArrowRight') {
-          const el = e.target; if (el?.selectionStart === el?.value?.length) { e.preventDefault(); navigateFrom(cellKey, 'right'); }
-        }
+  // Keep a stable ref to navigateFrom so DOM listeners never go stale
+  const navigateRef = useRef(navigateFrom);
+  useEffect(() => { navigateRef.current = navigateFrom; }, [navigateFrom]);
+
+  // Attach native DOM keydown listener to the underlying <input> element
+  // RN Web TextInput ignores unknown props like onKeyDown, so we do it via ref
+  const attachedCells = useRef(new Set());
+  const setCellRef = useCallback((cellKey, node) => {
+    cellRefs.current[cellKey] = node;
+    if (Platform.OS !== 'web' || !node) return;
+    if (attachedCells.current.has(cellKey)) return; // already attached
+    // Get the actual DOM input element from the RN ref
+    const el = node._node || node._inputElement || node;
+    const inputEl = el?.tagName === 'INPUT' || el?.tagName === 'TEXTAREA' ? el : el?.querySelector?.('input, textarea') || el;
+    if (!inputEl?.addEventListener) return;
+    attachedCells.current.add(cellKey);
+    inputEl.addEventListener('keydown', (e) => {
+      const key = e.key;
+      const nav = navigateRef.current;
+      if (key === 'Tab') { e.preventDefault(); nav(cellKey, e.shiftKey ? 'prev' : 'next'); }
+      else if (key === 'ArrowDown') { e.preventDefault(); nav(cellKey, 'down'); }
+      else if (key === 'ArrowUp') { e.preventDefault(); nav(cellKey, 'up'); }
+      else if (key === 'Enter') { e.preventDefault(); nav(cellKey, 'down'); }
+      else if (key === 'ArrowLeft') {
+        if (inputEl.selectionStart === 0 && inputEl.selectionEnd === 0) { e.preventDefault(); nav(cellKey, 'left'); }
+      } else if (key === 'ArrowRight') {
+        if (inputEl.selectionStart === inputEl.value?.length) { e.preventDefault(); nav(cellKey, 'right'); }
       }
-    };
-  }, [navigateFrom]);
+    });
+  }, []);
 
   if (loading) {
     return <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}><ActivityIndicator color={C.gd} size="large" /></View>;
@@ -8312,14 +8292,13 @@ const BidDetailView = ({ project, onProjectUpdate }) => {
             <Text style={[cellTxt, { flex: 2, fontWeight: '600' }]}>Lot Overhead</Text>
             <View style={{ flex: 1, alignItems: 'flex-end' }}>
               <TextInput
-                ref={r => { cellRefs.current['top_lotOverhead'] = r; }}
+                ref={r => setCellRef('top_lotOverhead', r)}
                 value={lotOverheadText}
                 onChangeText={setLotOverheadText}
                 onFocus={() => setFocusedCell('top_lotOverhead')}
                 onBlur={() => { setFocusedCell(null); const v = parseFloat(lotOverheadText) || 0; setLotOverhead(v); setLotOverheadText(String(v)); saveBidField('bid_lot_overhead', v); }}
                 keyboardType="decimal-pad"
                 style={[cellInputStyle, { textAlign: 'right', width: 130 }, focusedCell === 'top_lotOverhead' && cellInputFocused]}
-                {...webKeyHandler('top_lotOverhead')}
               />
             </View>
           </View>
@@ -8328,14 +8307,13 @@ const BidDetailView = ({ project, onProjectUpdate }) => {
             <Text style={[cellTxt, { flex: 2, fontWeight: '600' }]}>Commission</Text>
             <View style={{ flex: 1, alignItems: 'flex-end' }}>
               <TextInput
-                ref={r => { cellRefs.current['top_commission'] = r; }}
+                ref={r => setCellRef('top_commission', r)}
                 value={commissionText}
                 onChangeText={setCommissionText}
                 onFocus={() => setFocusedCell('top_commission')}
                 onBlur={() => { setFocusedCell(null); const v = parseFloat(commissionText) || 0; setCommission(v); setCommissionText(String(v)); saveBidField('bid_commission', v); }}
                 keyboardType="decimal-pad"
                 style={[cellInputStyle, { textAlign: 'right', width: 130 }, focusedCell === 'top_commission' && cellInputFocused]}
-                {...webKeyHandler('top_commission')}
               />
             </View>
           </View>
@@ -8387,39 +8365,36 @@ const BidDetailView = ({ project, onProjectUpdate }) => {
                   {/* Name */}
                   <View style={{ flex: 3, paddingHorizontal: 2 }}>
                     <TextInput
-                      ref={r => { cellRefs.current[nameKey] = r; }}
+                      ref={r => setCellRef(nameKey, r)}
                       value={es.name}
                       onChangeText={v => handleCellChange(li.id, cat.id, 'name', v)}
                       onFocus={() => setFocusedCell(nameKey)}
                       onBlur={() => setFocusedCell(null)}
                       style={[cellInputStyle, focusedCell === nameKey && cellInputFocused]}
-                      {...webKeyHandler(nameKey)}
                     />
                   </View>
                   {/* Quantity */}
                   <View style={{ flex: 1, paddingHorizontal: 2 }}>
                     <TextInput
-                      ref={r => { cellRefs.current[qtyKey] = r; }}
+                      ref={r => setCellRef(qtyKey, r)}
                       value={es.quantity}
                       onChangeText={v => handleCellChange(li.id, cat.id, 'quantity', v)}
                       onFocus={() => setFocusedCell(qtyKey)}
                       onBlur={() => setFocusedCell(null)}
                       keyboardType="decimal-pad"
                       style={[cellInputStyle, { textAlign: 'right' }, focusedCell === qtyKey && cellInputFocused]}
-                      {...webKeyHandler(qtyKey)}
                     />
                   </View>
                   {/* Price Per Item */}
                   <View style={{ flex: 1.5, paddingHorizontal: 2 }}>
                     <TextInput
-                      ref={r => { cellRefs.current[priceKey] = r; }}
+                      ref={r => setCellRef(priceKey, r)}
                       value={es.price_per_item}
                       onChangeText={v => handleCellChange(li.id, cat.id, 'price_per_item', v)}
                       onFocus={() => setFocusedCell(priceKey)}
                       onBlur={() => setFocusedCell(null)}
                       keyboardType="decimal-pad"
                       style={[cellInputStyle, { textAlign: 'right' }, focusedCell === priceKey && cellInputFocused]}
-                      {...webKeyHandler(priceKey)}
                     />
                   </View>
                   {/* Total (auto, not editable) */}
