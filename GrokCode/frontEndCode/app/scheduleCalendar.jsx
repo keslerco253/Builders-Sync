@@ -523,7 +523,7 @@ export default function ScheduleCalendar({ schedule, onUpdateTask, onEditTask, o
       setExcModal({
         taskId: data.taskId,
         taskName: task?.task || '',
-        date: data.origEndStr,
+        date: data.excDate,
         duration: data.offsetDays,
         pendingUpdates: data.updates,
       });
@@ -583,9 +583,13 @@ export default function ScheduleCalendar({ schedule, onUpdateTask, onEditTask, o
 
       // If this forward drag on a live project requires an exception, show the modal
       if (dr.requiresException && updates.length > 0 && onExceptionRef.current) {
+        // Exception date = predecessor's end date (exception sits between predecessor and dragged task)
+        const draggedTask = sched.find(t => t.id === dr.taskId);
+        const predTask = draggedTask?.predecessor_id ? sched.find(t => t.id === draggedTask.predecessor_id) : null;
+        const excDate = predTask ? predTask.end_date : fmt(dr.origStart);
         pendingExcRef.current = {
           taskId: dr.taskId,
-          origEndStr: fmt(dr.origEnd),
+          excDate,
           offsetDays: dr.lastOffset,
           updates,
         };
