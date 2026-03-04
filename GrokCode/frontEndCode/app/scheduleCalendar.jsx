@@ -1,6 +1,6 @@
 import React, { useState, useRef, useCallback, useMemo, useEffect } from 'react';
 import {
-  View, Text, TouchableOpacity, ScrollView, StyleSheet, Platform, TextInput, Alert,
+  View, Text, TouchableOpacity, ScrollView, StyleSheet, Platform, TextInput, Alert, Modal, KeyboardAvoidingView,
 } from 'react-native';
 import Feather from '@expo/vector-icons/Feather';
 import { ThemeContext } from './context';
@@ -297,7 +297,7 @@ const getMonthGrid = (year, month) => {
 // ============================================================
 // MAIN COMPONENT
 // ============================================================
-export default function ScheduleCalendar({ schedule, onUpdateTask, onEditTask, onDeleteTask, isBuilder, onDayPress, onAddItem, mode = 'gantt', headerContent, onTaskDoubleClick, goLive, onGoLiveChange, onHold, calYear: extYear, calMonth: extMonth, onMonthChange }) {
+export default function ScheduleCalendar({ schedule, onUpdateTask, onEditTask, onDeleteTask, isBuilder, onDayPress, onAddItem, mode = 'gantt', headerContent, onTaskDoubleClick, goLive, onGoLiveChange, onHold, calYear: extYear, calMonth: extMonth, onMonthChange, onException, projectName }) {
   const C = React.useContext(ThemeContext);
   const st = React.useMemo(() => getStyles(C), [C]);
   const [intYear, setIntYear] = useState(() => extYear ?? new Date().getFullYear());
@@ -320,6 +320,14 @@ export default function ScheduleCalendar({ schedule, onUpdateTask, onEditTask, o
   const [editDuration, setEditDuration] = useState('');
   const [editReason, setEditReason] = useState('');
   const [editSaving, setEditSaving] = useState(false);
+
+  // Exception modal for live-project forward drag
+  const [excModal, setExcModal] = useState(null); // { taskId, taskName, date, duration, pendingUpdates }
+  const [excName, setExcName] = useState('');
+  const [excDescription, setExcDescription] = useState('');
+  const [excSaving, setExcSaving] = useState(false);
+  const onExceptionRef = useRef(onException);
+  onExceptionRef.current = onException;
 
   const calRef = useRef(null);
   const cellWidth = useRef(0);
@@ -460,8 +468,12 @@ export default function ScheduleCalendar({ schedule, onUpdateTask, onEditTask, o
     const offset = daysBetween(dr.anchorDay, day);
     if (offset === dr.lastOffset) return;
 
-    // When project is live, only allow earlier movement (no delays) — exceptions exempt
-    if (goLiveRef.current && offset > 0 && !dr.isException) return;
+    // Track if this is a forward drag on a live project (will require exception)
+    if (goLiveRef.current && offset > 0 && !dr.isException) {
+      dr.requiresException = true;
+    } else {
+      dr.requiresException = false;
+    }
 
     dr.lastOffset = offset;
 
@@ -496,6 +508,28 @@ export default function ScheduleCalendar({ schedule, onUpdateTask, onEditTask, o
     }
   }).current;
 
+  // Ref used by handlePointerUp to queue exception modal (can't call setState from ref callback directly)
+  const pendingExcRef = useRef(null);
+
+  // Process pending exception modal from drag handler
+  useEffect(() => {
+    if (pendingExcRef.current) {
+      const data = pendingExcRef.current;
+      pendingExcRef.current = null;
+      const task = scheduleRef.current.find(t => t.id === data.taskId);
+      setExcName('');
+      setExcDescription('');
+      setExcSaving(false);
+      setExcModal({
+        taskId: data.taskId,
+        taskName: task?.task || '',
+        date: data.origEndStr,
+        duration: data.offsetDays,
+        pendingUpdates: data.updates,
+      });
+    }
+  });
+
   const handlePointerUp = useRef(() => {
     const dr = dragRef.current;
     dragRef.current = null;
@@ -511,10 +545,10 @@ export default function ScheduleCalendar({ schedule, onUpdateTask, onEditTask, o
     if (dr && dr.lastOffset !== null && dr.lastOffset !== 0) {
       const sched = scheduleRef.current;
 
+      // Build the updates array for both drag modes
+      let updates = [];
       if (dr.isChainDrag) {
-        // Chain drag commit: shift entire chain + cascade outsiders
         const { byId: pm, chain, lagUpdates } = chainShiftDates(sched, dr.taskId, dr.lastOffset);
-        const updates = [];
         sched.forEach(t => {
           const upd = pm[t.id];
           if (upd && (t.start_date !== upd.start_date || t.end_date !== upd.end_date)) {
@@ -525,11 +559,7 @@ export default function ScheduleCalendar({ schedule, onUpdateTask, onEditTask, o
             updates.push(entry);
           }
         });
-        if (updates.length > 0 && onUpdateRef.current) {
-          onUpdateRef.current(updates);
-        }
       } else {
-        // Normal drag commit
         const dur = daysBetween(dr.origStart, dr.origEnd);
         const ns = addDays(dr.origStart, dr.lastOffset);
         const ne = addDays(ns, dur);
@@ -538,7 +568,6 @@ export default function ScheduleCalendar({ schedule, onUpdateTask, onEditTask, o
         const deps = getAllDependents(dr.taskId, dm);
         deps.add(dr.taskId);
 
-        const updates = [];
         deps.forEach(id => {
           const orig = sched.find(t => t.id === id);
           const upd = pm[id];
@@ -550,9 +579,18 @@ export default function ScheduleCalendar({ schedule, onUpdateTask, onEditTask, o
             updates.push(entry);
           }
         });
-        if (updates.length > 0 && onUpdateRef.current) {
-          onUpdateRef.current(updates);
-        }
+      }
+
+      // If this forward drag on a live project requires an exception, show the modal
+      if (dr.requiresException && updates.length > 0 && onExceptionRef.current) {
+        pendingExcRef.current = {
+          taskId: dr.taskId,
+          origEndStr: fmt(dr.origEnd),
+          offsetDays: dr.lastOffset,
+          updates,
+        };
+      } else if (updates.length > 0 && onUpdateRef.current) {
+        onUpdateRef.current(updates);
       }
     }
 
@@ -687,6 +725,31 @@ export default function ScheduleCalendar({ schedule, onUpdateTask, onEditTask, o
   // ============================================================
   // RENDER
   // ============================================================
+  // Submit exception from live-project forward drag
+  const submitDragException = async () => {
+    if (!excModal || !excName.trim() || !excDescription.trim()) return;
+    setExcSaving(true);
+    try {
+      // Call the parent's exception handler (creates exception + commits the drag updates)
+      await onExceptionRef.current({
+        name: excName.trim(),
+        date: excModal.date,
+        duration: excModal.duration,
+        task_id: excModal.taskId,
+        description: excDescription.trim(),
+        pendingUpdates: excModal.pendingUpdates,
+      });
+      setExcModal(null);
+    } catch (e) {
+      console.warn('Exception submit error:', e);
+      setExcSaving(false);
+    }
+  };
+
+  const cancelDragException = () => {
+    setExcModal(null);
+  };
+
   return (
     <View style={st.container}>
       {headerContent && (
@@ -1083,6 +1146,82 @@ export default function ScheduleCalendar({ schedule, onUpdateTask, onEditTask, o
             </View>
           </ScrollView>
         </View>
+      )}
+
+      {/* Exception Modal — triggered by forward-dragging a task on a live project */}
+      {excModal && (
+        <Modal visible animationType="fade" transparent>
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+            <TouchableOpacity style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'center', alignItems: 'center' }} activeOpacity={1} onPress={() => { if (!excSaving) cancelDragException(); }}>
+              <TouchableOpacity activeOpacity={1} onPress={e => e.stopPropagation()}>
+                <View style={{ width: 380, maxHeight: 600, backgroundColor: C.cardBg || C.card, borderRadius: 14, borderWidth: 1, borderColor: C.w12, overflow: 'hidden', ...(Platform.OS === 'web' ? { boxShadow: '0 10px 30px rgba(0,0,0,0.4)' } : { elevation: 20 }) }}>
+                  <View style={{ padding: 16, borderBottomWidth: 1, borderBottomColor: C.w06, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <Feather name="alert-triangle" size={20} color={C.rd} />
+                    <Text style={{ fontSize: 20, fontWeight: '700', color: C.rd }}>Add Exception</Text>
+                  </View>
+                  <ScrollView style={{ maxHeight: 440 }} contentContainerStyle={{ padding: 16, gap: 14 }} keyboardShouldPersistTaps="handled">
+                    {projectName ? <Text style={{ fontSize: 14, color: C.dm, marginBottom: 2 }}>Project: <Text style={{ fontWeight: '600', color: C.text }}>{projectName}</Text></Text> : null}
+                    <Text style={{ fontSize: 13, color: C.dm, marginBottom: 4 }}>
+                      Moving <Text style={{ fontWeight: '600', color: C.text }}>{excModal.taskName}</Text> forward by {excModal.duration} day{excModal.duration !== 1 ? 's' : ''} on a live project requires an exception.
+                    </Text>
+
+                    {/* Exception Name */}
+                    <View>
+                      <Text style={{ fontSize: 14, fontWeight: '600', color: C.text, marginBottom: 4 }}>Exception Name *</Text>
+                      <TextInput value={excName} onChangeText={setExcName} placeholder="e.g. Weather Delay"
+                        placeholderTextColor={C.dm + '80'}
+                        style={{ fontSize: 16, color: C.text, borderWidth: 1, borderColor: C.w12, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, backgroundColor: C.w04, ...(Platform.OS === 'web' ? { outlineStyle: 'none' } : {}) }} />
+                    </View>
+
+                    {/* Date (auto-filled, read-only) */}
+                    <View>
+                      <Text style={{ fontSize: 14, fontWeight: '600', color: C.text, marginBottom: 4 }}>Date</Text>
+                      <View style={{ borderWidth: 1, borderColor: C.w12, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, backgroundColor: C.w04, opacity: 0.7 }}>
+                        <Text style={{ fontSize: 16, color: C.text }}>{excModal.date}</Text>
+                      </View>
+                    </View>
+
+                    {/* Duration (auto-filled, read-only) */}
+                    <View>
+                      <Text style={{ fontSize: 14, fontWeight: '600', color: C.text, marginBottom: 4 }}>Duration (days)</Text>
+                      <View style={{ borderWidth: 1, borderColor: C.w12, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, backgroundColor: C.w04, opacity: 0.7 }}>
+                        <Text style={{ fontSize: 16, color: C.text }}>{excModal.duration}</Text>
+                      </View>
+                    </View>
+
+                    {/* Task (auto-filled, read-only) */}
+                    <View>
+                      <Text style={{ fontSize: 14, fontWeight: '600', color: C.text, marginBottom: 4 }}>Attached to Task</Text>
+                      <View style={{ borderWidth: 1, borderColor: C.w12, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, backgroundColor: C.w04, opacity: 0.7 }}>
+                        <Text style={{ fontSize: 16, color: C.text }}>{excModal.taskName}</Text>
+                      </View>
+                    </View>
+
+                    {/* Description */}
+                    <View>
+                      <Text style={{ fontSize: 14, fontWeight: '600', color: C.text, marginBottom: 4 }}>Description *</Text>
+                      <TextInput value={excDescription} onChangeText={setExcDescription} placeholder="Brief description of the exception..."
+                        placeholderTextColor={C.dm + '80'} multiline numberOfLines={3}
+                        style={{ fontSize: 16, color: C.text, borderWidth: 1, borderColor: C.w12, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, backgroundColor: C.w04, minHeight: 70, textAlignVertical: 'top', ...(Platform.OS === 'web' ? { outlineStyle: 'none' } : {}) }} />
+                    </View>
+                  </ScrollView>
+
+                  <View style={{ flexDirection: 'row', borderTopWidth: 1, borderTopColor: C.w06 }}>
+                    <TouchableOpacity onPress={cancelDragException} disabled={excSaving}
+                      style={{ flex: 1, paddingVertical: 14, alignItems: 'center', borderRightWidth: 1, borderRightColor: C.w06 }} activeOpacity={0.7}>
+                      <Text style={{ fontSize: 18, fontWeight: '600', color: C.dm }}>Cancel</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={submitDragException}
+                      disabled={!excName.trim() || !excDescription.trim() || excSaving}
+                      style={{ flex: 1, paddingVertical: 14, alignItems: 'center', opacity: (excName.trim() && excDescription.trim() && !excSaving) ? 1 : 0.3 }} activeOpacity={0.7}>
+                      <Text style={{ fontSize: 18, fontWeight: '700', color: C.rd }}>{excSaving ? 'Creating...' : 'Add Exception'}</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </TouchableOpacity>
+            </TouchableOpacity>
+          </KeyboardAvoidingView>
+        </Modal>
       )}
     </View>
   );

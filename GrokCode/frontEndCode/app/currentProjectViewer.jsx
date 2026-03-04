@@ -720,6 +720,22 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
     onScheduleChange?.();
   }, [project?.id, onScheduleChange]);
 
+  // Handle exception from live-project forward drag (creates exception + commits drag updates)
+  const handleDragException = useCallback(async ({ name, date, duration, task_id, description, pendingUpdates }) => {
+    const editedBy = user ? `${user.first_name} ${user.last_name}`.trim() : '';
+    const result = await api(`/projects/${project.id}/exceptions`, {
+      method: 'POST',
+      body: { name, date, duration, task_id, description, edited_by: editedBy, pending_updates: pendingUpdates },
+    });
+    if (result && Array.isArray(result)) {
+      setSchedule(result);
+    } else {
+      const fresh = await api(`/projects/${project.id}/schedule`);
+      if (fresh) setSchedule(fresh);
+    }
+    onScheduleChange?.();
+  }, [project?.id, onScheduleChange, user]);
+
   // Tab config — role-based like buildersync
   const scheduleSubs = goLive ? ['calendar', 'baseline', 'progress'] : ['calendar', 'progress'];
   const tabs = isB
@@ -2343,6 +2359,8 @@ ${sectionsHtml}
                   calYear={calYear}
                   calMonth={calMonth}
                   onMonthChange={onMonthChange}
+                  onException={handleDragException}
+                  projectName={project?.name}
                 />
               )}
 
@@ -2364,6 +2382,8 @@ ${sectionsHtml}
                   calYear={calYear}
                   calMonth={calMonth}
                   onMonthChange={onMonthChange}
+                  onException={handleDragException}
+                  projectName={project?.name}
                 />
               )}
 

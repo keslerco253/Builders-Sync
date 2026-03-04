@@ -3697,6 +3697,16 @@ def add_exception(pid):
         if not changed:
             break
 
+    # Apply pending drag updates if provided (from live-project forward drag)
+    pending_updates = data.get('pending_updates')
+    if pending_updates and isinstance(pending_updates, list):
+        for upd in pending_updates:
+            item = by_id.get(upd.get('id'))
+            if item:
+                for k in ('start_date', 'end_date', 'lag_days'):
+                    if k in upd:
+                        setattr(item, k, upd[k])
+
     # Log the exception creation
     now = datetime.utcnow().isoformat()
     log = ScheduleEditLog(
@@ -3708,6 +3718,7 @@ def add_exception(pid):
     db.session.add(log)
 
     db.session.commit()
+    all_items = Schedule.query.filter_by(job_id=pid).all()
     sync_project_dates(pid)
     sync_linked_client_tasks([t.id for t in all_items])
     return jsonify([t.to_dict() for t in all_items]), 201
