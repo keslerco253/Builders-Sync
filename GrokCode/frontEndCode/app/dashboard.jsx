@@ -8447,7 +8447,7 @@ const BidDetailView = ({ project, onProjectUpdate }) => {
     fontSize: 14, color: C.text, paddingHorizontal: 6, paddingVertical: 4,
     borderWidth: 1, borderColor: 'transparent', borderRadius: 4,
     backgroundColor: 'transparent',
-    ...(Platform.OS === 'web' ? { outlineStyle: 'none' } : {}),
+    ...(Platform.OS === 'web' ? { outlineStyle: 'none', overflow: 'hidden', resize: 'none', fieldSizing: 'content' } : {}),
   };
   const cellInputFocused = { borderColor: C.gd, backgroundColor: C.w04 };
   const inputStyle = {
@@ -8880,7 +8880,6 @@ const BidDetailView = ({ project, onProjectUpdate }) => {
 
   // Track focus state per cell for styling
   const [focusedCell, setFocusedCell] = useState(null);
-  const [cellHeights, setCellHeights] = useState({});
 
   const cellTxt = { fontSize: 14, color: C.text };
   const headerTxt = { fontSize: 12, fontWeight: '700', color: C.dm, textTransform: 'uppercase', letterSpacing: 0.5 };
@@ -9330,11 +9329,7 @@ const BidDetailView = ({ project, onProjectUpdate }) => {
                         onChangeText={v => handleCellChange(li.id, sqftCategory.id, 'name', v)}
                         onFocus={() => setFocusedCell(nameKey)} onBlur={() => setFocusedCell(null)}
                         multiline scrollEnabled={false}
-                        onContentSizeChange={e => {
-                          const h = e.nativeEvent.contentSize.height;
-                          setCellHeights(prev => prev[nameKey] === h ? prev : { ...prev, [nameKey]: h });
-                        }}
-                        style={[cellInputStyle, focusedCell === nameKey && cellInputFocused, cellHeights[nameKey] ? { height: cellHeights[nameKey] } : null]} />
+                        style={[cellInputStyle, focusedCell === nameKey && cellInputFocused]} />
                     </View>
                     <View style={{ flex: 1, paddingHorizontal: 2 }}>
                       <TextInput ref={r => setCellRef(qtyKey, r)} value={es.quantity}
@@ -9422,11 +9417,7 @@ const BidDetailView = ({ project, onProjectUpdate }) => {
                       onFocus={() => setFocusedCell(nameKey)}
                       onBlur={() => setFocusedCell(null)}
                       multiline scrollEnabled={false}
-                      onContentSizeChange={e => {
-                        const h = e.nativeEvent.contentSize.height;
-                        setCellHeights(prev => prev[nameKey] === h ? prev : { ...prev, [nameKey]: h });
-                      }}
-                      style={[cellInputStyle, focusedCell === nameKey && cellInputFocused, cellHeights[nameKey] ? { height: cellHeights[nameKey] } : null]}
+                      style={[cellInputStyle, focusedCell === nameKey && cellInputFocused]}
                     />
                   </View>
                   {/* Quantity */}
@@ -9633,12 +9624,7 @@ const BidDetailView = ({ project, onProjectUpdate }) => {
                             onFocus={() => setFocusedCell(`allow_${item.id}_name`)}
                             onBlur={() => setFocusedCell(null)}
                             multiline scrollEnabled={false}
-                            onContentSizeChange={e => {
-                              const h = e.nativeEvent.contentSize.height;
-                              const k = `allow_${item.id}_name`;
-                              setCellHeights(prev => prev[k] === h ? prev : { ...prev, [k]: h });
-                            }}
-                            style={[cellInputStyle, focusedCell === `allow_${item.id}_name` && cellInputFocused, cellHeights[`allow_${item.id}_name`] ? { height: cellHeights[`allow_${item.id}_name`] } : null]} />
+                            style={[cellInputStyle, focusedCell === `allow_${item.id}_name` && cellInputFocused]} />
                         </View>
                         <View style={{ flex: 1, paddingHorizontal: 2 }}>
                           <TextInput ref={r => setCellRef(`allow_${item.id}_qty`, r)} value={es.quantity}
