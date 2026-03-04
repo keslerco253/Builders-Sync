@@ -244,6 +244,12 @@ class Projects(db.Model):
     company_id = db.Column(db.Integer, db.ForeignKey('company.id'), nullable=True)
     project_manager_id = db.Column(db.Integer, db.ForeignKey('login_info.id'), nullable=True)
     superintendent_id = db.Column(db.Integer, db.ForeignKey('login_info.id'), nullable=True)
+    is_bid = db.Column(db.Boolean, default=False)
+    bid_client_first_name = db.Column(db.String(100), default='')
+    bid_client_last_name = db.Column(db.String(100), default='')
+    bid_client_phone = db.Column(db.String(30), default='')
+    bid_client_email = db.Column(db.String(120), default='')
+    bid_address = db.Column(db.String(255), default='')
     date = db.Column(db.DateTime, default=datetime.utcnow)
 
     def to_dict(self):
@@ -294,6 +300,12 @@ class Projects(db.Model):
             'company_id': self.company_id,
             'project_manager_id': self.project_manager_id,
             'superintendent_id': self.superintendent_id,
+            'is_bid': bool(self.is_bid) if self.is_bid else False,
+            'bid_client_first_name': self.bid_client_first_name or '',
+            'bid_client_last_name': self.bid_client_last_name or '',
+            'bid_client_phone': self.bid_client_phone or '',
+            'bid_client_email': self.bid_client_email or '',
+            'bid_address': self.bid_address or '',
             'date': self.date.isoformat() if self.date else None,
         }
 
@@ -1973,6 +1985,51 @@ def add_project():
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/bids', methods=['POST'])
+def create_bid():
+    """Create a new bid (lightweight project placeholder)."""
+    data = request.get_json()
+    name = (data.get('name') or '').strip()
+    if not name:
+        return jsonify({'error': 'Bid name is required'}), 400
+    user_id = data.get('created_by')
+    creator = LoginInfo.query.get(user_id) if user_id else None
+    company_id = creator.company_id if creator else data.get('company_id')
+
+    bid = Projects(
+        name=name,
+        is_bid=True,
+        phase='Bid',
+        status='Bid',
+        bid_client_first_name=(data.get('client_first_name') or '').strip(),
+        bid_client_last_name=(data.get('client_last_name') or '').strip(),
+        bid_client_phone=(data.get('client_phone') or '').strip(),
+        bid_client_email=(data.get('client_email') or '').strip(),
+        bid_address=(data.get('bid_address') or '').strip(),
+        company_id=company_id,
+    )
+    # Auto-generate number
+    yr = datetime.utcnow().strftime('%y')
+    existing = Projects.query.filter(
+        Projects.company_id == company_id,
+        Projects.number.like(f'{yr}-%')
+    ).all()
+    max_seq = 0
+    for p in existing:
+        try:
+            seq = int(p.number.split('-')[1])
+            if seq > max_seq:
+                max_seq = seq
+        except (IndexError, ValueError):
+            pass
+    bid.number = f'{yr}-{str(max_seq + 1).zfill(2)}'
+    bid.address = bid.bid_address
+
+    db.session.add(bid)
+    db.session.commit()
+    return jsonify(bid.to_dict()), 201
+
+
 @app.route('/projects/<int:project_id>', methods=['GET'])
 def get_project(project_id):
     return jsonify(Projects.query.get_or_404(project_id).to_dict())
@@ -2000,7 +2057,9 @@ def update_project(project_id):
                  'contract_price', 'sqft', 'bedrooms', 'bathrooms', 'garage',
                  'lot_size', 'style', 'stories', 'email', 'reconciliation', 'dates_from_schedule', 'go_live', 'subdivision_id',
                  'permit_number', 'plan_name', 'selection_template_id',
-                 'project_manager_id', 'superintendent_id'):
+                 'project_manager_id', 'superintendent_id',
+                 'is_bid', 'bid_client_first_name', 'bid_client_last_name',
+                 'bid_client_phone', 'bid_client_email', 'bid_address'):
         if key in data:
             # Prevent un-toggling go_live once it's been set
             if key == 'go_live' and p.go_live and not data[key]:
