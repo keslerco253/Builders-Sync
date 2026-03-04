@@ -9328,7 +9328,7 @@ const BidDetailView = ({ project, onProjectUpdate }) => {
                       <TextInput ref={r => setCellRef(nameKey, r)} value={es.name}
                         onChangeText={v => handleCellChange(li.id, sqftCategory.id, 'name', v)}
                         onFocus={() => setFocusedCell(nameKey)} onBlur={() => setFocusedCell(null)}
-                        multiline
+                        multiline scrollEnabled={false}
                         style={[cellInputStyle, focusedCell === nameKey && cellInputFocused]} />
                     </View>
                     <View style={{ flex: 1, paddingHorizontal: 2 }}>
@@ -9416,7 +9416,7 @@ const BidDetailView = ({ project, onProjectUpdate }) => {
                       onChangeText={v => handleCellChange(li.id, cat.id, 'name', v)}
                       onFocus={() => setFocusedCell(nameKey)}
                       onBlur={() => setFocusedCell(null)}
-                      multiline
+                      multiline scrollEnabled={false}
                       style={[cellInputStyle, focusedCell === nameKey && cellInputFocused]}
                     />
                   </View>
@@ -9623,7 +9623,7 @@ const BidDetailView = ({ project, onProjectUpdate }) => {
                             onChangeText={v => handleAllowanceItemChange(item.id, cat.id, 'name', v)}
                             onFocus={() => setFocusedCell(`allow_${item.id}_name`)}
                             onBlur={() => setFocusedCell(null)}
-                            multiline
+                            multiline scrollEnabled={false}
                             style={[cellInputStyle, focusedCell === `allow_${item.id}_name` && cellInputFocused]} />
                         </View>
                         <View style={{ flex: 1, paddingHorizontal: 2 }}>
