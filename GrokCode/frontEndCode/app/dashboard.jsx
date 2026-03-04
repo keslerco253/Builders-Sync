@@ -9323,11 +9323,12 @@ const BidDetailView = ({ project, onProjectUpdate }) => {
                 const qtyKey = `line_${li.id}_quantity`;
                 const priceKey = `line_${li.id}_price_per_item`;
                 return (
-                  <View key={li.id} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 2, paddingHorizontal: 8, borderTopWidth: 1, borderTopColor: C.w06, backgroundColor: rowBg(idx) }}>
+                  <View key={li.id} style={{ flexDirection: 'row', alignItems: 'flex-start', paddingVertical: 2, paddingHorizontal: 8, borderTopWidth: 1, borderTopColor: C.w06, backgroundColor: rowBg(idx) }}>
                     <View style={{ flex: 3, paddingHorizontal: 2 }}>
                       <TextInput ref={r => setCellRef(nameKey, r)} value={es.name}
                         onChangeText={v => handleCellChange(li.id, sqftCategory.id, 'name', v)}
                         onFocus={() => setFocusedCell(nameKey)} onBlur={() => setFocusedCell(null)}
+                        multiline
                         style={[cellInputStyle, focusedCell === nameKey && cellInputFocused]} />
                     </View>
                     <View style={{ flex: 1, paddingHorizontal: 2 }}>
@@ -9406,7 +9407,7 @@ const BidDetailView = ({ project, onProjectUpdate }) => {
               const qtyKey = `line_${li.id}_quantity`;
               const priceKey = `line_${li.id}_price_per_item`;
               return (
-                <View key={li.id} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 2, paddingHorizontal: 8, borderTopWidth: 1, borderTopColor: C.w06, backgroundColor: rowBg(idx) }}>
+                <View key={li.id} style={{ flexDirection: 'row', alignItems: 'flex-start', paddingVertical: 2, paddingHorizontal: 8, borderTopWidth: 1, borderTopColor: C.w06, backgroundColor: rowBg(idx) }}>
                   {/* Name */}
                   <View style={{ flex: 3, paddingHorizontal: 2 }}>
                     <TextInput
@@ -9415,6 +9416,7 @@ const BidDetailView = ({ project, onProjectUpdate }) => {
                       onChangeText={v => handleCellChange(li.id, cat.id, 'name', v)}
                       onFocus={() => setFocusedCell(nameKey)}
                       onBlur={() => setFocusedCell(null)}
+                      multiline
                       style={[cellInputStyle, focusedCell === nameKey && cellInputFocused]}
                     />
                   </View>
@@ -9615,12 +9617,13 @@ const BidDetailView = ({ project, onProjectUpdate }) => {
                     const es = allowanceEditState[item.id] || { name: item.name, quantity: String(item.quantity), price_per: String(item.price_per) };
                     const lineTotal = (parseFloat(es.quantity) || 0) * (parseFloat(es.price_per) || 0);
                     return (
-                      <View key={item.id} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 2, paddingHorizontal: 12, borderTopWidth: 1, borderTopColor: C.w06, backgroundColor: rowBg(idx) }}>
+                      <View key={item.id} style={{ flexDirection: 'row', alignItems: 'flex-start', paddingVertical: 2, paddingHorizontal: 12, borderTopWidth: 1, borderTopColor: C.w06, backgroundColor: rowBg(idx) }}>
                         <View style={{ flex: 3, paddingHorizontal: 2 }}>
                           <TextInput ref={r => setCellRef(`allow_${item.id}_name`, r)} value={es.name}
                             onChangeText={v => handleAllowanceItemChange(item.id, cat.id, 'name', v)}
                             onFocus={() => setFocusedCell(`allow_${item.id}_name`)}
                             onBlur={() => setFocusedCell(null)}
+                            multiline
                             style={[cellInputStyle, focusedCell === `allow_${item.id}_name` && cellInputFocused]} />
                         </View>
                         <View style={{ flex: 1, paddingHorizontal: 2 }}>
