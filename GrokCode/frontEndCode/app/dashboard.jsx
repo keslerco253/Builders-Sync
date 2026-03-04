@@ -8256,6 +8256,7 @@ const NewBidModal = ({ onClose, onCreated, currentUser }) => {
 const BidDetailView = ({ project, onProjectUpdate }) => {
   const C = React.useContext(ThemeContext);
   const { user } = React.useContext(AuthContext);
+  const [bidTab, setBidTab] = useState('bid'); // 'bid' | 'info'
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [lotOverhead, setLotOverhead] = useState(project.bid_lot_overhead || 0);
@@ -8282,6 +8283,17 @@ const BidDetailView = ({ project, onProjectUpdate }) => {
   const [allowanceEditState, setAllowanceEditState] = useState({}); // { [itemId]: { name, price } }
   const [confirmDeleteAllowanceCat, setConfirmDeleteAllowanceCat] = useState(null);
   const [confirmDeleteAllowanceItem, setConfirmDeleteAllowanceItem] = useState(null);
+  // Info tab state
+  const [infoFields, setInfoFields] = useState({
+    bid_client_first_name: project.bid_client_first_name || '',
+    bid_client_last_name: project.bid_client_last_name || '',
+    bid_client_phone: project.bid_client_phone || '',
+    bid_client_email: project.bid_client_email || '',
+    bid_address: project.bid_address || '',
+    name: project.name || '',
+  });
+  const [infoSaving, setInfoSaving] = useState(false);
+  const [infoSaved, setInfoSaved] = useState(false);
   // Inline editing state: { [lineId]: { name, quantity, price_per_item } }
   const [editState, setEditState] = useState({});
   // Ref map for all focusable cells: key -> TextInput ref
@@ -8328,7 +8340,15 @@ const BidDetailView = ({ project, onProjectUpdate }) => {
     setCommissionText(String(project.bid_commission || 0));
     setPriceToQuote(project.bid_price_to_quote || 0);
     setPriceToQuoteText(String(project.bid_price_to_quote || 0));
-  }, [project.bid_lot_overhead, project.bid_commission, project.bid_price_to_quote]);
+    setInfoFields({
+      bid_client_first_name: project.bid_client_first_name || '',
+      bid_client_last_name: project.bid_client_last_name || '',
+      bid_client_phone: project.bid_client_phone || '',
+      bid_client_email: project.bid_client_email || '',
+      bid_address: project.bid_address || '',
+      name: project.name || '',
+    });
+  }, [project.bid_lot_overhead, project.bid_commission, project.bid_price_to_quote, project.id]);
 
   const fetchBidTemplates = useCallback(async () => {
     setBidTemplatesLoading(true);
@@ -8489,8 +8509,13 @@ const BidDetailView = ({ project, onProjectUpdate }) => {
         order.push(`line_${li.id}_name`, `line_${li.id}_quantity`, `line_${li.id}_price_per_item`);
       });
     });
+    allowanceCats.forEach(cat => {
+      (cat.items || []).forEach(item => {
+        order.push(`allow_${item.id}_name`, `allow_${item.id}_qty`, `allow_${item.id}_price`);
+      });
+    });
     return order;
-  }, [categories]);
+  }, [categories, allowanceCats]);
 
   const focusCell = useCallback((key) => {
     const ref = cellRefs.current[key];
@@ -8528,8 +8553,8 @@ const BidDetailView = ({ project, onProjectUpdate }) => {
       const colIdx = fieldCols.indexOf(currentKey);
       if (colIdx > 0) { focusCell(fieldCols[colIdx - 1]); return; }
       // At top of column, go to top row
-      if (field === 'name' || field === 'quantity') { focusCell('top_lotOverhead'); return; }
-      if (field === 'price_per_item') { focusCell('top_commission'); return; }
+      if (field === 'name' || field === 'quantity' || field === 'qty') { focusCell('top_lotOverhead'); return; }
+      if (field === 'price_per_item' || field === 'price') { focusCell('top_commission'); return; }
       return;
     } else if (direction === 'left') {
       // Move left in same row
@@ -8538,10 +8563,16 @@ const BidDetailView = ({ project, onProjectUpdate }) => {
         if (currentKey === 'top_commission') { focusCell('top_lotOverhead'); return; }
         return;
       }
-      const lineId = parts[1];
+      const prefix = parts[0]; // 'line' or 'allow'
+      const itemId = parts[1];
       const field = parts[parts.length - 1];
-      if (field === 'quantity') { focusCell(`line_${lineId}_name`); return; }
-      if (field === 'price_per_item') { focusCell(`line_${lineId}_quantity`); return; }
+      if (prefix === 'line') {
+        if (field === 'quantity') { focusCell(`line_${itemId}_name`); return; }
+        if (field === 'price_per_item') { focusCell(`line_${itemId}_quantity`); return; }
+      } else if (prefix === 'allow') {
+        if (field === 'qty') { focusCell(`allow_${itemId}_name`); return; }
+        if (field === 'price') { focusCell(`allow_${itemId}_qty`); return; }
+      }
       return;
     } else if (direction === 'right') {
       const parts = currentKey.split('_');
@@ -8549,10 +8580,16 @@ const BidDetailView = ({ project, onProjectUpdate }) => {
         if (currentKey === 'top_lotOverhead') { focusCell('top_commission'); return; }
         return;
       }
-      const lineId = parts[1];
+      const prefix = parts[0];
+      const itemId = parts[1];
       const field = parts[parts.length - 1];
-      if (field === 'name') { focusCell(`line_${lineId}_quantity`); return; }
-      if (field === 'quantity') { focusCell(`line_${lineId}_price_per_item`); return; }
+      if (prefix === 'line') {
+        if (field === 'name') { focusCell(`line_${itemId}_quantity`); return; }
+        if (field === 'quantity') { focusCell(`line_${itemId}_price_per_item`); return; }
+      } else if (prefix === 'allow') {
+        if (field === 'name') { focusCell(`allow_${itemId}_qty`); return; }
+        if (field === 'qty') { focusCell(`allow_${itemId}_price`); return; }
+      }
       return;
     }
     if (nextIdx !== undefined) focusCell(navOrder[nextIdx]);
@@ -8712,16 +8749,16 @@ const BidDetailView = ({ project, onProjectUpdate }) => {
 
   // Attach native DOM keydown listener to the underlying <input> element
   // RN Web TextInput ignores unknown props like onKeyDown, so we do it via ref
-  const attachedCells = useRef(new Set());
+  const attachedNodes = useRef(new WeakSet());
   const setCellRef = useCallback((cellKey, node) => {
     cellRefs.current[cellKey] = node;
     if (Platform.OS !== 'web' || !node) return;
-    if (attachedCells.current.has(cellKey)) return; // already attached
     // Get the actual DOM input element from the RN ref
     const el = node._node || node._inputElement || node;
     const inputEl = el?.tagName === 'INPUT' || el?.tagName === 'TEXTAREA' ? el : el?.querySelector?.('input, textarea') || el;
     if (!inputEl?.addEventListener) return;
-    attachedCells.current.add(cellKey);
+    if (attachedNodes.current.has(inputEl)) return; // already attached to this DOM node
+    attachedNodes.current.add(inputEl);
     inputEl.addEventListener('keydown', (e) => {
       const key = e.key;
       const nav = navigateRef.current;
@@ -8741,6 +8778,29 @@ const BidDetailView = ({ project, onProjectUpdate }) => {
     return <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}><ActivityIndicator color={C.gd} size="large" /></View>;
   }
 
+  const saveInfoFields = async () => {
+    setInfoSaving(true);
+    try {
+      const res = await apiFetch(`/projects/${project.id}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(infoFields),
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        if (onProjectUpdate) onProjectUpdate(updated);
+        setInfoSaved(true);
+        setTimeout(() => setInfoSaved(false), 2000);
+      }
+    } catch (e) { /* */ }
+    setInfoSaving(false);
+  };
+
+  const infoInputStyle = {
+    fontSize: 16, color: C.text, borderWidth: 1, borderColor: C.w12,
+    borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, backgroundColor: C.w04,
+    ...(Platform.OS === 'web' ? { outlineStyle: 'none' } : {}),
+  };
+
   return (
     <View style={{ flex: 1, backgroundColor: C.bg }}>
       {/* Header */}
@@ -8752,25 +8812,89 @@ const BidDetailView = ({ project, onProjectUpdate }) => {
             <Text style={{ fontSize: 11, fontWeight: '700', color: C.gd }}>BID</Text>
           </View>
         </View>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          <TouchableOpacity onPress={() => { fetchBidTemplates(); setShowApplyTemplate(true); }}
-            style={{ flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderColor: C.gd, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8 }}>
-            <Feather name="download" size={14} color={C.gd} />
-            <Text style={{ fontSize: 13, fontWeight: '600', color: C.gd }}>Apply Template</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => setShowSaveAsTemplate(true)}
-            style={{ flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderColor: C.w12, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8 }}>
-            <Feather name="save" size={14} color={C.dm} />
-            <Text style={{ fontSize: 13, fontWeight: '600', color: C.dm }}>Save as Template</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => setShowCatModal(true)}
-            style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: C.gd, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8 }}>
-            <Feather name="plus" size={16} color="#fff" />
-            <Text style={{ fontSize: 14, fontWeight: '700', color: '#fff' }}>Add Category</Text>
-          </TouchableOpacity>
-        </View>
+        {bidTab === 'bid' && (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <TouchableOpacity onPress={() => { fetchBidTemplates(); setShowApplyTemplate(true); }}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderColor: C.gd, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8 }}>
+              <Feather name="download" size={14} color={C.gd} />
+              <Text style={{ fontSize: 13, fontWeight: '600', color: C.gd }}>Apply Template</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setShowSaveAsTemplate(true)}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderColor: C.w12, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8 }}>
+              <Feather name="save" size={14} color={C.dm} />
+              <Text style={{ fontSize: 13, fontWeight: '600', color: C.dm }}>Save as Template</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setShowCatModal(true)}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: C.gd, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8 }}>
+              <Feather name="plus" size={16} color="#fff" />
+              <Text style={{ fontSize: 14, fontWeight: '700', color: '#fff' }}>Add Category</Text>
+            </TouchableOpacity>
+          </View>
+        )}
       </View>
 
+      {/* Tab Bar */}
+      <View style={{ flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: C.w06 }}>
+        {[['bid', 'Bid'], ['info', 'Info']].map(([id, label]) => {
+          const active = bidTab === id;
+          return (
+            <TouchableOpacity key={id} onPress={() => setBidTab(id)}
+              style={{ paddingVertical: 12, paddingHorizontal: 20, borderBottomWidth: 2, borderBottomColor: active ? C.gd : 'transparent' }} activeOpacity={0.7}>
+              <Text style={{ fontSize: 15, fontWeight: active ? '700' : '500', color: active ? C.gd : C.dm }}>{label}</Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+
+      {bidTab === 'info' ? (
+        /* ========== INFO TAB ========== */
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20, maxWidth: 500 }} keyboardShouldPersistTaps="handled">
+          <Text style={{ fontSize: 18, fontWeight: '700', color: C.textBold, marginBottom: 16 }}>Homeowner Information</Text>
+
+          <View>
+            <Text style={{ fontSize: 13, fontWeight: '600', color: C.dm, marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5 }}>Bid Name</Text>
+            <TextInput value={infoFields.name} onChangeText={v => setInfoFields(p => ({ ...p, name: v }))}
+              placeholder="e.g. Smith Residence" placeholderTextColor={C.dm + '80'} style={infoInputStyle} />
+          </View>
+
+          <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 13, fontWeight: '600', color: C.dm, marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5 }}>First Name</Text>
+              <TextInput value={infoFields.bid_client_first_name} onChangeText={v => setInfoFields(p => ({ ...p, bid_client_first_name: v }))}
+                placeholder="Jane" placeholderTextColor={C.dm + '80'} style={infoInputStyle} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 13, fontWeight: '600', color: C.dm, marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5 }}>Last Name</Text>
+              <TextInput value={infoFields.bid_client_last_name} onChangeText={v => setInfoFields(p => ({ ...p, bid_client_last_name: v }))}
+                placeholder="Smith" placeholderTextColor={C.dm + '80'} style={infoInputStyle} />
+            </View>
+          </View>
+
+          <View style={{ marginTop: 14 }}>
+            <Text style={{ fontSize: 13, fontWeight: '600', color: C.dm, marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5 }}>Phone</Text>
+            <TextInput value={infoFields.bid_client_phone} onChangeText={v => setInfoFields(p => ({ ...p, bid_client_phone: v }))}
+              placeholder="(555) 123-4567" placeholderTextColor={C.dm + '80'} keyboardType="phone-pad" style={infoInputStyle} />
+          </View>
+
+          <View style={{ marginTop: 14 }}>
+            <Text style={{ fontSize: 13, fontWeight: '600', color: C.dm, marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5 }}>Email</Text>
+            <TextInput value={infoFields.bid_client_email} onChangeText={v => setInfoFields(p => ({ ...p, bid_client_email: v }))}
+              placeholder="jane@email.com" placeholderTextColor={C.dm + '80'} keyboardType="email-address" autoCapitalize="none" style={infoInputStyle} />
+          </View>
+
+          <View style={{ marginTop: 14 }}>
+            <Text style={{ fontSize: 13, fontWeight: '600', color: C.dm, marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5 }}>Address</Text>
+            <TextInput value={infoFields.bid_address} onChangeText={v => setInfoFields(p => ({ ...p, bid_address: v }))}
+              placeholder="123 Main St, City, ST 12345" placeholderTextColor={C.dm + '80'} style={infoInputStyle} />
+          </View>
+
+          <TouchableOpacity onPress={saveInfoFields} disabled={infoSaving}
+            style={{ marginTop: 24, backgroundColor: C.gd, paddingVertical: 14, borderRadius: 10, alignItems: 'center', opacity: infoSaving ? 0.6 : 1 }}>
+            <Text style={{ fontSize: 16, fontWeight: '700', color: '#fff' }}>{infoSaving ? 'Saving...' : infoSaved ? 'Saved!' : 'Save Changes'}</Text>
+          </TouchableOpacity>
+        </ScrollView>
+      ) : (
+      /* ========== BID TAB ========== */
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16 }} keyboardShouldPersistTaps="handled">
         {/* Top 3 summary rows: Overhead, Lot Overhead, Commission */}
         <View style={{ borderWidth: 1, borderColor: C.w12, borderRadius: 10, overflow: 'hidden', marginBottom: 20 }}>
@@ -9137,14 +9261,14 @@ const BidDetailView = ({ project, onProjectUpdate }) => {
                     return (
                       <View key={item.id} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 2, paddingHorizontal: 12, borderTopWidth: 1, borderTopColor: C.w06, backgroundColor: rowBg(idx) }}>
                         <View style={{ flex: 3, paddingHorizontal: 2 }}>
-                          <TextInput value={es.name}
+                          <TextInput ref={r => setCellRef(`allow_${item.id}_name`, r)} value={es.name}
                             onChangeText={v => handleAllowanceItemChange(item.id, cat.id, 'name', v)}
                             onFocus={() => setFocusedCell(`allow_${item.id}_name`)}
                             onBlur={() => setFocusedCell(null)}
                             style={[cellInputStyle, focusedCell === `allow_${item.id}_name` && cellInputFocused]} />
                         </View>
                         <View style={{ flex: 1, paddingHorizontal: 2 }}>
-                          <TextInput value={es.quantity}
+                          <TextInput ref={r => setCellRef(`allow_${item.id}_qty`, r)} value={es.quantity}
                             onChangeText={v => handleAllowanceItemChange(item.id, cat.id, 'quantity', v)}
                             onFocus={() => setFocusedCell(`allow_${item.id}_qty`)}
                             onBlur={() => setFocusedCell(null)}
@@ -9152,7 +9276,7 @@ const BidDetailView = ({ project, onProjectUpdate }) => {
                             style={[cellInputStyle, { textAlign: 'right' }, focusedCell === `allow_${item.id}_qty` && cellInputFocused]} />
                         </View>
                         <View style={{ flex: 1.5, paddingHorizontal: 2 }}>
-                          <TextInput value={es.price_per}
+                          <TextInput ref={r => setCellRef(`allow_${item.id}_price`, r)} value={es.price_per}
                             onChangeText={v => handleAllowanceItemChange(item.id, cat.id, 'price_per', v)}
                             onFocus={() => setFocusedCell(`allow_${item.id}_price`)}
                             onBlur={() => setFocusedCell(null)}
@@ -9181,6 +9305,7 @@ const BidDetailView = ({ project, onProjectUpdate }) => {
           ))}
         </View>
       </ScrollView>
+      )}
 
       {/* Add Allowance Category Modal */}
       <Modal visible={showAddAllowanceCat} transparent animationType="fade">
