@@ -8559,7 +8559,8 @@ const BidDetailView = ({ project, onProjectUpdate }) => {
   // Compute totals (square footage items also count toward total)
   const categorySubtotals = categories.reduce((sum, c) => sum + (c.subtotal || 0), 0);
   const overhead = Math.round(categorySubtotals * 0.08 * 100) / 100;
-  const totalCost = categorySubtotals + overhead + lotOverhead + commission;
+  const allowancesTotal = allowanceCats.reduce((sum, c) => sum + (c.total || 0), 0);
+  const totalCost = categorySubtotals + overhead + lotOverhead + commission + allowancesTotal;
 
   // Square footage computed values
   const totalSquareFootage = sqftCategory
