@@ -7976,13 +7976,22 @@ const BidDetailView = ({ project, onProjectUpdate }) => {
   const [commissionText, setCommissionText] = useState(String(project.bid_commission || 0));
   const [showCatModal, setShowCatModal] = useState(false);
   const [catTitle, setCatTitle] = useState('');
-  const [showLineModal, setShowLineModal] = useState(null); // category id
-  const [lineName, setLineName] = useState('');
-  const [editingLine, setEditingLine] = useState(null); // { lineItem, catId }
-  const [editFields, setEditFields] = useState({});
   const [confirmDeleteCat, setConfirmDeleteCat] = useState(null);
   const [confirmDeleteLine, setConfirmDeleteLine] = useState(null);
+  // Inline editing state: { [lineId]: { name, quantity, price_per_item } }
+  const [editState, setEditState] = useState({});
+  // Ref map for all focusable cells: key -> TextInput ref
+  const cellRefs = useRef({});
+  // Debounce timers for auto-save
+  const saveTimers = useRef({});
 
+  const cellInputStyle = {
+    fontSize: 14, color: C.text, paddingHorizontal: 6, paddingVertical: 4,
+    borderWidth: 1, borderColor: 'transparent', borderRadius: 4,
+    backgroundColor: 'transparent',
+    ...(Platform.OS === 'web' ? { outlineStyle: 'none' } : {}),
+  };
+  const cellInputFocused = { borderColor: C.gd, backgroundColor: C.w04 };
   const inputStyle = {
     fontSize: 15, color: C.text, borderWidth: 1, borderColor: C.w12,
     borderRadius: 6, paddingHorizontal: 10, paddingVertical: 8, backgroundColor: C.w04,
@@ -7992,20 +8001,138 @@ const BidDetailView = ({ project, onProjectUpdate }) => {
   const fetchCategories = useCallback(async () => {
     try {
       const res = await apiFetch(`/projects/${project.id}/bid-categories`);
-      if (res.ok) { const data = await res.json(); setCategories(data); }
+      if (res.ok) {
+        const data = await res.json();
+        setCategories(data);
+        // Initialize edit state from fetched data
+        const es = {};
+        data.forEach(cat => (cat.line_items || []).forEach(li => {
+          es[li.id] = { name: li.name, quantity: String(li.quantity), price_per_item: String(li.price_per_item) };
+        }));
+        setEditState(es);
+      }
     } catch (e) { /* */ }
     setLoading(false);
   }, [project.id]);
 
   useEffect(() => { fetchCategories(); }, [fetchCategories]);
 
-  // Sync if project changes externally
   useEffect(() => {
     setLotOverhead(project.bid_lot_overhead || 0);
     setCommission(project.bid_commission || 0);
     setLotOverheadText(String(project.bid_lot_overhead || 0));
     setCommissionText(String(project.bid_commission || 0));
   }, [project.bid_lot_overhead, project.bid_commission]);
+
+  // Build flat navigation order: [cellKey, cellKey, ...]
+  // cellKey format: "top_lotOverhead", "top_commission", "line_{lineId}_{field}"
+  const navOrder = React.useMemo(() => {
+    const order = ['top_lotOverhead', 'top_commission'];
+    categories.forEach(cat => {
+      (cat.line_items || []).forEach(li => {
+        order.push(`line_${li.id}_name`, `line_${li.id}_quantity`, `line_${li.id}_price_per_item`);
+      });
+    });
+    return order;
+  }, [categories]);
+
+  const focusCell = useCallback((key) => {
+    const ref = cellRefs.current[key];
+    if (ref?.focus) ref.focus();
+  }, []);
+
+  const navigateFrom = useCallback((currentKey, direction) => {
+    const idx = navOrder.indexOf(currentKey);
+    if (idx === -1) return;
+    let nextIdx;
+    if (direction === 'next') {
+      nextIdx = idx + 1 < navOrder.length ? idx + 1 : 0;
+    } else if (direction === 'prev') {
+      nextIdx = idx - 1 >= 0 ? idx - 1 : navOrder.length - 1;
+    } else if (direction === 'down') {
+      // Move down in same column position
+      // Find which column we're in (0=name, 1=qty, 2=price for line items)
+      const parts = currentKey.split('_');
+      if (parts[0] === 'top') {
+        // From top row, go to first line item of same-ish column
+        if (currentKey === 'top_lotOverhead' && navOrder.length > 2) { focusCell(navOrder[2]); return; }
+        if (currentKey === 'top_commission' && navOrder.length > 2) { focusCell(navOrder[2]); return; }
+        return;
+      }
+      const field = parts[parts.length - 1];
+      const fieldCols = navOrder.filter(k => k.endsWith('_' + field));
+      const colIdx = fieldCols.indexOf(currentKey);
+      if (colIdx >= 0 && colIdx + 1 < fieldCols.length) { focusCell(fieldCols[colIdx + 1]); return; }
+      return;
+    } else if (direction === 'up') {
+      const parts = currentKey.split('_');
+      if (parts[0] === 'top') return;
+      const field = parts[parts.length - 1];
+      const fieldCols = navOrder.filter(k => k.endsWith('_' + field));
+      const colIdx = fieldCols.indexOf(currentKey);
+      if (colIdx > 0) { focusCell(fieldCols[colIdx - 1]); return; }
+      // At top of column, go to top row
+      if (field === 'name' || field === 'quantity') { focusCell('top_lotOverhead'); return; }
+      if (field === 'price_per_item') { focusCell('top_commission'); return; }
+      return;
+    } else if (direction === 'left') {
+      // Move left in same row
+      const parts = currentKey.split('_');
+      if (parts[0] === 'top') {
+        if (currentKey === 'top_commission') { focusCell('top_lotOverhead'); return; }
+        return;
+      }
+      const lineId = parts[1];
+      const field = parts[parts.length - 1];
+      if (field === 'quantity') { focusCell(`line_${lineId}_name`); return; }
+      if (field === 'price_per_item') { focusCell(`line_${lineId}_quantity`); return; }
+      return;
+    } else if (direction === 'right') {
+      const parts = currentKey.split('_');
+      if (parts[0] === 'top') {
+        if (currentKey === 'top_lotOverhead') { focusCell('top_commission'); return; }
+        return;
+      }
+      const lineId = parts[1];
+      const field = parts[parts.length - 1];
+      if (field === 'name') { focusCell(`line_${lineId}_quantity`); return; }
+      if (field === 'quantity') { focusCell(`line_${lineId}_price_per_item`); return; }
+      return;
+    }
+    if (nextIdx !== undefined) focusCell(navOrder[nextIdx]);
+  }, [navOrder, focusCell]);
+
+  const handleCellKeyPress = useCallback((e, cellKey) => {
+    if (Platform.OS !== 'web') return;
+    const key = e.nativeEvent?.key || e.key;
+    if (key === 'Tab') {
+      e.preventDefault?.();
+      navigateFrom(cellKey, e.shiftKey ? 'prev' : 'next');
+    } else if (key === 'ArrowDown') {
+      e.preventDefault?.();
+      navigateFrom(cellKey, 'down');
+    } else if (key === 'ArrowUp') {
+      e.preventDefault?.();
+      navigateFrom(cellKey, 'up');
+    } else if (key === 'ArrowLeft') {
+      // Only navigate if cursor is at start
+      const input = cellRefs.current[cellKey];
+      if (input?.selectionStart === 0 && input?.selectionEnd === 0) {
+        e.preventDefault?.();
+        navigateFrom(cellKey, 'left');
+      }
+    } else if (key === 'ArrowRight') {
+      const input = cellRefs.current[cellKey];
+      const val = input?.value || '';
+      if (input?.selectionStart === val.length && input?.selectionEnd === val.length) {
+        e.preventDefault?.();
+        navigateFrom(cellKey, 'right');
+      }
+    } else if (key === 'Enter') {
+      e.preventDefault?.();
+      navigateFrom(cellKey, 'down');
+    }
+  }, [navigateFrom]);
 
   // Compute totals
   const categorySubtotals = categories.reduce((sum, c) => sum + (c.subtotal || 0), 0);
@@ -8046,18 +8173,22 @@ const BidDetailView = ({ project, onProjectUpdate }) => {
   };
 
   const addLineItem = async (catId) => {
-    if (!lineName.trim()) return;
     try {
       const res = await apiFetch(`/bid-categories/${catId}/line-items`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: lineName.trim() }),
+        body: JSON.stringify({ name: 'New Item' }),
       });
       if (res.ok) {
         const updated = await res.json();
         setCategories(prev => prev.map(c => c.id === catId ? updated : c));
+        // Init edit state for new line item and focus its name
+        const newLi = updated.line_items[updated.line_items.length - 1];
+        if (newLi) {
+          setEditState(prev => ({ ...prev, [newLi.id]: { name: newLi.name, quantity: String(newLi.quantity), price_per_item: String(newLi.price_per_item) } }));
+          setTimeout(() => focusCell(`line_${newLi.id}_name`), 100);
+        }
       }
     } catch (e) { /* */ }
-    setLineName(''); setShowLineModal(null);
   };
 
   const updateLineItem = async (lineId, data, catId) => {
@@ -8073,34 +8204,39 @@ const BidDetailView = ({ project, onProjectUpdate }) => {
     } catch (e) { /* */ }
   };
 
+  const debounceSave = useCallback((lineId, catId, field, value) => {
+    const timerKey = `${lineId}_${field}`;
+    if (saveTimers.current[timerKey]) clearTimeout(saveTimers.current[timerKey]);
+    saveTimers.current[timerKey] = setTimeout(() => {
+      const es = editState[lineId] || {};
+      const payload = {};
+      if (field === 'name') payload.name = value;
+      else if (field === 'quantity') payload.quantity = parseFloat(value) || 0;
+      else if (field === 'price_per_item') payload.price_per_item = parseFloat(value) || 0;
+      updateLineItem(lineId, payload, catId);
+    }, 600);
+  }, [editState]);
+
+  const handleCellChange = useCallback((lineId, catId, field, value) => {
+    setEditState(prev => ({ ...prev, [lineId]: { ...prev[lineId], [field]: value } }));
+    debounceSave(lineId, catId, field, value);
+  }, [debounceSave]);
+
+  const toggleLineField = async (li, catId, field) => {
+    const newVal = !li[field];
+    await updateLineItem(li.id, { [field]: newVal }, catId);
+  };
+
   const deleteLineItem = async (lineId, catId) => {
     try {
       const res = await apiFetch(`/bid-line-items/${lineId}`, { method: 'DELETE' });
       if (res.ok) {
         const updated = await res.json();
         setCategories(prev => prev.map(c => c.id === catId ? updated : c));
+        setEditState(prev => { const n = { ...prev }; delete n[lineId]; return n; });
       }
     } catch (e) { /* */ }
     setConfirmDeleteLine(null);
-  };
-
-  const openEditLine = (li, catId) => {
-    setEditingLine({ lineItem: li, catId });
-    setEditFields({
-      name: li.name, quantity: String(li.quantity), price_per_item: String(li.price_per_item),
-      included: li.included, is_allowance: li.is_allowance,
-    });
-  };
-
-  const saveEditLine = async () => {
-    if (!editingLine) return;
-    const { lineItem, catId } = editingLine;
-    await updateLineItem(lineItem.id, {
-      name: editFields.name, quantity: parseFloat(editFields.quantity) || 0,
-      price_per_item: parseFloat(editFields.price_per_item) || 0,
-      included: editFields.included, is_allowance: editFields.is_allowance,
-    }, catId);
-    setEditingLine(null);
   };
 
   const fmt = (n) => {
@@ -8108,10 +8244,31 @@ const BidDetailView = ({ project, onProjectUpdate }) => {
     return num.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
   };
 
-  const cellS = { paddingVertical: 8, paddingHorizontal: 6, justifyContent: 'center' };
+  // Track focus state per cell for styling
+  const [focusedCell, setFocusedCell] = useState(null);
+
   const cellTxt = { fontSize: 14, color: C.text };
   const headerTxt = { fontSize: 12, fontWeight: '700', color: C.dm, textTransform: 'uppercase', letterSpacing: 0.5 };
   const rowBg = (i) => i % 2 === 0 ? 'transparent' : (C.w04 || 'rgba(255,255,255,0.04)');
+
+  // Register a web keydown listener for Tab interception (RN TextInput onKeyPress doesn't prevent default well)
+  const webKeyHandler = useCallback((cellKey) => {
+    if (Platform.OS !== 'web') return {};
+    return {
+      onKeyDown: (e) => {
+        const key = e.key;
+        if (key === 'Tab') { e.preventDefault(); navigateFrom(cellKey, e.shiftKey ? 'prev' : 'next'); }
+        else if (key === 'ArrowDown') { e.preventDefault(); navigateFrom(cellKey, 'down'); }
+        else if (key === 'ArrowUp') { e.preventDefault(); navigateFrom(cellKey, 'up'); }
+        else if (key === 'Enter') { e.preventDefault(); navigateFrom(cellKey, 'down'); }
+        else if (key === 'ArrowLeft') {
+          const el = e.target; if (el?.selectionStart === 0 && el?.selectionEnd === 0) { e.preventDefault(); navigateFrom(cellKey, 'left'); }
+        } else if (key === 'ArrowRight') {
+          const el = e.target; if (el?.selectionStart === el?.value?.length) { e.preventDefault(); navigateFrom(cellKey, 'right'); }
+        }
+      }
+    };
+  }, [navigateFrom]);
 
   if (loading) {
     return <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}><ActivityIndicator color={C.gd} size="large" /></View>;
@@ -8135,7 +8292,7 @@ const BidDetailView = ({ project, onProjectUpdate }) => {
         </TouchableOpacity>
       </View>
 
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16 }}>
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16 }} keyboardShouldPersistTaps="handled">
         {/* Top 3 summary rows: Overhead, Lot Overhead, Commission */}
         <View style={{ borderWidth: 1, borderColor: C.w12, borderRadius: 10, overflow: 'hidden', marginBottom: 20 }}>
           <View style={{ flexDirection: 'row', backgroundColor: C.w06, paddingVertical: 10, paddingHorizontal: 12 }}>
@@ -8151,26 +8308,34 @@ const BidDetailView = ({ project, onProjectUpdate }) => {
             <Text style={[cellTxt, { flex: 1, textAlign: 'right', fontWeight: '600' }]}>{fmt(overhead)}</Text>
           </View>
           {/* Lot Overhead (editable) */}
-          <View style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 12, borderTopWidth: 1, borderTopColor: C.w06, backgroundColor: rowBg(1) }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 6, paddingHorizontal: 12, borderTopWidth: 1, borderTopColor: C.w06, backgroundColor: rowBg(1) }}>
             <Text style={[cellTxt, { flex: 2, fontWeight: '600' }]}>Lot Overhead</Text>
             <View style={{ flex: 1, alignItems: 'flex-end' }}>
               <TextInput
+                ref={r => { cellRefs.current['top_lotOverhead'] = r; }}
                 value={lotOverheadText}
                 onChangeText={setLotOverheadText}
-                onBlur={() => { const v = parseFloat(lotOverheadText) || 0; setLotOverhead(v); setLotOverheadText(String(v)); saveBidField('bid_lot_overhead', v); }}
-                keyboardType="decimal-pad" style={[inputStyle, { textAlign: 'right', width: 120, paddingVertical: 6 }]}
+                onFocus={() => setFocusedCell('top_lotOverhead')}
+                onBlur={() => { setFocusedCell(null); const v = parseFloat(lotOverheadText) || 0; setLotOverhead(v); setLotOverheadText(String(v)); saveBidField('bid_lot_overhead', v); }}
+                keyboardType="decimal-pad"
+                style={[cellInputStyle, { textAlign: 'right', width: 130 }, focusedCell === 'top_lotOverhead' && cellInputFocused]}
+                {...webKeyHandler('top_lotOverhead')}
               />
             </View>
           </View>
           {/* Commission (editable) */}
-          <View style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 12, borderTopWidth: 1, borderTopColor: C.w06 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 6, paddingHorizontal: 12, borderTopWidth: 1, borderTopColor: C.w06 }}>
             <Text style={[cellTxt, { flex: 2, fontWeight: '600' }]}>Commission</Text>
             <View style={{ flex: 1, alignItems: 'flex-end' }}>
               <TextInput
+                ref={r => { cellRefs.current['top_commission'] = r; }}
                 value={commissionText}
                 onChangeText={setCommissionText}
-                onBlur={() => { const v = parseFloat(commissionText) || 0; setCommission(v); setCommissionText(String(v)); saveBidField('bid_commission', v); }}
-                keyboardType="decimal-pad" style={[inputStyle, { textAlign: 'right', width: 120, paddingVertical: 6 }]}
+                onFocus={() => setFocusedCell('top_commission')}
+                onBlur={() => { setFocusedCell(null); const v = parseFloat(commissionText) || 0; setCommission(v); setCommissionText(String(v)); saveBidField('bid_commission', v); }}
+                keyboardType="decimal-pad"
+                style={[cellInputStyle, { textAlign: 'right', width: 130 }, focusedCell === 'top_commission' && cellInputFocused]}
+                {...webKeyHandler('top_commission')}
               />
             </View>
           </View>
@@ -8183,13 +8348,13 @@ const BidDetailView = ({ project, onProjectUpdate }) => {
             <Text style={{ fontSize: 20, fontWeight: '600', color: C.text }}>No categories yet</Text>
             <Text style={{ fontSize: 15, color: C.dm, marginTop: 4 }}>Tap "Add Category" to get started</Text>
           </View>
-        ) : categories.map((cat, ci) => (
+        ) : categories.map((cat) => (
           <View key={cat.id} style={{ borderWidth: 1, borderColor: C.w12, borderRadius: 10, overflow: 'hidden', marginBottom: 16 }}>
             {/* Category header */}
             <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: C.gd + '15', paddingVertical: 10, paddingHorizontal: 12 }}>
               <Text style={{ flex: 1, fontSize: 16, fontWeight: '700', color: C.textBold }}>{cat.title}</Text>
               <Text style={{ fontSize: 14, fontWeight: '600', color: C.gd, marginRight: 12 }}>{fmt(cat.subtotal || 0)}</Text>
-              <TouchableOpacity onPress={() => { setShowLineModal(cat.id); setLineName(''); }} style={{ marginRight: 8 }}>
+              <TouchableOpacity onPress={() => addLineItem(cat.id)} style={{ marginRight: 8 }}>
                 <Feather name="plus-circle" size={20} color={C.gd} />
               </TouchableOpacity>
               <TouchableOpacity onPress={() => setConfirmDeleteCat(cat.id)}>
@@ -8199,41 +8364,100 @@ const BidDetailView = ({ project, onProjectUpdate }) => {
 
             {/* Column headers */}
             {(cat.line_items || []).length > 0 && (
-              <View style={{ flexDirection: 'row', paddingVertical: 6, paddingHorizontal: 12, borderTopWidth: 1, borderTopColor: C.w06, backgroundColor: C.w06 }}>
-                <Text style={[headerTxt, { flex: 2 }]}>Name</Text>
-                <Text style={[headerTxt, { flex: 1, textAlign: 'right' }]}>Qty</Text>
-                <Text style={[headerTxt, { flex: 1, textAlign: 'right' }]}>Price/Item</Text>
-                <Text style={[headerTxt, { flex: 1, textAlign: 'right' }]}>Total</Text>
-                <Text style={[headerTxt, { width: 50, textAlign: 'center' }]}>Incl</Text>
-                <Text style={[headerTxt, { width: 50, textAlign: 'center' }]}>Allow</Text>
-                <View style={{ width: 36 }} />
+              <View style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 6, paddingHorizontal: 8, borderTopWidth: 1, borderTopColor: C.w06, backgroundColor: C.w06 }}>
+                <Text style={[headerTxt, { flex: 3, paddingHorizontal: 4 }]}>Name</Text>
+                <Text style={[headerTxt, { flex: 1, textAlign: 'right', paddingHorizontal: 4 }]}>Qty</Text>
+                <Text style={[headerTxt, { flex: 1.5, textAlign: 'right', paddingHorizontal: 4 }]}>Price/Item</Text>
+                <Text style={[headerTxt, { flex: 1.5, textAlign: 'right', paddingHorizontal: 4 }]}>Total</Text>
+                <Text style={[headerTxt, { width: 44, textAlign: 'center' }]}>Incl</Text>
+                <Text style={[headerTxt, { width: 44, textAlign: 'center' }]}>Allow</Text>
+                <View style={{ width: 30 }} />
               </View>
             )}
 
-            {/* Line items */}
-            {(cat.line_items || []).map((li, idx) => (
-              <TouchableOpacity key={li.id} activeOpacity={0.7} onPress={() => openEditLine(li, cat.id)}
-                style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 8, paddingHorizontal: 12, borderTopWidth: 1, borderTopColor: C.w06, backgroundColor: rowBg(idx) }}>
-                <Text style={[cellTxt, { flex: 2 }]} numberOfLines={1}>{li.name}</Text>
-                <Text style={[cellTxt, { flex: 1, textAlign: 'right' }]}>{li.quantity}</Text>
-                <Text style={[cellTxt, { flex: 1, textAlign: 'right' }]}>{fmt(li.price_per_item)}</Text>
-                <Text style={[cellTxt, { flex: 1, textAlign: 'right', fontWeight: '600' }]}>{fmt(li.total_cost)}</Text>
-                <View style={{ width: 50, alignItems: 'center' }}>
-                  {li.included && <Feather name="check" size={16} color={C.gn || '#10b981'} />}
+            {/* Inline editable line items */}
+            {(cat.line_items || []).map((li, idx) => {
+              const es = editState[li.id] || { name: li.name, quantity: String(li.quantity), price_per_item: String(li.price_per_item) };
+              const lineTotal = (parseFloat(es.quantity) || 0) * (parseFloat(es.price_per_item) || 0);
+              const nameKey = `line_${li.id}_name`;
+              const qtyKey = `line_${li.id}_quantity`;
+              const priceKey = `line_${li.id}_price_per_item`;
+              return (
+                <View key={li.id} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 2, paddingHorizontal: 8, borderTopWidth: 1, borderTopColor: C.w06, backgroundColor: rowBg(idx) }}>
+                  {/* Name */}
+                  <View style={{ flex: 3, paddingHorizontal: 2 }}>
+                    <TextInput
+                      ref={r => { cellRefs.current[nameKey] = r; }}
+                      value={es.name}
+                      onChangeText={v => handleCellChange(li.id, cat.id, 'name', v)}
+                      onFocus={() => setFocusedCell(nameKey)}
+                      onBlur={() => setFocusedCell(null)}
+                      style={[cellInputStyle, focusedCell === nameKey && cellInputFocused]}
+                      {...webKeyHandler(nameKey)}
+                    />
+                  </View>
+                  {/* Quantity */}
+                  <View style={{ flex: 1, paddingHorizontal: 2 }}>
+                    <TextInput
+                      ref={r => { cellRefs.current[qtyKey] = r; }}
+                      value={es.quantity}
+                      onChangeText={v => handleCellChange(li.id, cat.id, 'quantity', v)}
+                      onFocus={() => setFocusedCell(qtyKey)}
+                      onBlur={() => setFocusedCell(null)}
+                      keyboardType="decimal-pad"
+                      style={[cellInputStyle, { textAlign: 'right' }, focusedCell === qtyKey && cellInputFocused]}
+                      {...webKeyHandler(qtyKey)}
+                    />
+                  </View>
+                  {/* Price Per Item */}
+                  <View style={{ flex: 1.5, paddingHorizontal: 2 }}>
+                    <TextInput
+                      ref={r => { cellRefs.current[priceKey] = r; }}
+                      value={es.price_per_item}
+                      onChangeText={v => handleCellChange(li.id, cat.id, 'price_per_item', v)}
+                      onFocus={() => setFocusedCell(priceKey)}
+                      onBlur={() => setFocusedCell(null)}
+                      keyboardType="decimal-pad"
+                      style={[cellInputStyle, { textAlign: 'right' }, focusedCell === priceKey && cellInputFocused]}
+                      {...webKeyHandler(priceKey)}
+                    />
+                  </View>
+                  {/* Total (auto, not editable) */}
+                  <View style={{ flex: 1.5, paddingHorizontal: 4 }}>
+                    <Text style={[cellTxt, { textAlign: 'right', fontWeight: '600' }]}>{fmt(lineTotal)}</Text>
+                  </View>
+                  {/* Included checkbox */}
+                  <TouchableOpacity onPress={() => toggleLineField(li, cat.id, 'included')} style={{ width: 44, alignItems: 'center', paddingVertical: 6 }}>
+                    <View style={{ width: 20, height: 20, borderRadius: 4, borderWidth: 2,
+                      borderColor: li.included ? (C.gn || '#10b981') : C.w12,
+                      backgroundColor: li.included ? (C.gn || '#10b981') : 'transparent',
+                      alignItems: 'center', justifyContent: 'center' }}>
+                      {li.included && <Feather name="check" size={12} color="#fff" />}
+                    </View>
+                  </TouchableOpacity>
+                  {/* Allowance checkbox */}
+                  <TouchableOpacity onPress={() => toggleLineField(li, cat.id, 'is_allowance')} style={{ width: 44, alignItems: 'center', paddingVertical: 6 }}>
+                    <View style={{ width: 20, height: 20, borderRadius: 4, borderWidth: 2,
+                      borderColor: li.is_allowance ? (C.bl || '#3b82f6') : C.w12,
+                      backgroundColor: li.is_allowance ? (C.bl || '#3b82f6') : 'transparent',
+                      alignItems: 'center', justifyContent: 'center' }}>
+                      {li.is_allowance && <Feather name="check" size={12} color="#fff" />}
+                    </View>
+                  </TouchableOpacity>
+                  {/* Delete */}
+                  <TouchableOpacity onPress={() => setConfirmDeleteLine({ id: li.id, catId: cat.id })} style={{ width: 30, alignItems: 'center' }}>
+                    <Feather name="x" size={15} color={C.rd || '#ef4444'} />
+                  </TouchableOpacity>
                 </View>
-                <View style={{ width: 50, alignItems: 'center' }}>
-                  {li.is_allowance && <Feather name="check" size={16} color={C.bl || '#3b82f6'} />}
-                </View>
-                <TouchableOpacity onPress={() => setConfirmDeleteLine({ id: li.id, catId: cat.id })} style={{ width: 36, alignItems: 'center' }}>
-                  <Feather name="x" size={16} color={C.rd || '#ef4444'} />
-                </TouchableOpacity>
-              </TouchableOpacity>
-            ))}
+              );
+            })}
 
             {(cat.line_items || []).length === 0 && (
-              <View style={{ paddingVertical: 20, alignItems: 'center', borderTopWidth: 1, borderTopColor: C.w06 }}>
-                <Text style={{ fontSize: 14, color: C.dm }}>No line items — tap + to add</Text>
-              </View>
+              <TouchableOpacity onPress={() => addLineItem(cat.id)}
+                style={{ paddingVertical: 16, alignItems: 'center', borderTopWidth: 1, borderTopColor: C.w06, flexDirection: 'row', justifyContent: 'center', gap: 6 }}>
+                <Feather name="plus" size={16} color={C.gd} />
+                <Text style={{ fontSize: 14, color: C.gd, fontWeight: '600' }}>Add line item</Text>
+              </TouchableOpacity>
             )}
           </View>
         ))}
@@ -8247,7 +8471,7 @@ const BidDetailView = ({ project, onProjectUpdate }) => {
         </View>
       </ScrollView>
 
-      {/* Add Category Modal */}
+      {/* Add Category Modal (kept since it's a single-field creation) */}
       <Modal visible={showCatModal} transparent animationType="fade">
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }}>
           <TouchableOpacity style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} activeOpacity={1} onPress={() => setShowCatModal(false)} />
@@ -8259,7 +8483,8 @@ const BidDetailView = ({ project, onProjectUpdate }) => {
             <View style={{ padding: 16, gap: 12 }}>
               <Text style={{ fontSize: 13, fontWeight: '600', color: C.dm, textTransform: 'uppercase', letterSpacing: 0.5 }}>Title</Text>
               <TextInput value={catTitle} onChangeText={setCatTitle} placeholder="e.g. Framing, Electrical..."
-                placeholderTextColor={C.dm + '80'} style={inputStyle} autoFocus />
+                placeholderTextColor={C.dm + '80'} style={inputStyle} autoFocus
+                onSubmitEditing={addCategory} />
             </View>
             <View style={{ flexDirection: 'row', gap: 10, padding: 16, borderTopWidth: 1, borderTopColor: C.w06 }}>
               <TouchableOpacity onPress={() => setShowCatModal(false)}
@@ -8269,103 +8494,6 @@ const BidDetailView = ({ project, onProjectUpdate }) => {
               <TouchableOpacity onPress={addCategory} disabled={!catTitle.trim()}
                 style={{ flex: 1, paddingVertical: 10, borderRadius: 8, backgroundColor: C.gd, alignItems: 'center', opacity: catTitle.trim() ? 1 : 0.4 }}>
                 <Text style={{ fontSize: 15, fontWeight: '700', color: '#fff' }}>Add</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Add Line Item Modal */}
-      <Modal visible={showLineModal !== null} transparent animationType="fade">
-        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }}>
-          <TouchableOpacity style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} activeOpacity={1} onPress={() => setShowLineModal(null)} />
-          <View style={{ width: 380, backgroundColor: C.modalBg || C.bg, borderRadius: 14, borderWidth: 1, borderColor: C.w12, overflow: 'hidden', ...(Platform.OS === 'web' ? { boxShadow: '0 12px 40px rgba(0,0,0,0.3)' } : { elevation: 20 }) }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16, borderBottomWidth: 1, borderBottomColor: C.w06 }}>
-              <Text style={{ fontSize: 18, fontWeight: '700', color: C.textBold }}>New Line Item</Text>
-              <TouchableOpacity onPress={() => setShowLineModal(null)}><Text style={{ fontSize: 26, color: C.dm }}>×</Text></TouchableOpacity>
-            </View>
-            <View style={{ padding: 16, gap: 12 }}>
-              <Text style={{ fontSize: 13, fontWeight: '600', color: C.dm, textTransform: 'uppercase', letterSpacing: 0.5 }}>Name</Text>
-              <TextInput value={lineName} onChangeText={setLineName} placeholder="e.g. 2x4 Lumber"
-                placeholderTextColor={C.dm + '80'} style={inputStyle} autoFocus />
-            </View>
-            <View style={{ flexDirection: 'row', gap: 10, padding: 16, borderTopWidth: 1, borderTopColor: C.w06 }}>
-              <TouchableOpacity onPress={() => setShowLineModal(null)}
-                style={{ flex: 1, paddingVertical: 10, borderRadius: 8, borderWidth: 1, borderColor: C.w12, alignItems: 'center' }}>
-                <Text style={{ fontSize: 15, fontWeight: '600', color: C.dm }}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => addLineItem(showLineModal)} disabled={!lineName.trim()}
-                style={{ flex: 1, paddingVertical: 10, borderRadius: 8, backgroundColor: C.gd, alignItems: 'center', opacity: lineName.trim() ? 1 : 0.4 }}>
-                <Text style={{ fontSize: 15, fontWeight: '700', color: '#fff' }}>Add</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Edit Line Item Modal */}
-      <Modal visible={editingLine !== null} transparent animationType="fade">
-        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }}>
-          <TouchableOpacity style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} activeOpacity={1} onPress={() => setEditingLine(null)} />
-          <View style={{ width: 420, backgroundColor: C.modalBg || C.bg, borderRadius: 14, borderWidth: 1, borderColor: C.w12, overflow: 'hidden', ...(Platform.OS === 'web' ? { boxShadow: '0 12px 40px rgba(0,0,0,0.3)' } : { elevation: 20 }) }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16, borderBottomWidth: 1, borderBottomColor: C.w06 }}>
-              <Text style={{ fontSize: 18, fontWeight: '700', color: C.textBold }}>Edit Line Item</Text>
-              <TouchableOpacity onPress={() => setEditingLine(null)}><Text style={{ fontSize: 26, color: C.dm }}>×</Text></TouchableOpacity>
-            </View>
-            <ScrollView contentContainerStyle={{ padding: 16, gap: 14 }} keyboardShouldPersistTaps="handled">
-              <View>
-                <Text style={{ fontSize: 13, fontWeight: '600', color: C.dm, marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5 }}>Name</Text>
-                <TextInput value={editFields.name || ''} onChangeText={v => setEditFields(p => ({ ...p, name: v }))} style={inputStyle} />
-              </View>
-              <View style={{ flexDirection: 'row', gap: 10 }}>
-                <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 13, fontWeight: '600', color: C.dm, marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5 }}>Quantity</Text>
-                  <TextInput value={editFields.quantity || ''} onChangeText={v => setEditFields(p => ({ ...p, quantity: v }))}
-                    keyboardType="decimal-pad" style={inputStyle} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 13, fontWeight: '600', color: C.dm, marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5 }}>Price Per Item</Text>
-                  <TextInput value={editFields.price_per_item || ''} onChangeText={v => setEditFields(p => ({ ...p, price_per_item: v }))}
-                    keyboardType="decimal-pad" style={inputStyle} />
-                </View>
-              </View>
-              <View style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 6 }}>
-                <Text style={{ fontSize: 15, fontWeight: '600', color: C.text, marginRight: 4 }}>Total Cost:</Text>
-                <Text style={{ fontSize: 15, fontWeight: '700', color: C.gd }}>
-                  {fmt((parseFloat(editFields.quantity) || 0) * (parseFloat(editFields.price_per_item) || 0))}
-                </Text>
-              </View>
-              <View style={{ flexDirection: 'row', gap: 24 }}>
-                <TouchableOpacity onPress={() => setEditFields(p => ({ ...p, included: !p.included }))}
-                  style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                  <View style={{ width: 22, height: 22, borderRadius: 4, borderWidth: 2,
-                    borderColor: editFields.included ? (C.gn || '#10b981') : C.w12,
-                    backgroundColor: editFields.included ? (C.gn || '#10b981') : 'transparent',
-                    alignItems: 'center', justifyContent: 'center' }}>
-                    {editFields.included && <Feather name="check" size={14} color="#fff" />}
-                  </View>
-                  <Text style={{ fontSize: 15, color: C.text }}>Included</Text>
-                </TouchableOpacity>
-                <TouchableOpacity onPress={() => setEditFields(p => ({ ...p, is_allowance: !p.is_allowance }))}
-                  style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                  <View style={{ width: 22, height: 22, borderRadius: 4, borderWidth: 2,
-                    borderColor: editFields.is_allowance ? (C.bl || '#3b82f6') : C.w12,
-                    backgroundColor: editFields.is_allowance ? (C.bl || '#3b82f6') : 'transparent',
-                    alignItems: 'center', justifyContent: 'center' }}>
-                    {editFields.is_allowance && <Feather name="check" size={14} color="#fff" />}
-                  </View>
-                  <Text style={{ fontSize: 15, color: C.text }}>Allowance</Text>
-                </TouchableOpacity>
-              </View>
-            </ScrollView>
-            <View style={{ flexDirection: 'row', gap: 10, padding: 16, borderTopWidth: 1, borderTopColor: C.w06 }}>
-              <TouchableOpacity onPress={() => setEditingLine(null)}
-                style={{ flex: 1, paddingVertical: 10, borderRadius: 8, borderWidth: 1, borderColor: C.w12, alignItems: 'center' }}>
-                <Text style={{ fontSize: 15, fontWeight: '600', color: C.dm }}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={saveEditLine}
-                style={{ flex: 1, paddingVertical: 10, borderRadius: 8, backgroundColor: C.gd, alignItems: 'center' }}>
-                <Text style={{ fontSize: 15, fontWeight: '700', color: '#fff' }}>Save</Text>
               </TouchableOpacity>
             </View>
           </View>
