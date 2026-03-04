@@ -676,23 +676,25 @@ export default function Dashboard() {
                 <Text style={{ fontSize: 20, color: C.gd }}>ⓘ</Text>
               </TouchableOpacity>
             )}
-            <TouchableOpacity
-              onPress={(e) => {
-                e.stopPropagation();
-                if (selectedProject?.id === project.id) {
-                  setClientView(prev => !prev);
-                } else {
-                  setSelectedProject(project);
-                  setSelectedSubdivision(null);
-                  setClientView(true);
-                }
-              }}
-              style={{ paddingVertical: 6, paddingHorizontal: 10 }}
-              activeOpacity={0.6}
-              hitSlop={{ top: 4, bottom: 4, left: 8, right: 8 }}
-            >
-              <Feather name="eye" size={18} color={clientView ? C.gn : C.gd} />
-            </TouchableOpacity>
+            {!project.is_bid && (
+              <TouchableOpacity
+                onPress={(e) => {
+                  e.stopPropagation();
+                  if (selectedProject?.id === project.id) {
+                    setClientView(prev => !prev);
+                  } else {
+                    setSelectedProject(project);
+                    setSelectedSubdivision(null);
+                    setClientView(true);
+                  }
+                }}
+                style={{ paddingVertical: 6, paddingHorizontal: 10 }}
+                activeOpacity={0.6}
+                hitSlop={{ top: 4, bottom: 4, left: 8, right: 8 }}
+              >
+                <Feather name="eye" size={18} color={clientView ? C.gn : C.gd} />
+              </TouchableOpacity>
+            )}
           </View>
         )}
       </TouchableOpacity>
@@ -3451,7 +3453,7 @@ export default function Dashboard() {
                 <View style={{ padding: 14, borderBottomWidth: 1, borderBottomColor: C.w06 }}>
                   <Text style={{ fontSize: 18, fontWeight: '700', color: C.textBold }} numberOfLines={1}>{projectActionMenu.name}</Text>
                 </View>
-                {projectActionMenu.on_hold ? (
+                {!projectActionMenu.is_bid && (projectActionMenu.on_hold ? (
                   <TouchableOpacity onPress={() => toggleProjectHold(projectActionMenu, 'release')}
                     style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 14, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: C.w06, backgroundColor: 'rgba(245,158,11,0.08)' }} activeOpacity={0.7}>
                     <Text style={{ fontSize: 20 }}>▶️</Text>
@@ -3464,27 +3466,31 @@ export default function Dashboard() {
                     <Text style={{ fontSize: 18, fontWeight: '500', color: C.text }}>On Hold</Text>
                     {!projectActionMenu.go_live && <Text style={{ fontSize: 13, color: C.dm, marginLeft: 'auto' }}>Requires Go Live</Text>}
                   </TouchableOpacity>
+                ))}
+                {!projectActionMenu.is_bid && (
+                  <TouchableOpacity onPress={() => projectActionMenu.go_live ? openExceptionModal(projectActionMenu) : null}
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 14, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: C.w06, opacity: projectActionMenu.go_live ? 1 : 0.4 }} activeOpacity={0.7}>
+                    <Feather name="alert-triangle" size={20} color={C.yl || '#f59e0b'} />
+                    <Text style={{ fontSize: 18, fontWeight: '500', color: C.text }}>Exception</Text>
+                    {!projectActionMenu.go_live && <Text style={{ fontSize: 13, color: C.dm, marginLeft: 'auto' }}>Requires Go Live</Text>}
+                  </TouchableOpacity>
                 )}
-                <TouchableOpacity onPress={() => projectActionMenu.go_live ? openExceptionModal(projectActionMenu) : null}
-                  style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 14, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: C.w06, opacity: projectActionMenu.go_live ? 1 : 0.4 }} activeOpacity={0.7}>
-                  <Feather name="alert-triangle" size={20} color={C.yl || '#f59e0b'} />
-                  <Text style={{ fontSize: 18, fontWeight: '500', color: C.text }}>Exception</Text>
-                  {!projectActionMenu.go_live && <Text style={{ fontSize: 13, color: C.dm, marginLeft: 'auto' }}>Requires Go Live</Text>}
-                </TouchableOpacity>
-                <TouchableOpacity onPress={() => {
-                  const proj = projectActionMenu;
-                  setShowClientTaskModal(proj); setProjectActionMenu(null);
-                  setCtTitle(''); setCtDescription(''); setCtDueDate(''); setCtImageB64('');
-                  setCtLinkedTaskId(null); setCtLinkedDateType('end'); setCtShowTaskPicker(false); setCtScheduleTasks([]);
-                  // Fetch schedule tasks for this project
-                  apiFetch(`/projects/${proj.id}/schedule`).then(r => r.json()).then(data => {
-                    if (Array.isArray(data)) setCtScheduleTasks(data.filter(t => !t.is_exception));
-                  }).catch(() => {});
-                }}
-                  style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 14, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: C.w06 }} activeOpacity={0.7}>
-                  <Feather name="check-square" size={20} color={C.bl} />
-                  <Text style={{ fontSize: 18, fontWeight: '500', color: C.text }}>Make Client Task</Text>
-                </TouchableOpacity>
+                {!projectActionMenu.is_bid && (
+                  <TouchableOpacity onPress={() => {
+                    const proj = projectActionMenu;
+                    setShowClientTaskModal(proj); setProjectActionMenu(null);
+                    setCtTitle(''); setCtDescription(''); setCtDueDate(''); setCtImageB64('');
+                    setCtLinkedTaskId(null); setCtLinkedDateType('end'); setCtShowTaskPicker(false); setCtScheduleTasks([]);
+                    // Fetch schedule tasks for this project
+                    apiFetch(`/projects/${proj.id}/schedule`).then(r => r.json()).then(data => {
+                      if (Array.isArray(data)) setCtScheduleTasks(data.filter(t => !t.is_exception));
+                    }).catch(() => {});
+                  }}
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 14, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: C.w06 }} activeOpacity={0.7}>
+                    <Feather name="check-square" size={20} color={C.bl} />
+                    <Text style={{ fontSize: 18, fontWeight: '500', color: C.text }}>Make Client Task</Text>
+                  </TouchableOpacity>
+                )}
                 <TouchableOpacity onPress={() => { setShowDeleteConfirm(projectActionMenu); setProjectActionMenu(null); setDeleteConfirmName(''); setDeletingProject(false); }}
                   style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 14, paddingHorizontal: 16 }} activeOpacity={0.7}>
                   <Feather name="trash-2" size={20} color={C.rd} />
