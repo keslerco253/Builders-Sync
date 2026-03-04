@@ -317,6 +317,8 @@ export default function Dashboard() {
   const [projectSearch, setProjectSearch] = useState('');
   const [showOpen, setShowOpen] = useState(true);
   const [showClosed, setShowClosed] = useState(false);
+  const [showBids, setShowBids] = useState(true);
+  const [showFilterMenu, setShowFilterMenu] = useState(false);
   const syncRef = useRef(null);
   const lastProjectTapRef = useRef({});
   const [companyLogo, setCompanyLogo] = useState(null);
@@ -640,7 +642,12 @@ export default function Dashboard() {
             <Text style={[st.jobName, active && st.jobNameActive, { flex: 1 }]} numberOfLines={1}>
               {project.name}
             </Text>
-            {project.on_hold && (
+            {project.is_bid && (
+              <View style={{ backgroundColor: '#3b82f6', borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2 }}>
+                <Text style={{ fontSize: 11, fontWeight: '800', color: '#fff', letterSpacing: 0.5 }}>BID</Text>
+              </View>
+            )}
+            {project.on_hold && !project.is_bid && (
               <View style={{ backgroundColor: '#f59e0b', borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2 }}>
                 <Text style={{ fontSize: 11, fontWeight: '800', color: '#fff', letterSpacing: 0.5 }}>HOLD</Text>
               </View>
@@ -803,14 +810,14 @@ export default function Dashboard() {
     if (sidebarFilter) {
       result = result.filter(p => p.subdivision_id === sidebarFilter);
     }
-    // Open/Closed toggle filter
-    if (showOpen && !showClosed) {
-      result = result.filter(p => (p.phase || '').toLowerCase() !== 'closed');
-    } else if (!showOpen && showClosed) {
-      result = result.filter(p => (p.phase || '').toLowerCase() === 'closed');
-    } else if (!showOpen && !showClosed) {
-      result = [];
-    }
+    // Phase/Bid filter
+    result = result.filter(p => {
+      const isBid = !!p.is_bid;
+      if (isBid) return showBids;
+      const phase = (p.phase || '').toLowerCase();
+      if (phase === 'closed') return showClosed;
+      return showOpen;
+    });
     // Search filter
     if (projectSearch.trim()) {
       const q = projectSearch.toLowerCase();
@@ -828,7 +835,7 @@ export default function Dashboard() {
       );
     }
     return result;
-  }, [projects, projectSearch, showOpen, showClosed, sidebarFilter]);
+  }, [projects, projectSearch, showOpen, showClosed, showBids, sidebarFilter]);
 
   // Filter subs by search
   const filteredSubs = React.useMemo(() => {
@@ -903,15 +910,10 @@ export default function Dashboard() {
           </View>
         </TouchableOpacity>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-          <TouchableOpacity onPress={() => setShowOpen(p => !p)}
-            style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 6, borderWidth: 1, borderColor: showOpen ? 'rgba(16,185,129,0.4)' : C.sw10, backgroundColor: showOpen ? 'rgba(16,185,129,0.15)' : 'transparent' }}
+          <TouchableOpacity onPress={() => setShowFilterMenu(p => !p)}
+            style={{ padding: 6, borderRadius: 6, borderWidth: 1, borderColor: C.sw10, backgroundColor: 'transparent' }}
             activeOpacity={0.7}>
-            <Text style={{ fontSize: 13, fontWeight: showOpen ? '700' : '500', color: showOpen ? '#10b981' : C.chromeTxt }}>Open</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => setShowClosed(p => !p)}
-            style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 6, borderWidth: 1, borderColor: showClosed ? 'rgba(239,68,68,0.4)' : C.sw10, backgroundColor: showClosed ? 'rgba(239,68,68,0.15)' : 'transparent' }}
-            activeOpacity={0.7}>
-            <Text style={{ fontSize: 13, fontWeight: showClosed ? '700' : '500', color: showClosed ? '#ef4444' : C.chromeTxt }}>Closed</Text>
+            <Feather name="filter" size={16} color={C.chromeTxt} />
           </TouchableOpacity>
           {isBuilder && (
             <TouchableOpacity onPress={() => setShowAddMenu(p => !p)} style={st.addBtn} activeOpacity={0.8}>
@@ -3411,7 +3413,33 @@ export default function Dashboard() {
         </Modal>
       )}
 
-      {/* Add Menu (New Project / New Subdivision) */}
+      {/* Filter Menu (Open / Closed / Bid) */}
+      {showFilterMenu && (
+        <Modal visible animationType="fade" transparent>
+          <TouchableOpacity style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.3)', justifyContent: 'center', alignItems: 'center' }} activeOpacity={1} onPress={() => setShowFilterMenu(false)}>
+            <TouchableOpacity activeOpacity={1} onPress={e => e.stopPropagation()}>
+              <View style={{ width: 240, backgroundColor: C.cardBg || C.card, borderRadius: 12, borderWidth: 1, borderColor: C.w12, overflow: 'hidden', ...(Platform.OS === 'web' ? { boxShadow: '0 10px 30px rgba(0,0,0,0.35)' } : { elevation: 20 }) }}>
+                <View style={{ padding: 14, borderBottomWidth: 1, borderBottomColor: C.w06 }}>
+                  <Text style={{ fontSize: 18, fontWeight: '700', color: C.textBold }}>Show</Text>
+                </View>
+                {[
+                  { key: 'open', label: 'Open', value: showOpen, toggle: setShowOpen, color: '#10b981' },
+                  { key: 'closed', label: 'Closed', value: showClosed, toggle: setShowClosed, color: '#ef4444' },
+                  { key: 'bid', label: 'Bids', value: showBids, toggle: setShowBids, color: '#3b82f6' },
+                ].map(opt => (
+                  <TouchableOpacity key={opt.key} onPress={() => opt.toggle(p => !p)}
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 12, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: C.w06 }} activeOpacity={0.7}>
+                    <View style={{ width: 22, height: 22, borderRadius: 6, borderWidth: 2, borderColor: opt.value ? opt.color : C.w15, backgroundColor: opt.value ? opt.color : 'transparent', alignItems: 'center', justifyContent: 'center' }}>
+                      {opt.value && <Feather name="check" size={14} color="#fff" />}
+                    </View>
+                    <Text style={{ fontSize: 17, fontWeight: opt.value ? '600' : '400', color: opt.value ? C.text : C.dm }}>{opt.label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </Modal>
+      )}
 
       {/* Project Action Menu (ⓘ button) */}
       {projectActionMenu && !showDeleteConfirm && (
@@ -3996,10 +4024,17 @@ export default function Dashboard() {
                   </View>
                 </TouchableOpacity>
                 <TouchableOpacity onPress={() => { setShowAddMenu(false); setShowNewSubdivModal(true); }}
-                  style={{ paddingVertical: 14, paddingHorizontal: 16 }} activeOpacity={0.7}>
+                  style={{ paddingVertical: 14, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: C.w06 }} activeOpacity={0.7}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                     <Feather name="folder" size={19} color={C.text} />
                     <Text style={{ fontSize: 19, fontWeight: '600', color: C.text }}>New Subdivision</Text>
+                  </View>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => { setShowAddMenu(false); setModal('newbid'); }}
+                  style={{ paddingVertical: 14, paddingHorizontal: 16 }} activeOpacity={0.7}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <Feather name="file-text" size={19} color={C.text} />
+                    <Text style={{ fontSize: 19, fontWeight: '600', color: C.text }}>New Bid</Text>
                   </View>
                 </TouchableOpacity>
               </View>
@@ -4020,6 +4055,19 @@ export default function Dashboard() {
             setSelectedProject(newProj);
             setModal(null);
             Alert.alert('Success', `"${newProj.name}" created`);
+          }}
+        />
+      )}
+
+      {modal === 'newbid' && (
+        <NewBidModal
+          onClose={() => setModal(null)}
+          currentUser={user}
+          onCreated={(newBid) => {
+            setProjects(prev => [newBid, ...prev]);
+            setSelectedProject(newBid);
+            setModal(null);
+            Alert.alert('Success', `Bid "${newBid.name}" created`);
           }}
         />
       )}
@@ -7800,6 +7848,111 @@ const WorkdayExemptionsModal = ({ onClose }) => {
           </ScrollView>
         </View>
       </View>
+    </Modal>
+  );
+};
+
+
+// ============================================================
+// NEW BID MODAL
+// ============================================================
+const NewBidModal = ({ onClose, onCreated, currentUser }) => {
+  const C = React.useContext(ThemeContext);
+  const { user } = React.useContext(AuthContext);
+  const [f, sF] = useState({
+    name: '', client_first_name: '', client_last_name: '',
+    client_phone: '', client_email: '', bid_address: '',
+  });
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState('');
+  const set = (key, val) => sF(prev => ({ ...prev, [key]: val }));
+
+  const inputStyle = {
+    fontSize: 16, color: C.text, borderWidth: 1, borderColor: C.w12,
+    borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, backgroundColor: C.w04,
+    ...(Platform.OS === 'web' ? { outlineStyle: 'none' } : {}),
+  };
+
+  const create = async () => {
+    if (!f.name.trim()) { setErr('Bid name is required'); return; }
+    setLoading(true); setErr('');
+    try {
+      const res = await apiFetch('/bids', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...f, created_by: user.id }),
+      });
+      if (!res.ok) { const d = await res.json(); setErr(d.error || 'Failed'); setLoading(false); return; }
+      const newBid = await res.json();
+      onCreated(newBid);
+    } catch (e) { setErr(e.message); setLoading(false); }
+  };
+
+  return (
+    <Modal visible animationType="slide" transparent>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }}>
+          <TouchableOpacity style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} activeOpacity={1} onPress={onClose} />
+          <View style={{ width: 440, maxHeight: '85%', backgroundColor: C.modalBg || C.bg, borderRadius: 16, borderWidth: 1, borderColor: C.w12, overflow: 'hidden', ...(Platform.OS === 'web' ? { boxShadow: '0 12px 40px rgba(0,0,0,0.3)' } : { elevation: 20 }) }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16, borderBottomWidth: 1, borderBottomColor: C.w06 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Feather name="file-text" size={22} color={C.gd} />
+                <Text style={{ fontSize: 20, fontWeight: '700', color: C.textBold }}>New Bid</Text>
+              </View>
+              <TouchableOpacity onPress={onClose}><Text style={{ fontSize: 28, color: C.dm }}>×</Text></TouchableOpacity>
+            </View>
+            <ScrollView contentContainerStyle={{ padding: 16, gap: 14 }} keyboardShouldPersistTaps="handled">
+              {err ? <View style={{ backgroundColor: 'rgba(239,68,68,0.1)', borderRadius: 8, padding: 10, borderWidth: 1, borderColor: 'rgba(239,68,68,0.2)' }}><Text style={{ color: '#ef4444', fontSize: 14 }}>{err}</Text></View> : null}
+
+              <View>
+                <Text style={{ fontSize: 13, fontWeight: '600', color: C.dm, marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5 }}>Bid Name *</Text>
+                <TextInput value={f.name} onChangeText={v => set('name', v)} placeholder="e.g. Smith Residence"
+                  placeholderTextColor={C.dm + '80'} style={inputStyle} />
+              </View>
+
+              <View style={{ flexDirection: 'row', gap: 10 }}>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 13, fontWeight: '600', color: C.dm, marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5 }}>Client First Name</Text>
+                  <TextInput value={f.client_first_name} onChangeText={v => set('client_first_name', v)} placeholder="Jane"
+                    placeholderTextColor={C.dm + '80'} style={inputStyle} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 13, fontWeight: '600', color: C.dm, marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5 }}>Client Last Name</Text>
+                  <TextInput value={f.client_last_name} onChangeText={v => set('client_last_name', v)} placeholder="Smith"
+                    placeholderTextColor={C.dm + '80'} style={inputStyle} />
+                </View>
+              </View>
+
+              <View>
+                <Text style={{ fontSize: 13, fontWeight: '600', color: C.dm, marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5 }}>Client Phone</Text>
+                <TextInput value={f.client_phone} onChangeText={v => set('client_phone', v)} placeholder="(555) 123-4567"
+                  placeholderTextColor={C.dm + '80'} keyboardType="phone-pad" style={inputStyle} />
+              </View>
+
+              <View>
+                <Text style={{ fontSize: 13, fontWeight: '600', color: C.dm, marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5 }}>Client Email</Text>
+                <TextInput value={f.client_email} onChangeText={v => set('client_email', v)} placeholder="jane@email.com"
+                  placeholderTextColor={C.dm + '80'} keyboardType="email-address" autoCapitalize="none" style={inputStyle} />
+              </View>
+
+              <View>
+                <Text style={{ fontSize: 13, fontWeight: '600', color: C.dm, marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5 }}>Bid Address</Text>
+                <TextInput value={f.bid_address} onChangeText={v => set('bid_address', v)} placeholder="123 Main St, City, ST 12345"
+                  placeholderTextColor={C.dm + '80'} style={inputStyle} />
+              </View>
+            </ScrollView>
+            <View style={{ flexDirection: 'row', gap: 10, padding: 16, borderTopWidth: 1, borderTopColor: C.w06 }}>
+              <TouchableOpacity onPress={onClose}
+                style={{ flex: 1, paddingVertical: 12, borderRadius: 8, borderWidth: 1, borderColor: C.w12, alignItems: 'center' }} activeOpacity={0.7}>
+                <Text style={{ fontSize: 16, fontWeight: '600', color: C.dm }}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={create} disabled={!f.name.trim() || loading}
+                style={{ flex: 1, paddingVertical: 12, borderRadius: 8, backgroundColor: C.gd, alignItems: 'center', opacity: (!f.name.trim() || loading) ? 0.4 : 1 }} activeOpacity={0.7}>
+                <Text style={{ fontSize: 16, fontWeight: '700', color: C.textBold }}>{loading ? 'Creating...' : 'Create Bid'}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 };
