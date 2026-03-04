@@ -5069,28 +5069,32 @@ export default function Dashboard() {
                 <Text style={{ fontSize: 20, color: C.gd, fontWeight: '600' }}>Back to My Dashboard</Text>
               </TouchableOpacity>
             )}
-            <CurrentProjectViewer
-              key={contractorProject.id}
-              embedded
-              project={contractorProject}
-              clientView={clientView}
-              onClientViewToggle={() => setClientView(false)}
-              activeTab={activeTab}
-              activeSub={activeSub}
-              onTabChange={setActiveTab}
-              onSubChange={setActiveSub}
-              onProjectUpdate={handleProjectUpdate}
-              onProjectDeleted={handleProjectDeleted}
-              scheduleVersion={scheduleVersion}
-              onScheduleChange={handleScheduleChange}
-              syncRef={syncRef}
-              subdivisions={subdivisions}
-              builderTrades={builderTrades}
-              floorPlans={floorPlans}
-              calYear={globalCalMonth.getFullYear()}
-              calMonth={globalCalMonth.getMonth()}
-              onMonthChange={(y, m) => setGlobalCalMonth(new Date(y, m, 1))}
-            />
+            {contractorProject?.is_bid ? (
+              <BidDetailView key={contractorProject.id} project={contractorProject} onProjectUpdate={handleProjectUpdate} />
+            ) : (
+              <CurrentProjectViewer
+                key={contractorProject.id}
+                embedded
+                project={contractorProject}
+                clientView={clientView}
+                onClientViewToggle={() => setClientView(false)}
+                activeTab={activeTab}
+                activeSub={activeSub}
+                onTabChange={setActiveTab}
+                onSubChange={setActiveSub}
+                onProjectUpdate={handleProjectUpdate}
+                onProjectDeleted={handleProjectDeleted}
+                scheduleVersion={scheduleVersion}
+                onScheduleChange={handleScheduleChange}
+                syncRef={syncRef}
+                subdivisions={subdivisions}
+                builderTrades={builderTrades}
+                floorPlans={floorPlans}
+                calYear={globalCalMonth.getFullYear()}
+                calMonth={globalCalMonth.getMonth()}
+                onMonthChange={(y, m) => setGlobalCalMonth(new Date(y, m, 1))}
+              />
+            )}
           </View>
         ) : selectedSubdivision ? (
           <View style={{ flex: 1, minHeight: 0 }}>
@@ -5172,6 +5176,8 @@ export default function Dashboard() {
               <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
                 <ActivityIndicator color={C.gd} size="large" />
               </View>
+            ) : selectedProject?.is_bid ? (
+              <BidDetailView project={selectedProject} onProjectUpdate={handleProjectUpdate} />
             ) : selectedProject ? (
               <CurrentProjectViewer
                 embedded
@@ -5256,15 +5262,10 @@ export default function Dashboard() {
                     </View>
                   </TouchableOpacity>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                    <TouchableOpacity onPress={() => setShowOpen(p => !p)}
-                      style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 6, borderWidth: 1, borderColor: showOpen ? 'rgba(16,185,129,0.4)' : C.sw10, backgroundColor: showOpen ? 'rgba(16,185,129,0.15)' : 'transparent' }}
+                    <TouchableOpacity onPress={() => setShowFilterMenu(p => !p)}
+                      style={{ padding: 6, borderRadius: 6, borderWidth: 1, borderColor: C.sw10, backgroundColor: 'transparent' }}
                       activeOpacity={0.7}>
-                      <Text style={{ fontSize: 13, fontWeight: showOpen ? '700' : '500', color: showOpen ? '#10b981' : C.chromeTxt }}>Open</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity onPress={() => setShowClosed(p => !p)}
-                      style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 6, borderWidth: 1, borderColor: showClosed ? 'rgba(239,68,68,0.4)' : C.sw10, backgroundColor: showClosed ? 'rgba(239,68,68,0.15)' : 'transparent' }}
-                      activeOpacity={0.7}>
-                      <Text style={{ fontSize: 13, fontWeight: showClosed ? '700' : '500', color: showClosed ? '#ef4444' : C.chromeTxt }}>Closed</Text>
+                      <Feather name="filter" size={16} color={C.chromeTxt} />
                     </TouchableOpacity>
                     {isBuilder && (
                       <TouchableOpacity onPress={() => setShowAddMenu(p => !p)} style={st.addBtn} activeOpacity={0.8}>
@@ -5480,7 +5481,9 @@ export default function Dashboard() {
           {/* Detail pane */}
           <View style={{ flex: 1, borderLeftWidth: 1, borderLeftColor: C.bd, minHeight: 0 }}>
             {dashView === 'projects' ? (
-              selectedProject ? (
+              selectedProject?.is_bid ? (
+                <BidDetailView project={selectedProject} onProjectUpdate={handleProjectUpdate} />
+              ) : selectedProject ? (
                 <CurrentProjectViewer
                   embedded
                   project={selectedProject}
@@ -5498,7 +5501,7 @@ export default function Dashboard() {
                   subdivisions={subdivisions}
                   builderTrades={builderTrades}
                   floorPlans={floorPlans}
-              calYear={globalCalMonth.getFullYear()}
+                  calYear={globalCalMonth.getFullYear()}
                   calMonth={globalCalMonth.getMonth()}
                   onMonthChange={(y, m) => setGlobalCalMonth(new Date(y, m, 1))}
                 />
@@ -5518,6 +5521,8 @@ export default function Dashboard() {
           showingDetail ? (
             selectedSubdivision ? (
               renderSubdivisionDetail()
+            ) : selectedProject?.is_bid ? (
+              <BidDetailView project={selectedProject} onProjectUpdate={handleProjectUpdate} />
             ) : (
             <CurrentProjectViewer
               embedded
@@ -7954,6 +7959,460 @@ const NewBidModal = ({ onClose, onCreated, currentUser }) => {
         </View>
       </KeyboardAvoidingView>
     </Modal>
+  );
+};
+
+
+// ============================================================
+// BID DETAIL VIEW — spreadsheet-like single page for bids
+// ============================================================
+const BidDetailView = ({ project, onProjectUpdate }) => {
+  const C = React.useContext(ThemeContext);
+  const [categories, setCategories] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [lotOverhead, setLotOverhead] = useState(project.bid_lot_overhead || 0);
+  const [commission, setCommission] = useState(project.bid_commission || 0);
+  const [lotOverheadText, setLotOverheadText] = useState(String(project.bid_lot_overhead || 0));
+  const [commissionText, setCommissionText] = useState(String(project.bid_commission || 0));
+  const [showCatModal, setShowCatModal] = useState(false);
+  const [catTitle, setCatTitle] = useState('');
+  const [showLineModal, setShowLineModal] = useState(null); // category id
+  const [lineName, setLineName] = useState('');
+  const [editingLine, setEditingLine] = useState(null); // { lineItem, catId }
+  const [editFields, setEditFields] = useState({});
+  const [confirmDeleteCat, setConfirmDeleteCat] = useState(null);
+  const [confirmDeleteLine, setConfirmDeleteLine] = useState(null);
+
+  const inputStyle = {
+    fontSize: 15, color: C.text, borderWidth: 1, borderColor: C.w12,
+    borderRadius: 6, paddingHorizontal: 10, paddingVertical: 8, backgroundColor: C.w04,
+    ...(Platform.OS === 'web' ? { outlineStyle: 'none' } : {}),
+  };
+
+  const fetchCategories = useCallback(async () => {
+    try {
+      const res = await apiFetch(`/projects/${project.id}/bid-categories`);
+      if (res.ok) { const data = await res.json(); setCategories(data); }
+    } catch (e) { /* */ }
+    setLoading(false);
+  }, [project.id]);
+
+  useEffect(() => { fetchCategories(); }, [fetchCategories]);
+
+  // Sync if project changes externally
+  useEffect(() => {
+    setLotOverhead(project.bid_lot_overhead || 0);
+    setCommission(project.bid_commission || 0);
+    setLotOverheadText(String(project.bid_lot_overhead || 0));
+    setCommissionText(String(project.bid_commission || 0));
+  }, [project.bid_lot_overhead, project.bid_commission]);
+
+  // Compute totals
+  const categorySubtotals = categories.reduce((sum, c) => sum + (c.subtotal || 0), 0);
+  const overhead = Math.round(categorySubtotals * 0.08 * 100) / 100;
+  const totalCost = categorySubtotals + overhead + lotOverhead + commission;
+
+  const saveBidField = async (field, value) => {
+    try {
+      await apiFetch(`/projects/${project.id}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ [field]: value }),
+      });
+      onProjectUpdate({ [field]: value });
+    } catch (e) { /* */ }
+  };
+
+  const addCategory = async () => {
+    if (!catTitle.trim()) return;
+    try {
+      const res = await apiFetch(`/projects/${project.id}/bid-categories`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: catTitle.trim() }),
+      });
+      if (res.ok) {
+        const cat = await res.json();
+        setCategories(prev => [...prev, cat]);
+      }
+    } catch (e) { /* */ }
+    setCatTitle(''); setShowCatModal(false);
+  };
+
+  const deleteCategory = async (catId) => {
+    try {
+      await apiFetch(`/bid-categories/${catId}`, { method: 'DELETE' });
+      setCategories(prev => prev.filter(c => c.id !== catId));
+    } catch (e) { /* */ }
+    setConfirmDeleteCat(null);
+  };
+
+  const addLineItem = async (catId) => {
+    if (!lineName.trim()) return;
+    try {
+      const res = await apiFetch(`/bid-categories/${catId}/line-items`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: lineName.trim() }),
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setCategories(prev => prev.map(c => c.id === catId ? updated : c));
+      }
+    } catch (e) { /* */ }
+    setLineName(''); setShowLineModal(null);
+  };
+
+  const updateLineItem = async (lineId, data, catId) => {
+    try {
+      const res = await apiFetch(`/bid-line-items/${lineId}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setCategories(prev => prev.map(c => c.id === catId ? updated : c));
+      }
+    } catch (e) { /* */ }
+  };
+
+  const deleteLineItem = async (lineId, catId) => {
+    try {
+      const res = await apiFetch(`/bid-line-items/${lineId}`, { method: 'DELETE' });
+      if (res.ok) {
+        const updated = await res.json();
+        setCategories(prev => prev.map(c => c.id === catId ? updated : c));
+      }
+    } catch (e) { /* */ }
+    setConfirmDeleteLine(null);
+  };
+
+  const openEditLine = (li, catId) => {
+    setEditingLine({ lineItem: li, catId });
+    setEditFields({
+      name: li.name, quantity: String(li.quantity), price_per_item: String(li.price_per_item),
+      included: li.included, is_allowance: li.is_allowance,
+    });
+  };
+
+  const saveEditLine = async () => {
+    if (!editingLine) return;
+    const { lineItem, catId } = editingLine;
+    await updateLineItem(lineItem.id, {
+      name: editFields.name, quantity: parseFloat(editFields.quantity) || 0,
+      price_per_item: parseFloat(editFields.price_per_item) || 0,
+      included: editFields.included, is_allowance: editFields.is_allowance,
+    }, catId);
+    setEditingLine(null);
+  };
+
+  const fmt = (n) => {
+    const num = parseFloat(n) || 0;
+    return num.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+  };
+
+  const cellS = { paddingVertical: 8, paddingHorizontal: 6, justifyContent: 'center' };
+  const cellTxt = { fontSize: 14, color: C.text };
+  const headerTxt = { fontSize: 12, fontWeight: '700', color: C.dm, textTransform: 'uppercase', letterSpacing: 0.5 };
+  const rowBg = (i) => i % 2 === 0 ? 'transparent' : (C.w04 || 'rgba(255,255,255,0.04)');
+
+  if (loading) {
+    return <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}><ActivityIndicator color={C.gd} size="large" /></View>;
+  }
+
+  return (
+    <View style={{ flex: 1, backgroundColor: C.bg }}>
+      {/* Header */}
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16, borderBottomWidth: 1, borderBottomColor: C.w06 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          <Feather name="file-text" size={22} color={C.gd} />
+          <Text style={{ fontSize: 22, fontWeight: '700', color: C.textBold }}>{project.name}</Text>
+          <View style={{ backgroundColor: C.gd + '22', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4 }}>
+            <Text style={{ fontSize: 11, fontWeight: '700', color: C.gd }}>BID</Text>
+          </View>
+        </View>
+        <TouchableOpacity onPress={() => setShowCatModal(true)}
+          style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: C.gd, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8 }}>
+          <Feather name="plus" size={16} color="#fff" />
+          <Text style={{ fontSize: 14, fontWeight: '700', color: '#fff' }}>Add Category</Text>
+        </TouchableOpacity>
+      </View>
+
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16 }}>
+        {/* Top 3 summary rows: Overhead, Lot Overhead, Commission */}
+        <View style={{ borderWidth: 1, borderColor: C.w12, borderRadius: 10, overflow: 'hidden', marginBottom: 20 }}>
+          <View style={{ flexDirection: 'row', backgroundColor: C.w06, paddingVertical: 10, paddingHorizontal: 12 }}>
+            <Text style={[headerTxt, { flex: 2 }]}>Item</Text>
+            <Text style={[headerTxt, { flex: 1, textAlign: 'right' }]}>Amount</Text>
+          </View>
+          {/* Overhead (auto-calculated, not editable) */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 12, borderTopWidth: 1, borderTopColor: C.w06 }}>
+            <View style={{ flex: 2 }}>
+              <Text style={[cellTxt, { fontWeight: '600' }]}>Overhead (8%)</Text>
+              <Text style={{ fontSize: 11, color: C.dm }}>Auto-calculated from category totals</Text>
+            </View>
+            <Text style={[cellTxt, { flex: 1, textAlign: 'right', fontWeight: '600' }]}>{fmt(overhead)}</Text>
+          </View>
+          {/* Lot Overhead (editable) */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 12, borderTopWidth: 1, borderTopColor: C.w06, backgroundColor: rowBg(1) }}>
+            <Text style={[cellTxt, { flex: 2, fontWeight: '600' }]}>Lot Overhead</Text>
+            <View style={{ flex: 1, alignItems: 'flex-end' }}>
+              <TextInput
+                value={lotOverheadText}
+                onChangeText={setLotOverheadText}
+                onBlur={() => { const v = parseFloat(lotOverheadText) || 0; setLotOverhead(v); setLotOverheadText(String(v)); saveBidField('bid_lot_overhead', v); }}
+                keyboardType="decimal-pad" style={[inputStyle, { textAlign: 'right', width: 120, paddingVertical: 6 }]}
+              />
+            </View>
+          </View>
+          {/* Commission (editable) */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 12, borderTopWidth: 1, borderTopColor: C.w06 }}>
+            <Text style={[cellTxt, { flex: 2, fontWeight: '600' }]}>Commission</Text>
+            <View style={{ flex: 1, alignItems: 'flex-end' }}>
+              <TextInput
+                value={commissionText}
+                onChangeText={setCommissionText}
+                onBlur={() => { const v = parseFloat(commissionText) || 0; setCommission(v); setCommissionText(String(v)); saveBidField('bid_commission', v); }}
+                keyboardType="decimal-pad" style={[inputStyle, { textAlign: 'right', width: 120, paddingVertical: 6 }]}
+              />
+            </View>
+          </View>
+        </View>
+
+        {/* Categories */}
+        {categories.length === 0 ? (
+          <View style={{ paddingVertical: 60, alignItems: 'center' }}>
+            <Feather name="layers" size={48} color={C.dm} style={{ marginBottom: 10 }} />
+            <Text style={{ fontSize: 20, fontWeight: '600', color: C.text }}>No categories yet</Text>
+            <Text style={{ fontSize: 15, color: C.dm, marginTop: 4 }}>Tap "Add Category" to get started</Text>
+          </View>
+        ) : categories.map((cat, ci) => (
+          <View key={cat.id} style={{ borderWidth: 1, borderColor: C.w12, borderRadius: 10, overflow: 'hidden', marginBottom: 16 }}>
+            {/* Category header */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: C.gd + '15', paddingVertical: 10, paddingHorizontal: 12 }}>
+              <Text style={{ flex: 1, fontSize: 16, fontWeight: '700', color: C.textBold }}>{cat.title}</Text>
+              <Text style={{ fontSize: 14, fontWeight: '600', color: C.gd, marginRight: 12 }}>{fmt(cat.subtotal || 0)}</Text>
+              <TouchableOpacity onPress={() => { setShowLineModal(cat.id); setLineName(''); }} style={{ marginRight: 8 }}>
+                <Feather name="plus-circle" size={20} color={C.gd} />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => setConfirmDeleteCat(cat.id)}>
+                <Feather name="trash-2" size={18} color={C.rd || '#ef4444'} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Column headers */}
+            {(cat.line_items || []).length > 0 && (
+              <View style={{ flexDirection: 'row', paddingVertical: 6, paddingHorizontal: 12, borderTopWidth: 1, borderTopColor: C.w06, backgroundColor: C.w06 }}>
+                <Text style={[headerTxt, { flex: 2 }]}>Name</Text>
+                <Text style={[headerTxt, { flex: 1, textAlign: 'right' }]}>Qty</Text>
+                <Text style={[headerTxt, { flex: 1, textAlign: 'right' }]}>Price/Item</Text>
+                <Text style={[headerTxt, { flex: 1, textAlign: 'right' }]}>Total</Text>
+                <Text style={[headerTxt, { width: 50, textAlign: 'center' }]}>Incl</Text>
+                <Text style={[headerTxt, { width: 50, textAlign: 'center' }]}>Allow</Text>
+                <View style={{ width: 36 }} />
+              </View>
+            )}
+
+            {/* Line items */}
+            {(cat.line_items || []).map((li, idx) => (
+              <TouchableOpacity key={li.id} activeOpacity={0.7} onPress={() => openEditLine(li, cat.id)}
+                style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 8, paddingHorizontal: 12, borderTopWidth: 1, borderTopColor: C.w06, backgroundColor: rowBg(idx) }}>
+                <Text style={[cellTxt, { flex: 2 }]} numberOfLines={1}>{li.name}</Text>
+                <Text style={[cellTxt, { flex: 1, textAlign: 'right' }]}>{li.quantity}</Text>
+                <Text style={[cellTxt, { flex: 1, textAlign: 'right' }]}>{fmt(li.price_per_item)}</Text>
+                <Text style={[cellTxt, { flex: 1, textAlign: 'right', fontWeight: '600' }]}>{fmt(li.total_cost)}</Text>
+                <View style={{ width: 50, alignItems: 'center' }}>
+                  {li.included && <Feather name="check" size={16} color={C.gn || '#10b981'} />}
+                </View>
+                <View style={{ width: 50, alignItems: 'center' }}>
+                  {li.is_allowance && <Feather name="check" size={16} color={C.bl || '#3b82f6'} />}
+                </View>
+                <TouchableOpacity onPress={() => setConfirmDeleteLine({ id: li.id, catId: cat.id })} style={{ width: 36, alignItems: 'center' }}>
+                  <Feather name="x" size={16} color={C.rd || '#ef4444'} />
+                </TouchableOpacity>
+              </TouchableOpacity>
+            ))}
+
+            {(cat.line_items || []).length === 0 && (
+              <View style={{ paddingVertical: 20, alignItems: 'center', borderTopWidth: 1, borderTopColor: C.w06 }}>
+                <Text style={{ fontSize: 14, color: C.dm }}>No line items — tap + to add</Text>
+              </View>
+            )}
+          </View>
+        ))}
+
+        {/* Total Cost */}
+        <View style={{ borderWidth: 2, borderColor: C.gd, borderRadius: 10, overflow: 'hidden', marginTop: 8, marginBottom: 40 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 16, backgroundColor: C.gd + '15' }}>
+            <Text style={{ flex: 1, fontSize: 20, fontWeight: '800', color: C.textBold }}>Total Cost</Text>
+            <Text style={{ fontSize: 22, fontWeight: '800', color: C.gd }}>{fmt(totalCost)}</Text>
+          </View>
+        </View>
+      </ScrollView>
+
+      {/* Add Category Modal */}
+      <Modal visible={showCatModal} transparent animationType="fade">
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }}>
+          <TouchableOpacity style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} activeOpacity={1} onPress={() => setShowCatModal(false)} />
+          <View style={{ width: 380, backgroundColor: C.modalBg || C.bg, borderRadius: 14, borderWidth: 1, borderColor: C.w12, overflow: 'hidden', ...(Platform.OS === 'web' ? { boxShadow: '0 12px 40px rgba(0,0,0,0.3)' } : { elevation: 20 }) }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16, borderBottomWidth: 1, borderBottomColor: C.w06 }}>
+              <Text style={{ fontSize: 18, fontWeight: '700', color: C.textBold }}>New Category</Text>
+              <TouchableOpacity onPress={() => setShowCatModal(false)}><Text style={{ fontSize: 26, color: C.dm }}>×</Text></TouchableOpacity>
+            </View>
+            <View style={{ padding: 16, gap: 12 }}>
+              <Text style={{ fontSize: 13, fontWeight: '600', color: C.dm, textTransform: 'uppercase', letterSpacing: 0.5 }}>Title</Text>
+              <TextInput value={catTitle} onChangeText={setCatTitle} placeholder="e.g. Framing, Electrical..."
+                placeholderTextColor={C.dm + '80'} style={inputStyle} autoFocus />
+            </View>
+            <View style={{ flexDirection: 'row', gap: 10, padding: 16, borderTopWidth: 1, borderTopColor: C.w06 }}>
+              <TouchableOpacity onPress={() => setShowCatModal(false)}
+                style={{ flex: 1, paddingVertical: 10, borderRadius: 8, borderWidth: 1, borderColor: C.w12, alignItems: 'center' }}>
+                <Text style={{ fontSize: 15, fontWeight: '600', color: C.dm }}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={addCategory} disabled={!catTitle.trim()}
+                style={{ flex: 1, paddingVertical: 10, borderRadius: 8, backgroundColor: C.gd, alignItems: 'center', opacity: catTitle.trim() ? 1 : 0.4 }}>
+                <Text style={{ fontSize: 15, fontWeight: '700', color: '#fff' }}>Add</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Add Line Item Modal */}
+      <Modal visible={showLineModal !== null} transparent animationType="fade">
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }}>
+          <TouchableOpacity style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} activeOpacity={1} onPress={() => setShowLineModal(null)} />
+          <View style={{ width: 380, backgroundColor: C.modalBg || C.bg, borderRadius: 14, borderWidth: 1, borderColor: C.w12, overflow: 'hidden', ...(Platform.OS === 'web' ? { boxShadow: '0 12px 40px rgba(0,0,0,0.3)' } : { elevation: 20 }) }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16, borderBottomWidth: 1, borderBottomColor: C.w06 }}>
+              <Text style={{ fontSize: 18, fontWeight: '700', color: C.textBold }}>New Line Item</Text>
+              <TouchableOpacity onPress={() => setShowLineModal(null)}><Text style={{ fontSize: 26, color: C.dm }}>×</Text></TouchableOpacity>
+            </View>
+            <View style={{ padding: 16, gap: 12 }}>
+              <Text style={{ fontSize: 13, fontWeight: '600', color: C.dm, textTransform: 'uppercase', letterSpacing: 0.5 }}>Name</Text>
+              <TextInput value={lineName} onChangeText={setLineName} placeholder="e.g. 2x4 Lumber"
+                placeholderTextColor={C.dm + '80'} style={inputStyle} autoFocus />
+            </View>
+            <View style={{ flexDirection: 'row', gap: 10, padding: 16, borderTopWidth: 1, borderTopColor: C.w06 }}>
+              <TouchableOpacity onPress={() => setShowLineModal(null)}
+                style={{ flex: 1, paddingVertical: 10, borderRadius: 8, borderWidth: 1, borderColor: C.w12, alignItems: 'center' }}>
+                <Text style={{ fontSize: 15, fontWeight: '600', color: C.dm }}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => addLineItem(showLineModal)} disabled={!lineName.trim()}
+                style={{ flex: 1, paddingVertical: 10, borderRadius: 8, backgroundColor: C.gd, alignItems: 'center', opacity: lineName.trim() ? 1 : 0.4 }}>
+                <Text style={{ fontSize: 15, fontWeight: '700', color: '#fff' }}>Add</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Edit Line Item Modal */}
+      <Modal visible={editingLine !== null} transparent animationType="fade">
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }}>
+          <TouchableOpacity style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} activeOpacity={1} onPress={() => setEditingLine(null)} />
+          <View style={{ width: 420, backgroundColor: C.modalBg || C.bg, borderRadius: 14, borderWidth: 1, borderColor: C.w12, overflow: 'hidden', ...(Platform.OS === 'web' ? { boxShadow: '0 12px 40px rgba(0,0,0,0.3)' } : { elevation: 20 }) }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16, borderBottomWidth: 1, borderBottomColor: C.w06 }}>
+              <Text style={{ fontSize: 18, fontWeight: '700', color: C.textBold }}>Edit Line Item</Text>
+              <TouchableOpacity onPress={() => setEditingLine(null)}><Text style={{ fontSize: 26, color: C.dm }}>×</Text></TouchableOpacity>
+            </View>
+            <ScrollView contentContainerStyle={{ padding: 16, gap: 14 }} keyboardShouldPersistTaps="handled">
+              <View>
+                <Text style={{ fontSize: 13, fontWeight: '600', color: C.dm, marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5 }}>Name</Text>
+                <TextInput value={editFields.name || ''} onChangeText={v => setEditFields(p => ({ ...p, name: v }))} style={inputStyle} />
+              </View>
+              <View style={{ flexDirection: 'row', gap: 10 }}>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 13, fontWeight: '600', color: C.dm, marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5 }}>Quantity</Text>
+                  <TextInput value={editFields.quantity || ''} onChangeText={v => setEditFields(p => ({ ...p, quantity: v }))}
+                    keyboardType="decimal-pad" style={inputStyle} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 13, fontWeight: '600', color: C.dm, marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5 }}>Price Per Item</Text>
+                  <TextInput value={editFields.price_per_item || ''} onChangeText={v => setEditFields(p => ({ ...p, price_per_item: v }))}
+                    keyboardType="decimal-pad" style={inputStyle} />
+                </View>
+              </View>
+              <View style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 6 }}>
+                <Text style={{ fontSize: 15, fontWeight: '600', color: C.text, marginRight: 4 }}>Total Cost:</Text>
+                <Text style={{ fontSize: 15, fontWeight: '700', color: C.gd }}>
+                  {fmt((parseFloat(editFields.quantity) || 0) * (parseFloat(editFields.price_per_item) || 0))}
+                </Text>
+              </View>
+              <View style={{ flexDirection: 'row', gap: 24 }}>
+                <TouchableOpacity onPress={() => setEditFields(p => ({ ...p, included: !p.included }))}
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <View style={{ width: 22, height: 22, borderRadius: 4, borderWidth: 2,
+                    borderColor: editFields.included ? (C.gn || '#10b981') : C.w12,
+                    backgroundColor: editFields.included ? (C.gn || '#10b981') : 'transparent',
+                    alignItems: 'center', justifyContent: 'center' }}>
+                    {editFields.included && <Feather name="check" size={14} color="#fff" />}
+                  </View>
+                  <Text style={{ fontSize: 15, color: C.text }}>Included</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => setEditFields(p => ({ ...p, is_allowance: !p.is_allowance }))}
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <View style={{ width: 22, height: 22, borderRadius: 4, borderWidth: 2,
+                    borderColor: editFields.is_allowance ? (C.bl || '#3b82f6') : C.w12,
+                    backgroundColor: editFields.is_allowance ? (C.bl || '#3b82f6') : 'transparent',
+                    alignItems: 'center', justifyContent: 'center' }}>
+                    {editFields.is_allowance && <Feather name="check" size={14} color="#fff" />}
+                  </View>
+                  <Text style={{ fontSize: 15, color: C.text }}>Allowance</Text>
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
+            <View style={{ flexDirection: 'row', gap: 10, padding: 16, borderTopWidth: 1, borderTopColor: C.w06 }}>
+              <TouchableOpacity onPress={() => setEditingLine(null)}
+                style={{ flex: 1, paddingVertical: 10, borderRadius: 8, borderWidth: 1, borderColor: C.w12, alignItems: 'center' }}>
+                <Text style={{ fontSize: 15, fontWeight: '600', color: C.dm }}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={saveEditLine}
+                style={{ flex: 1, paddingVertical: 10, borderRadius: 8, backgroundColor: C.gd, alignItems: 'center' }}>
+                <Text style={{ fontSize: 15, fontWeight: '700', color: '#fff' }}>Save</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Confirm Delete Category */}
+      <Modal visible={confirmDeleteCat !== null} transparent animationType="fade">
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }}>
+          <View style={{ width: 340, backgroundColor: C.modalBg || C.bg, borderRadius: 14, borderWidth: 1, borderColor: C.w12, padding: 24, alignItems: 'center', ...(Platform.OS === 'web' ? { boxShadow: '0 12px 40px rgba(0,0,0,0.3)' } : { elevation: 20 }) }}>
+            <Feather name="alert-triangle" size={36} color={C.rd || '#ef4444'} style={{ marginBottom: 12 }} />
+            <Text style={{ fontSize: 18, fontWeight: '700', color: C.textBold, textAlign: 'center', marginBottom: 6 }}>Delete Category?</Text>
+            <Text style={{ fontSize: 14, color: C.dm, textAlign: 'center', marginBottom: 20 }}>This will also delete all line items in this category.</Text>
+            <View style={{ flexDirection: 'row', gap: 10, width: '100%' }}>
+              <TouchableOpacity onPress={() => setConfirmDeleteCat(null)}
+                style={{ flex: 1, paddingVertical: 10, borderRadius: 8, borderWidth: 1, borderColor: C.w12, alignItems: 'center' }}>
+                <Text style={{ fontSize: 15, fontWeight: '600', color: C.dm }}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => deleteCategory(confirmDeleteCat)}
+                style={{ flex: 1, paddingVertical: 10, borderRadius: 8, backgroundColor: C.rd || '#ef4444', alignItems: 'center' }}>
+                <Text style={{ fontSize: 15, fontWeight: '700', color: '#fff' }}>Delete</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Confirm Delete Line Item */}
+      <Modal visible={confirmDeleteLine !== null} transparent animationType="fade">
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }}>
+          <View style={{ width: 340, backgroundColor: C.modalBg || C.bg, borderRadius: 14, borderWidth: 1, borderColor: C.w12, padding: 24, alignItems: 'center', ...(Platform.OS === 'web' ? { boxShadow: '0 12px 40px rgba(0,0,0,0.3)' } : { elevation: 20 }) }}>
+            <Text style={{ fontSize: 18, fontWeight: '700', color: C.textBold, marginBottom: 6 }}>Delete Line Item?</Text>
+            <Text style={{ fontSize: 14, color: C.dm, marginBottom: 20 }}>This cannot be undone.</Text>
+            <View style={{ flexDirection: 'row', gap: 10, width: '100%' }}>
+              <TouchableOpacity onPress={() => setConfirmDeleteLine(null)}
+                style={{ flex: 1, paddingVertical: 10, borderRadius: 8, borderWidth: 1, borderColor: C.w12, alignItems: 'center' }}>
+                <Text style={{ fontSize: 15, fontWeight: '600', color: C.dm }}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => confirmDeleteLine && deleteLineItem(confirmDeleteLine.id, confirmDeleteLine.catId)}
+                style={{ flex: 1, paddingVertical: 10, borderRadius: 8, backgroundColor: C.rd || '#ef4444', alignItems: 'center' }}>
+                <Text style={{ fontSize: 15, fontWeight: '700', color: '#fff' }}>Delete</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    </View>
   );
 };
 

@@ -250,6 +250,8 @@ class Projects(db.Model):
     bid_client_phone = db.Column(db.String(30), default='')
     bid_client_email = db.Column(db.String(120), default='')
     bid_address = db.Column(db.String(255), default='')
+    bid_lot_overhead = db.Column(db.Float, default=0)
+    bid_commission = db.Column(db.Float, default=0)
     date = db.Column(db.DateTime, default=datetime.utcnow)
 
     def to_dict(self):
@@ -306,6 +308,8 @@ class Projects(db.Model):
             'bid_client_phone': self.bid_client_phone or '',
             'bid_client_email': self.bid_client_email or '',
             'bid_address': self.bid_address or '',
+            'bid_lot_overhead': self.bid_lot_overhead or 0,
+            'bid_commission': self.bid_commission or 0,
             'date': self.date.isoformat() if self.date else None,
         }
 
@@ -743,6 +747,43 @@ class AllowanceLineItem(db.Model):
         return {
             'id': self.id, 'allowance_id': self.allowance_id,
             'name': self.name, 'cost': self.cost,
+        }
+
+
+class BidCategory(db.Model):
+    __tablename__ = 'bid_category'
+    id = db.Column(db.Integer, primary_key=True)
+    job_id = db.Column(db.Integer, db.ForeignKey('projects.id'), nullable=False)
+    title = db.Column(db.String(255), nullable=False)
+    sort_order = db.Column(db.Integer, default=0)
+    line_items = db.relationship('BidLineItem', backref='category', cascade='all, delete-orphan', lazy=True)
+
+    def to_dict(self):
+        items = [li.to_dict() for li in (self.line_items or [])]
+        subtotal = sum(li.get('total_cost', 0) for li in items)
+        return {
+            'id': self.id, 'job_id': self.job_id, 'title': self.title,
+            'sort_order': self.sort_order, 'line_items': items, 'subtotal': subtotal,
+        }
+
+
+class BidLineItem(db.Model):
+    __tablename__ = 'bid_line_item'
+    id = db.Column(db.Integer, primary_key=True)
+    category_id = db.Column(db.Integer, db.ForeignKey('bid_category.id'), nullable=False)
+    name = db.Column(db.String(255), nullable=False)
+    quantity = db.Column(db.Float, default=1)
+    price_per_item = db.Column(db.Float, default=0)
+    included = db.Column(db.Boolean, default=False)
+    is_allowance = db.Column(db.Boolean, default=False)
+
+    def to_dict(self):
+        total = self.quantity * self.price_per_item
+        return {
+            'id': self.id, 'category_id': self.category_id, 'name': self.name,
+            'quantity': self.quantity, 'price_per_item': self.price_per_item,
+            'total_cost': total, 'included': bool(self.included),
+            'is_allowance': bool(self.is_allowance),
         }
 
 
@@ -2059,7 +2100,8 @@ def update_project(project_id):
                  'permit_number', 'plan_name', 'selection_template_id',
                  'project_manager_id', 'superintendent_id',
                  'is_bid', 'bid_client_first_name', 'bid_client_last_name',
-                 'bid_client_phone', 'bid_client_email', 'bid_address'):
+                 'bid_client_phone', 'bid_client_email', 'bid_address',
+                 'bid_lot_overhead', 'bid_commission'):
         if key in data:
             # Prevent un-toggling go_live once it's been set
             if key == 'go_live' and p.go_live and not data[key]:
@@ -4156,6 +4198,105 @@ def delete_allowance_line_item(lid):
     db.session.commit()
     a = Allowance.query.get(aid)
     return jsonify(a.to_dict())
+
+
+# ============================================================
+# BID CATEGORIES & LINE ITEMS
+# ============================================================
+
+@app.route('/projects/<int:pid>/bid-categories', methods=['GET'])
+def get_bid_categories(pid):
+    cats = BidCategory.query.filter_by(job_id=pid).order_by(BidCategory.sort_order).all()
+    return jsonify([c.to_dict() for c in cats])
+
+
+@app.route('/projects/<int:pid>/bid-categories', methods=['POST'])
+def create_bid_category(pid):
+    data = request.get_json()
+    title = (data.get('title') or '').strip()
+    if not title:
+        return jsonify({'error': 'Title is required'}), 400
+    max_order = db.session.query(db.func.max(BidCategory.sort_order)).filter_by(job_id=pid).scalar() or 0
+    cat = BidCategory(job_id=pid, title=title, sort_order=max_order + 1)
+    db.session.add(cat)
+    db.session.commit()
+    return jsonify(cat.to_dict()), 201
+
+
+@app.route('/bid-categories/<int:cid>', methods=['PUT'])
+def update_bid_category(cid):
+    cat = BidCategory.query.get(cid)
+    if not cat:
+        return jsonify({'error': 'Not found'}), 404
+    data = request.get_json()
+    if 'title' in data:
+        cat.title = data['title']
+    if 'sort_order' in data:
+        cat.sort_order = data['sort_order']
+    db.session.commit()
+    return jsonify(cat.to_dict())
+
+
+@app.route('/bid-categories/<int:cid>', methods=['DELETE'])
+def delete_bid_category(cid):
+    cat = BidCategory.query.get(cid)
+    if not cat:
+        return jsonify({'error': 'Not found'}), 404
+    db.session.delete(cat)
+    db.session.commit()
+    return jsonify({'deleted': cid})
+
+
+@app.route('/bid-categories/<int:cid>/line-items', methods=['POST'])
+def add_bid_line_item(cid):
+    cat = BidCategory.query.get(cid)
+    if not cat:
+        return jsonify({'error': 'Category not found'}), 404
+    data = request.get_json()
+    name = (data.get('name') or '').strip()
+    if not name:
+        return jsonify({'error': 'Name is required'}), 400
+    li = BidLineItem(
+        category_id=cid, name=name,
+        quantity=float(data.get('quantity', 1) or 1),
+        price_per_item=float(data.get('price_per_item', 0) or 0),
+        included=bool(data.get('included', False)),
+        is_allowance=bool(data.get('is_allowance', False)),
+    )
+    db.session.add(li)
+    db.session.commit()
+    return jsonify(cat.to_dict()), 201
+
+
+@app.route('/bid-line-items/<int:lid>', methods=['PUT'])
+def update_bid_line_item(lid):
+    li = BidLineItem.query.get(lid)
+    if not li:
+        return jsonify({'error': 'Not found'}), 404
+    data = request.get_json()
+    for k in ('name', 'quantity', 'price_per_item', 'included', 'is_allowance'):
+        if k in data:
+            if k in ('quantity', 'price_per_item'):
+                setattr(li, k, float(data[k] or 0))
+            elif k in ('included', 'is_allowance'):
+                setattr(li, k, bool(data[k]))
+            else:
+                setattr(li, k, data[k])
+    db.session.commit()
+    cat = BidCategory.query.get(li.category_id)
+    return jsonify(cat.to_dict())
+
+
+@app.route('/bid-line-items/<int:lid>', methods=['DELETE'])
+def delete_bid_line_item(lid):
+    li = BidLineItem.query.get(lid)
+    if not li:
+        return jsonify({'error': 'Not found'}), 404
+    cid = li.category_id
+    db.session.delete(li)
+    db.session.commit()
+    cat = BidCategory.query.get(cid)
+    return jsonify(cat.to_dict())
 
 
 # ============================================================
