@@ -578,6 +578,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
   const [showTradeFilter, setShowTradeFilter] = useState(false);
   const lastTapRef = useRef({}); // { taskId: timestamp } for double-tap detection
   const [changeOrders, setChangeOrders] = useState([]);
+  const [allowances, setAllowances] = useState([]);
   const [selections, setSelections] = useState([]);
   const [expandedSelTrades, setExpandedSelTrades] = useState({});
   const [expandedSelItems, setExpandedSelItems] = useState({});
@@ -742,7 +743,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
     ? [
         { id: 'schedule', label: 'Schedule', subs: scheduleSubs },
         { id: 'info', label: 'Info', subs: ['jobinfo', 'price', 'specifications', 'assignments'] },
-        { id: 'changeorders', label: 'Change Orders' },
+        { id: 'changeorders', label: 'Change Orders', subs: ['co', 'allowances'] },
         { id: 'selections', label: 'Selections' },
         { id: 'docs', label: 'Docs', subs: ['documents', 'photos', 'videos'] },
       ]
@@ -750,14 +751,14 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
     ? [
         { id: 'schedule', label: 'Schedule', subs: ['calendar'] },
         { id: 'info', label: 'Info', subs: ['price'] },
-        { id: 'changeorders', label: 'Change Orders' },
+        { id: 'changeorders', label: 'Change Orders', subs: ['co', 'allowances'] },
         { id: 'selections', label: 'Selections' },
         { id: 'docs', label: 'Docs', subs: ['documents', 'photos', 'videos'] },
       ]
     : isCon
     ? [
         { id: 'info', label: 'Info', subs: ['specifications'] },
-        { id: 'changeorders', label: 'Change Orders' },
+        { id: 'changeorders', label: 'Change Orders', subs: ['co', 'allowances'] },
         { id: 'docs', label: 'Docs', subs: ['documents'] },
       ]
     : [
@@ -769,7 +770,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
   const subLabels = {
     jobinfo: 'Job Info', assignments: 'Assignments', specifications: 'Job Specifications', price: 'Job Price Summary',
     calendar: 'Calendar', baseline: 'Baseline', progress: 'Job Progress',
-    changeorders: 'Change Orders', selections: 'Selections',
+    co: 'Change Orders', allowances: 'Allowances', selections: 'Selections',
     documents: 'Documents', photos: 'Photos', videos: 'Videos',
   };
 
@@ -816,7 +817,8 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
       api(`/projects/${pid}/selections`).then(d => d && setSelections(d));
     }
     if (tab === 'changeorders') {
-      api(`/projects/${pid}/change-orders?user_id=${user?.id}&role=${user?.role}`).then(d => d && setChangeOrders(d));
+      if (sub === 'co' || !sub) api(`/projects/${pid}/change-orders?user_id=${user?.id}&role=${user?.role}`).then(d => d && setChangeOrders(d));
+      if (sub === 'allowances') api(`/projects/${pid}/allowances`).then(d => d && setAllowances(d));
     }
     if (tab === 'selections' || (tab === 'info' && sub === 'specifications')) {
       api(`/projects/${pid}/selections`).then(d => d && setSelections(d));
@@ -3035,112 +3037,131 @@ ${sectionsHtml}
 
     // --- CHANGE ORDERS ---
     if (tab === 'changeorders') {
-      const coStatusLabel = (status) => {
-        const map = { draft: 'Draft', pending_super: 'Pending Super', pending_customer: 'Pending Customer',
-          pending_customer_review: 'Customer Review', pending_subs: 'Pending Subs', pending_pm: 'Pending PM',
-          approved: 'Approved', declined: 'Declined', expired: 'Expired' };
-        return map[status] || status;
-      };
-      const coStatusColor = (status) => {
-        if (status === 'approved') return C.gn;
-        if (status === 'declined' || status === 'expired') return C.rd;
-        if (status === 'draft') return C.dm;
-        return C.yl;
-      };
+      // --- Change Orders Sub-tab ---
+      if (sub === 'co' || !sub) {
+        const coStatusLabel = (status) => {
+          const map = { draft: 'Draft', pending_super: 'Pending Super', pending_customer: 'Pending Customer',
+            pending_customer_review: 'Customer Review', pending_subs: 'Pending Subs', pending_pm: 'Pending PM',
+            approved: 'Approved', declined: 'Declined', expired: 'Expired' };
+          return map[status] || status;
+        };
+        const coStatusColor = (status) => {
+          if (status === 'approved') return C.gn;
+          if (status === 'declined' || status === 'expired') return C.rd;
+          if (status === 'draft') return C.dm;
+          return C.yl;
+        };
 
-      const renderCOCard = (co) => {
-        const isApproved = co.status === 'approved';
-        const sigCount = (co.signatures || []).length;
-        const totalSteps = (co.sign_order || []).length;
-        const lineItemCount = (co.line_items || []).length;
-        return (
-          <Card key={co.id} onPress={() => setModal({ type: 'co', data: co })} style={{ marginBottom: 10 }}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-              <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <View style={{ backgroundColor: C.w10, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 }}>
-                  <Text style={{ fontSize: 13, fontWeight: '700', color: C.dm }}>#{co.co_number || '—'}</Text>
+        const renderCOCard = (co) => {
+          const isApproved = co.status === 'approved';
+          const sigCount = (co.signatures || []).length;
+          const totalSteps = (co.sign_order || []).length;
+          const lineItemCount = (co.line_items || []).length;
+          return (
+            <Card key={co.id} onPress={() => setModal({ type: 'co', data: co })} style={{ marginBottom: 10 }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <View style={{ backgroundColor: C.w10, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 }}>
+                    <Text style={{ fontSize: 13, fontWeight: '700', color: C.dm }}>#{co.co_number || '—'}</Text>
+                  </View>
+                  <Text style={{ fontSize: 20, fontWeight: '600', color: C.text, flexShrink: 1 }} numberOfLines={1}>{co.title}</Text>
                 </View>
-                <Text style={{ fontSize: 20, fontWeight: '600', color: C.text, flexShrink: 1 }} numberOfLines={1}>{co.title}</Text>
+                <View style={{ backgroundColor: coStatusColor(co.status) + '18', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, marginLeft: 8 }}>
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: coStatusColor(co.status) }}>{coStatusLabel(co.status)}</Text>
+                </View>
               </View>
-              <View style={{ backgroundColor: coStatusColor(co.status) + '18', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, marginLeft: 8 }}>
-                <Text style={{ fontSize: 12, fontWeight: '700', color: coStatusColor(co.status) }}>{coStatusLabel(co.status)}</Text>
+              {co.description ? <Text style={{ fontSize: 17, color: C.mt, marginBottom: 6 }} numberOfLines={2}>{co.description}</Text> : null}
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                  {lineItemCount > 0 && (
+                    <Text style={{ fontSize: 14, color: C.dm }}>{lineItemCount} item{lineItemCount > 1 ? 's' : ''}</Text>
+                  )}
+                  {co.due_date && <Text style={{ fontSize: 14, color: C.yl }}>Due {fD(co.due_date)}</Text>}
+                  {!isApproved && totalSteps > 0 && (
+                    <Text style={{ fontSize: 14, color: C.dm }}>{sigCount}/{totalSteps} signed</Text>
+                  )}
+                </View>
+                <Text style={{ fontSize: 22, fontWeight: '700', color: co.amount >= 0 ? C.yl : C.gn }}>
+                  {co.amount >= 0 ? '+' : ''}{f$(co.amount)}
+                </Text>
               </View>
-            </View>
-            {co.description ? <Text style={{ fontSize: 17, color: C.mt, marginBottom: 6 }} numberOfLines={2}>{co.description}</Text> : null}
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                {lineItemCount > 0 && (
-                  <Text style={{ fontSize: 14, color: C.dm }}>{lineItemCount} item{lineItemCount > 1 ? 's' : ''}</Text>
-                )}
-                {co.due_date && <Text style={{ fontSize: 14, color: C.yl }}>Due {fD(co.due_date)}</Text>}
-                {!isApproved && totalSteps > 0 && (
-                  <Text style={{ fontSize: 14, color: C.dm }}>{sigCount}/{totalSteps} signed</Text>
-                )}
-              </View>
-              <Text style={{ fontSize: 22, fontWeight: '700', color: co.amount >= 0 ? C.yl : C.gn }}>
-                {co.amount >= 0 ? '+' : ''}{f$(co.amount)}
-              </Text>
-            </View>
-          </Card>
+            </Card>
+          );
+        };
+
+        // 3 columns: Pending Builder | Pending Others | Completed
+        const pendingBuilderCOs = changeOrders.filter(co =>
+          co.status === 'draft' || co.status === 'pending_super' ||
+          (co.status === 'pending_customer' && co.initiated_by === 'customer')
         );
-      };
+        const completedCOs = changeOrders.filter(co => co.status === 'approved' || co.status === 'declined' || co.status === 'expired');
+        const pendingOtherCOs = changeOrders.filter(co =>
+          !pendingBuilderCOs.includes(co) && !completedCOs.includes(co)
+        );
 
-      // 3 columns: Pending Builder | Pending Others | Completed
-      const pendingBuilderCOs = changeOrders.filter(co =>
-        co.status === 'draft' || co.status === 'pending_super' ||
-        (co.status === 'pending_customer' && co.initiated_by === 'customer')
-      );
-      const completedCOs = changeOrders.filter(co => co.status === 'approved' || co.status === 'declined' || co.status === 'expired');
-      const pendingOtherCOs = changeOrders.filter(co =>
-        !pendingBuilderCOs.includes(co) && !completedCOs.includes(co)
-      );
-
-      return (
-        <ScrollView style={{ flex: 1 }} contentContainerStyle={[s.scroll, { maxWidth: windowWidth * 0.95 }]}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
-            <View style={{ flex: 1 }} />
-            <Text style={[s.sectionTitle, { textAlign: 'center' }]}>Change Orders</Text>
-            <View style={{ flex: 1, alignItems: 'flex-end' }}>
-              {(isB || isCon || isC) && (
-                <TouchableOpacity onPress={() => {
-                  if (isCon) {
-                    setModal({ type: 'subco', task: { id: null, task: '' } });
-                  } else if (isC) {
-                    setModal({ type: 'customerco' });
-                  } else {
-                    setModal('coTypePicker');
-                  }
-                }} activeOpacity={0.7}
-                  style={{ width: 40, height: 40, borderRadius: 10, backgroundColor: C.gd, alignItems: 'center', justifyContent: 'center' }}>
-                  <Text style={{ fontSize: 26, fontWeight: '700', color: C.textBold }}>+</Text>
-                </TouchableOpacity>
-              )}
-            </View>
-          </View>
-          {changeOrders.length === 0 ? <Empty icon="file-text" text="No change orders" sub={isC ? "You can request a change order using the + button" : undefined} /> : (
-            <View style={s.threeColRow}>
-              <View style={s.threeColCell}>
-                <Text style={s.groupSubtitle}>Pending Builder ({pendingBuilderCOs.length})</Text>
-                {pendingBuilderCOs.length > 0 ? pendingBuilderCOs.map(renderCOCard) : (
-                  <Text style={{ fontSize: 15, color: C.dm, fontStyle: 'italic', marginTop: 6 }}>None</Text>
-                )}
-              </View>
-              <View style={s.threeColCell}>
-                <Text style={s.groupSubtitle}>Pending Others ({pendingOtherCOs.length})</Text>
-                {pendingOtherCOs.length > 0 ? pendingOtherCOs.map(renderCOCard) : (
-                  <Text style={{ fontSize: 15, color: C.dm, fontStyle: 'italic', marginTop: 6 }}>None</Text>
-                )}
-              </View>
-              <View style={s.threeColCell}>
-                <Text style={s.groupSubtitle}>Completed ({completedCOs.length})</Text>
-                {completedCOs.length > 0 ? completedCOs.map(renderCOCard) : (
-                  <Text style={{ fontSize: 15, color: C.dm, fontStyle: 'italic', marginTop: 6 }}>None</Text>
+        return (
+          <ScrollView style={{ flex: 1 }} contentContainerStyle={[s.scroll, { maxWidth: windowWidth * 0.95 }]}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
+              <View style={{ flex: 1 }} />
+              <Text style={[s.sectionTitle, { textAlign: 'center' }]}>Change Orders</Text>
+              <View style={{ flex: 1, alignItems: 'flex-end' }}>
+                {(isB || isCon || isC) && (
+                  <TouchableOpacity onPress={() => {
+                    if (isCon) {
+                      setModal({ type: 'subco', task: { id: null, task: '' } });
+                    } else if (isC) {
+                      setModal({ type: 'customerco' });
+                    } else {
+                      setModal('coTypePicker');
+                    }
+                  }} activeOpacity={0.7}
+                    style={{ width: 40, height: 40, borderRadius: 10, backgroundColor: C.gd, alignItems: 'center', justifyContent: 'center' }}>
+                    <Text style={{ fontSize: 26, fontWeight: '700', color: C.textBold }}>+</Text>
+                  </TouchableOpacity>
                 )}
               </View>
             </View>
-          )}
-        </ScrollView>
-      );
+            {changeOrders.length === 0 ? <Empty icon="file-text" text="No change orders" sub={isC ? "You can request a change order using the + button" : undefined} /> : (
+              <View style={s.threeColRow}>
+                <View style={s.threeColCell}>
+                  <Text style={s.groupSubtitle}>Pending Builder ({pendingBuilderCOs.length})</Text>
+                  {pendingBuilderCOs.length > 0 ? pendingBuilderCOs.map(renderCOCard) : (
+                    <Text style={{ fontSize: 15, color: C.dm, fontStyle: 'italic', marginTop: 6 }}>None</Text>
+                  )}
+                </View>
+                <View style={s.threeColCell}>
+                  <Text style={s.groupSubtitle}>Pending Others ({pendingOtherCOs.length})</Text>
+                  {pendingOtherCOs.length > 0 ? pendingOtherCOs.map(renderCOCard) : (
+                    <Text style={{ fontSize: 15, color: C.dm, fontStyle: 'italic', marginTop: 6 }}>None</Text>
+                  )}
+                </View>
+                <View style={s.threeColCell}>
+                  <Text style={s.groupSubtitle}>Completed ({completedCOs.length})</Text>
+                  {completedCOs.length > 0 ? completedCOs.map(renderCOCard) : (
+                    <Text style={{ fontSize: 15, color: C.dm, fontStyle: 'italic', marginTop: 6 }}>None</Text>
+                  )}
+                </View>
+              </View>
+            )}
+          </ScrollView>
+        );
+      }
+
+      // --- Allowances Sub-tab ---
+      if (sub === 'allowances') {
+        return (
+          <AllowancesPanel
+            allowances={allowances}
+            setAllowances={setAllowances}
+            api={api}
+            project={project}
+            isBuilder={isB}
+            C={C}
+            s={s}
+            f$={f$}
+          />
+        );
+      }
     }
 
     // --- SELECTIONS ---
@@ -6505,6 +6526,296 @@ const getBLStyles = (C) => StyleSheet.create({
 
 
 // ============================================================
+// ============================================================
+// ALLOWANCES PANEL
+// ============================================================
+const AllowancesPanel = ({ allowances, setAllowances, api, project, isBuilder, C, s, f$ }) => {
+  const [showAdd, setShowAdd] = useState(false);
+  const [addTitle, setAddTitle] = useState('');
+  const [addAmount, setAddAmount] = useState('');
+  const [addSaving, setAddSaving] = useState(false);
+  const [expandedIds, setExpandedIds] = useState({});
+  const [addLineItemId, setAddLineItemId] = useState(null); // allowance id showing line item form
+  const [liName, setLiName] = useState('');
+  const [liCost, setLiCost] = useState('');
+  const [liSaving, setLiSaving] = useState(false);
+  const [editingAllowance, setEditingAllowance] = useState(null); // { id, title, amount }
+  const [editSaving, setEditSaving] = useState(false);
+
+  const toggleExpand = (id) => setExpandedIds(prev => ({ ...prev, [id]: !prev[id] }));
+
+  const createAllowance = async () => {
+    if (!addTitle.trim()) return;
+    setAddSaving(true);
+    const result = await api(`/projects/${project.id}/allowances`, {
+      method: 'POST', body: { title: addTitle.trim(), amount: parseFloat(addAmount) || 0 },
+    });
+    if (result) {
+      setAllowances(prev => [...prev, result]);
+      setAddTitle(''); setAddAmount(''); setShowAdd(false);
+    }
+    setAddSaving(false);
+  };
+
+  const deleteAllowance = (a) => {
+    const doDelete = async () => {
+      await api(`/allowances/${a.id}`, { method: 'DELETE' });
+      setAllowances(prev => prev.filter(x => x.id !== a.id));
+    };
+    if (Platform.OS === 'web') {
+      if (window.confirm(`Delete allowance "${a.title}"? This will also delete all its line items.`)) doDelete();
+    } else {
+      Alert.alert('Delete Allowance', `Delete "${a.title}" and all its line items?`, [
+        { text: 'Cancel' }, { text: 'Delete', style: 'destructive', onPress: doDelete },
+      ]);
+    }
+  };
+
+  const updateAllowance = async () => {
+    if (!editingAllowance) return;
+    setEditSaving(true);
+    const result = await api(`/allowances/${editingAllowance.id}`, {
+      method: 'PUT', body: { title: editingAllowance.title, amount: parseFloat(editingAllowance.amount) || 0 },
+    });
+    if (result) {
+      setAllowances(prev => prev.map(a => a.id === result.id ? result : a));
+    }
+    setEditingAllowance(null); setEditSaving(false);
+  };
+
+  const addLineItem = async (allowanceId) => {
+    if (!liName.trim()) return;
+    setLiSaving(true);
+    const result = await api(`/allowances/${allowanceId}/line-items`, {
+      method: 'POST', body: { name: liName.trim(), cost: parseFloat(liCost) || 0 },
+    });
+    if (result) {
+      setAllowances(prev => prev.map(a => a.id === result.id ? result : a));
+      setLiName(''); setLiCost(''); setAddLineItemId(null);
+    }
+    setLiSaving(false);
+  };
+
+  const deleteLineItem = async (lineItemId) => {
+    const result = await api(`/allowance-line-items/${lineItemId}`, { method: 'DELETE' });
+    if (result) {
+      setAllowances(prev => prev.map(a => a.id === result.id ? result : a));
+    }
+  };
+
+  const inputStyle = {
+    fontSize: 16, color: C.text, borderWidth: 1, borderColor: C.w12,
+    borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, backgroundColor: C.w04,
+    ...(Platform.OS === 'web' ? { outlineStyle: 'none' } : {}),
+  };
+
+  return (
+    <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
+      {/* Header */}
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+        <Text style={{ fontSize: 22, fontWeight: '700', color: C.textBold }}>Allowances</Text>
+        {isBuilder && (
+          <TouchableOpacity onPress={() => setShowAdd(!showAdd)} activeOpacity={0.7}
+            style={{ width: 40, height: 40, borderRadius: 10, backgroundColor: C.gd, alignItems: 'center', justifyContent: 'center' }}>
+            <Text style={{ fontSize: 26, fontWeight: '700', color: C.textBold }}>+</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+
+      {/* Add Allowance Form */}
+      {showAdd && (
+        <View style={{ backgroundColor: C.cardBg || C.card, borderRadius: 12, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: C.w10 }}>
+          <Text style={{ fontSize: 16, fontWeight: '700', color: C.textBold, marginBottom: 12 }}>New Allowance</Text>
+          <View style={{ marginBottom: 10 }}>
+            <Text style={{ fontSize: 13, fontWeight: '600', color: C.dm, marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5 }}>Title *</Text>
+            <TextInput value={addTitle} onChangeText={setAddTitle} placeholder="e.g. Flooring"
+              placeholderTextColor={C.dm + '80'} style={inputStyle} />
+          </View>
+          <View style={{ marginBottom: 14 }}>
+            <Text style={{ fontSize: 13, fontWeight: '600', color: C.dm, marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5 }}>Allowance Amount ($)</Text>
+            <TextInput value={addAmount} onChangeText={setAddAmount} placeholder="0.00" keyboardType="numeric"
+              placeholderTextColor={C.dm + '80'} style={inputStyle} />
+          </View>
+          <View style={{ flexDirection: 'row', gap: 10 }}>
+            <TouchableOpacity onPress={() => { setShowAdd(false); setAddTitle(''); setAddAmount(''); }}
+              style={{ flex: 1, paddingVertical: 12, borderRadius: 8, borderWidth: 1, borderColor: C.w12, alignItems: 'center' }} activeOpacity={0.7}>
+              <Text style={{ fontSize: 15, fontWeight: '600', color: C.dm }}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={createAllowance} disabled={!addTitle.trim() || addSaving}
+              style={{ flex: 1, paddingVertical: 12, borderRadius: 8, backgroundColor: C.gd, alignItems: 'center', opacity: (!addTitle.trim() || addSaving) ? 0.4 : 1 }} activeOpacity={0.7}>
+              <Text style={{ fontSize: 15, fontWeight: '700', color: C.textBold }}>{addSaving ? 'Adding...' : 'Add Allowance'}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
+      {/* Allowances List */}
+      {allowances.length === 0 && !showAdd ? (
+        <View style={{ alignItems: 'center', paddingVertical: 60 }}>
+          <Feather name="dollar-sign" size={48} color={C.dm} />
+          <Text style={{ fontSize: 18, fontWeight: '600', color: C.text, marginTop: 12 }}>No allowances yet</Text>
+          <Text style={{ fontSize: 14, color: C.dm, marginTop: 4 }}>Tap + to add an allowance</Text>
+        </View>
+      ) : null}
+
+      {allowances.map(a => {
+        const expanded = !!expandedIds[a.id];
+        const totalCost = a.total_cost || 0;
+        const remaining = a.remaining || 0;
+        const isOver = remaining < 0;
+        const isEditing = editingAllowance?.id === a.id;
+
+        return (
+          <View key={a.id} style={{ backgroundColor: C.cardBg || C.card, borderRadius: 12, marginBottom: 12, borderWidth: 1, borderColor: C.w10, overflow: 'hidden' }}>
+            {/* Allowance Header */}
+            <TouchableOpacity onPress={() => toggleExpand(a.id)} activeOpacity={0.7}
+              style={{ padding: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 18, fontWeight: '700', color: C.textBold }}>{a.title}</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16, marginTop: 6 }}>
+                  <View>
+                    <Text style={{ fontSize: 11, fontWeight: '600', color: C.dm, textTransform: 'uppercase', letterSpacing: 0.5 }}>Cost</Text>
+                    <Text style={{ fontSize: 18, fontWeight: '700', color: C.text }}>{f$(totalCost)}</Text>
+                  </View>
+                  <View>
+                    <Text style={{ fontSize: 11, fontWeight: '600', color: C.dm, textTransform: 'uppercase', letterSpacing: 0.5 }}>Allowance</Text>
+                    <Text style={{ fontSize: 18, fontWeight: '700', color: C.gd }}>{f$(a.amount)}</Text>
+                  </View>
+                  <View>
+                    <Text style={{ fontSize: 11, fontWeight: '600', color: C.dm, textTransform: 'uppercase', letterSpacing: 0.5 }}>Remaining</Text>
+                    <Text style={{ fontSize: 18, fontWeight: '700', color: isOver ? C.rd : C.gn }}>{f$(remaining)}</Text>
+                  </View>
+                </View>
+              </View>
+              <Feather name={expanded ? 'chevron-up' : 'chevron-down'} size={22} color={C.dm} />
+            </TouchableOpacity>
+
+            {/* Expanded: Line Items */}
+            {expanded && (
+              <View style={{ borderTopWidth: 1, borderTopColor: C.w06 }}>
+                {/* Table Header */}
+                <View style={{ flexDirection: 'row', paddingHorizontal: 16, paddingVertical: 8, backgroundColor: C.w02 }}>
+                  <Text style={{ flex: 1, fontSize: 12, fontWeight: '700', color: C.dm, textTransform: 'uppercase', letterSpacing: 0.5 }}>Item</Text>
+                  <Text style={{ width: 120, fontSize: 12, fontWeight: '700', color: C.dm, textTransform: 'uppercase', letterSpacing: 0.5, textAlign: 'right' }}>Cost</Text>
+                  {isBuilder && <View style={{ width: 40 }} />}
+                </View>
+
+                {/* Line Items */}
+                {(a.line_items || []).map(li => (
+                  <View key={li.id} style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: C.w04 }}>
+                    <Text style={{ flex: 1, fontSize: 16, color: C.text }}>{li.name}</Text>
+                    <Text style={{ width: 120, fontSize: 16, fontWeight: '600', color: C.text, textAlign: 'right' }}>{f$(li.cost)}</Text>
+                    {isBuilder && (
+                      <TouchableOpacity onPress={() => deleteLineItem(li.id)} activeOpacity={0.7}
+                        style={{ width: 32, height: 32, borderRadius: 8, alignItems: 'center', justifyContent: 'center', marginLeft: 8 }}>
+                        <Feather name="x" size={16} color={C.rd} />
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                ))}
+
+                {(a.line_items || []).length === 0 && addLineItemId !== a.id && (
+                  <View style={{ paddingHorizontal: 16, paddingVertical: 14 }}>
+                    <Text style={{ fontSize: 14, color: C.dm, fontStyle: 'italic' }}>No line items yet</Text>
+                  </View>
+                )}
+
+                {/* Add Line Item Form */}
+                {addLineItemId === a.id ? (
+                  <View style={{ padding: 16, backgroundColor: C.w02, borderTopWidth: 1, borderTopColor: C.w06 }}>
+                    <View style={{ flexDirection: 'row', gap: 10, marginBottom: 10 }}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 12, fontWeight: '600', color: C.dm, marginBottom: 4, textTransform: 'uppercase' }}>Name *</Text>
+                        <TextInput value={liName} onChangeText={setLiName} placeholder="e.g. Carpet"
+                          placeholderTextColor={C.dm + '80'} style={[inputStyle, { fontSize: 15 }]} />
+                      </View>
+                      <View style={{ width: 130 }}>
+                        <Text style={{ fontSize: 12, fontWeight: '600', color: C.dm, marginBottom: 4, textTransform: 'uppercase' }}>Cost ($)</Text>
+                        <TextInput value={liCost} onChangeText={setLiCost} placeholder="0.00" keyboardType="numeric"
+                          placeholderTextColor={C.dm + '80'} style={[inputStyle, { fontSize: 15 }]} />
+                      </View>
+                    </View>
+                    <View style={{ flexDirection: 'row', gap: 10 }}>
+                      <TouchableOpacity onPress={() => { setAddLineItemId(null); setLiName(''); setLiCost(''); }}
+                        style={{ paddingHorizontal: 16, paddingVertical: 8, borderRadius: 6, borderWidth: 1, borderColor: C.w12 }} activeOpacity={0.7}>
+                        <Text style={{ fontSize: 14, fontWeight: '600', color: C.dm }}>Cancel</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity onPress={() => addLineItem(a.id)} disabled={!liName.trim() || liSaving}
+                        style={{ paddingHorizontal: 16, paddingVertical: 8, borderRadius: 6, backgroundColor: C.gd, opacity: (!liName.trim() || liSaving) ? 0.4 : 1 }} activeOpacity={0.7}>
+                        <Text style={{ fontSize: 14, fontWeight: '700', color: C.textBold }}>{liSaving ? 'Adding...' : 'Add Item'}</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                ) : isBuilder ? (
+                  <TouchableOpacity onPress={() => { setAddLineItemId(a.id); setLiName(''); setLiCost(''); }}
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 6, padding: 14, borderTopWidth: 1, borderTopColor: C.w04 }} activeOpacity={0.7}>
+                    <Feather name="plus" size={16} color={C.gd} />
+                    <Text style={{ fontSize: 14, fontWeight: '600', color: C.gd }}>Add Line Item</Text>
+                  </TouchableOpacity>
+                ) : null}
+
+                {/* Allowance Actions */}
+                {isBuilder && (
+                  <View style={{ flexDirection: 'row', gap: 10, padding: 12, borderTopWidth: 1, borderTopColor: C.w06, justifyContent: 'flex-end' }}>
+                    <TouchableOpacity onPress={() => setEditingAllowance({ id: a.id, title: a.title, amount: String(a.amount) })}
+                      style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 6, borderWidth: 1, borderColor: C.w12 }} activeOpacity={0.7}>
+                      <Feather name="edit-2" size={14} color={C.dm} />
+                      <Text style={{ fontSize: 13, color: C.dm }}>Edit</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => deleteAllowance(a)}
+                      style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 6, borderWidth: 1, borderColor: C.rd + '30' }} activeOpacity={0.7}>
+                      <Feather name="trash-2" size={14} color={C.rd} />
+                      <Text style={{ fontSize: 13, color: C.rd }}>Delete</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </View>
+            )}
+
+            {/* Edit Allowance Modal */}
+            {isEditing && (
+              <Modal visible animationType="fade" transparent>
+                <TouchableOpacity style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'center', alignItems: 'center' }} activeOpacity={1} onPress={() => { if (!editSaving) setEditingAllowance(null); }}>
+                  <TouchableOpacity activeOpacity={1} onPress={e => e.stopPropagation()}>
+                    <View style={{ width: 360, backgroundColor: C.cardBg || C.card, borderRadius: 14, borderWidth: 1, borderColor: C.w12, overflow: 'hidden', ...(Platform.OS === 'web' ? { boxShadow: '0 10px 30px rgba(0,0,0,0.4)' } : { elevation: 20 }) }}>
+                      <View style={{ padding: 16, borderBottomWidth: 1, borderBottomColor: C.w06 }}>
+                        <Text style={{ fontSize: 18, fontWeight: '700', color: C.textBold }}>Edit Allowance</Text>
+                      </View>
+                      <View style={{ padding: 16, gap: 12 }}>
+                        <View>
+                          <Text style={{ fontSize: 13, fontWeight: '600', color: C.dm, marginBottom: 4, textTransform: 'uppercase' }}>Title</Text>
+                          <TextInput value={editingAllowance.title} onChangeText={v => setEditingAllowance(prev => ({ ...prev, title: v }))}
+                            style={inputStyle} />
+                        </View>
+                        <View>
+                          <Text style={{ fontSize: 13, fontWeight: '600', color: C.dm, marginBottom: 4, textTransform: 'uppercase' }}>Allowance Amount ($)</Text>
+                          <TextInput value={editingAllowance.amount} onChangeText={v => setEditingAllowance(prev => ({ ...prev, amount: v }))}
+                            keyboardType="numeric" style={inputStyle} />
+                        </View>
+                      </View>
+                      <View style={{ flexDirection: 'row', borderTopWidth: 1, borderTopColor: C.w06 }}>
+                        <TouchableOpacity onPress={() => setEditingAllowance(null)} disabled={editSaving}
+                          style={{ flex: 1, paddingVertical: 14, alignItems: 'center', borderRightWidth: 1, borderRightColor: C.w06 }} activeOpacity={0.7}>
+                          <Text style={{ fontSize: 16, fontWeight: '600', color: C.dm }}>Cancel</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={updateAllowance} disabled={editSaving}
+                          style={{ flex: 1, paddingVertical: 14, alignItems: 'center' }} activeOpacity={0.7}>
+                          <Text style={{ fontSize: 16, fontWeight: '700', color: C.gd }}>{editSaving ? 'Saving...' : 'Save'}</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  </TouchableOpacity>
+                </TouchableOpacity>
+              </Modal>
+            )}
+          </View>
+        );
+      })}
+    </ScrollView>
+  );
+};
+
+
 // STYLES
 // ============================================================
 const getStyles = (C) => StyleSheet.create({

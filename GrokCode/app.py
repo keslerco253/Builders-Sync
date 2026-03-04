@@ -701,6 +701,39 @@ class Todos(db.Model):
         }
 
 
+class Allowance(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    job_id = db.Column(db.Integer, db.ForeignKey('projects.id'), nullable=False)
+    title = db.Column(db.String(255), nullable=False)
+    amount = db.Column(db.Float, default=0)
+    created_at = db.Column(db.String(30), default='')
+    line_items = db.relationship('AllowanceLineItem', backref='allowance', cascade='all, delete-orphan', lazy=True)
+
+    def to_dict(self):
+        items = [li.to_dict() for li in (self.line_items or [])]
+        total_cost = sum(li.get('cost', 0) for li in items)
+        return {
+            'id': self.id, 'job_id': self.job_id, 'title': self.title,
+            'amount': self.amount, 'created_at': self.created_at,
+            'line_items': items, 'total_cost': total_cost,
+            'remaining': self.amount - total_cost,
+        }
+
+
+class AllowanceLineItem(db.Model):
+    __tablename__ = 'allowance_line_item'
+    id = db.Column(db.Integer, primary_key=True)
+    allowance_id = db.Column(db.Integer, db.ForeignKey('allowance.id'), nullable=False)
+    name = db.Column(db.String(255), nullable=False)
+    cost = db.Column(db.Float, default=0)
+
+    def to_dict(self):
+        return {
+            'id': self.id, 'allowance_id': self.allowance_id,
+            'name': self.name, 'cost': self.cost,
+        }
+
+
 class ClientTask(db.Model):
     __tablename__ = 'client_task'
     id = db.Column(db.Integer, primary_key=True)
@@ -3973,6 +4006,97 @@ def get_user_client_tasks(uid):
         d['project_name'] = proj_map.get(t.job_id, '')
         result.append(d)
     return jsonify(result)
+
+
+# ============================================================
+# ALLOWANCES
+# ============================================================
+
+@app.route('/projects/<int:pid>/allowances', methods=['GET'])
+def get_allowances(pid):
+    items = Allowance.query.filter_by(job_id=pid).all()
+    return jsonify([a.to_dict() for a in items])
+
+
+@app.route('/projects/<int:pid>/allowances', methods=['POST'])
+def create_allowance(pid):
+    data = request.get_json()
+    title = (data.get('title') or '').strip()
+    amount = float(data.get('amount', 0) or 0)
+    if not title:
+        return jsonify({'error': 'Title is required'}), 400
+    now = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+    a = Allowance(job_id=pid, title=title, amount=amount, created_at=now)
+    db.session.add(a)
+    db.session.commit()
+    return jsonify(a.to_dict()), 201
+
+
+@app.route('/allowances/<int:aid>', methods=['PUT'])
+def update_allowance(aid):
+    a = Allowance.query.get(aid)
+    if not a:
+        return jsonify({'error': 'Not found'}), 404
+    data = request.get_json()
+    if 'title' in data:
+        a.title = data['title']
+    if 'amount' in data:
+        a.amount = float(data['amount'] or 0)
+    db.session.commit()
+    return jsonify(a.to_dict())
+
+
+@app.route('/allowances/<int:aid>', methods=['DELETE'])
+def delete_allowance(aid):
+    a = Allowance.query.get(aid)
+    if not a:
+        return jsonify({'error': 'Not found'}), 404
+    db.session.delete(a)
+    db.session.commit()
+    return jsonify({'deleted': aid})
+
+
+@app.route('/allowances/<int:aid>/line-items', methods=['POST'])
+def add_allowance_line_item(aid):
+    a = Allowance.query.get(aid)
+    if not a:
+        return jsonify({'error': 'Allowance not found'}), 404
+    data = request.get_json()
+    name = (data.get('name') or '').strip()
+    cost = float(data.get('cost', 0) or 0)
+    if not name:
+        return jsonify({'error': 'Name is required'}), 400
+    li = AllowanceLineItem(allowance_id=aid, name=name, cost=cost)
+    db.session.add(li)
+    db.session.commit()
+    return jsonify(a.to_dict()), 201
+
+
+@app.route('/allowance-line-items/<int:lid>', methods=['PUT'])
+def update_allowance_line_item(lid):
+    li = AllowanceLineItem.query.get(lid)
+    if not li:
+        return jsonify({'error': 'Not found'}), 404
+    data = request.get_json()
+    if 'name' in data:
+        li.name = data['name']
+    if 'cost' in data:
+        li.cost = float(data['cost'] or 0)
+    db.session.commit()
+    a = Allowance.query.get(li.allowance_id)
+    return jsonify(a.to_dict())
+
+
+@app.route('/allowance-line-items/<int:lid>', methods=['DELETE'])
+def delete_allowance_line_item(lid):
+    li = AllowanceLineItem.query.get(lid)
+    if not li:
+        return jsonify({'error': 'Not found'}), 404
+    aid = li.allowance_id
+    db.session.delete(li)
+    db.session.commit()
+    a = Allowance.query.get(aid)
+    return jsonify(a.to_dict())
 
 
 # ============================================================
