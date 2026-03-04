@@ -3886,27 +3886,27 @@ def add_exception(pid):
     # Calculate exception end date from start + workdays
     end_date = _calc_end_from_workdays(exc_date, duration)
 
-    # Create exception schedule item
+    # Create exception schedule item — connected to the predecessor of the dragged task
     exc = Schedule(
         job_id=pid, task=name,
         start_date=exc_date, end_date=end_date,
         baseline_start='', baseline_end='',
         progress=0, contractor='',
-        predecessor_id=task_id,
-        rel_type='FS', lag_days=0,
+        predecessor_id=target_task.predecessor_id,
+        rel_type=target_task.rel_type or 'FS',
+        lag_days=target_task.lag_days or 0,
         is_exception=True,
         exception_description=description,
     )
     db.session.add(exc)
     db.session.flush()  # Get the exception's ID
 
-    # Rewire: tasks that had target_task as predecessor now point to the exception
-    dependents = Schedule.query.filter_by(job_id=pid, predecessor_id=task_id).all()
-    for dep in dependents:
-        if dep.id != exc.id:
-            dep.predecessor_id = exc.id
+    # Rewire: the dragged task now follows the exception (FS, 0 lag)
+    target_task.predecessor_id = exc.id
+    target_task.rel_type = 'FS'
+    target_task.lag_days = 0
 
-    # Cascade all dates from the exception forward
+    # Cascade all dates from the exception forward (including the dragged task)
     all_items = Schedule.query.filter_by(job_id=pid).all()
     by_id = {t.id: t for t in all_items}
     for _ in range(len(all_items) + 1):
@@ -3914,8 +3914,6 @@ def add_exception(pid):
         for t in all_items:
             if not t.predecessor_id or t.predecessor_id not in by_id:
                 continue
-            if t.id == task_id:
-                continue  # don't recalculate the target task itself
             pred = by_id[t.predecessor_id]
             new_start = _calc_start_from_pred(pred, t.rel_type or 'FS', t.lag_days or 0)
             if new_start and new_start != t.start_date:
