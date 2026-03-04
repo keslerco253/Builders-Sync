@@ -252,6 +252,7 @@ class Projects(db.Model):
     bid_address = db.Column(db.String(255), default='')
     bid_lot_overhead = db.Column(db.Float, default=0)
     bid_commission = db.Column(db.Float, default=0)
+    bid_price_to_quote = db.Column(db.Float, default=0)
     date = db.Column(db.DateTime, default=datetime.utcnow)
 
     def to_dict(self):
@@ -310,6 +311,7 @@ class Projects(db.Model):
             'bid_address': self.bid_address or '',
             'bid_lot_overhead': self.bid_lot_overhead or 0,
             'bid_commission': self.bid_commission or 0,
+            'bid_price_to_quote': self.bid_price_to_quote or 0,
             'date': self.date.isoformat() if self.date else None,
         }
 
@@ -756,6 +758,7 @@ class BidCategory(db.Model):
     job_id = db.Column(db.Integer, db.ForeignKey('projects.id'), nullable=False)
     title = db.Column(db.String(255), nullable=False)
     sort_order = db.Column(db.Integer, default=0)
+    is_square_footage = db.Column(db.Boolean, default=False)
     line_items = db.relationship('BidLineItem', backref='category', cascade='all, delete-orphan', lazy=True)
 
     def to_dict(self):
@@ -763,7 +766,8 @@ class BidCategory(db.Model):
         subtotal = sum(li.get('total_cost', 0) for li in items)
         return {
             'id': self.id, 'job_id': self.job_id, 'title': self.title,
-            'sort_order': self.sort_order, 'line_items': items, 'subtotal': subtotal,
+            'sort_order': self.sort_order, 'is_square_footage': bool(self.is_square_footage),
+            'line_items': items, 'subtotal': subtotal,
         }
 
 
@@ -2124,7 +2128,7 @@ def update_project(project_id):
                  'project_manager_id', 'superintendent_id',
                  'is_bid', 'bid_client_first_name', 'bid_client_last_name',
                  'bid_client_phone', 'bid_client_email', 'bid_address',
-                 'bid_lot_overhead', 'bid_commission'):
+                 'bid_lot_overhead', 'bid_commission', 'bid_price_to_quote'):
         if key in data:
             # Prevent un-toggling go_live once it's been set
             if key == 'go_live' and p.go_live and not data[key]:
@@ -4240,7 +4244,8 @@ def create_bid_category(pid):
     if not title:
         return jsonify({'error': 'Title is required'}), 400
     max_order = db.session.query(db.func.max(BidCategory.sort_order)).filter_by(job_id=pid).scalar() or 0
-    cat = BidCategory(job_id=pid, title=title, sort_order=max_order + 1)
+    is_sqft = bool(data.get('is_square_footage', False))
+    cat = BidCategory(job_id=pid, title=title, sort_order=max_order + 1, is_square_footage=is_sqft)
     db.session.add(cat)
     db.session.commit()
     return jsonify(cat.to_dict()), 201
