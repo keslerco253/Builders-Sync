@@ -7997,7 +7997,8 @@ const BidTemplateManagerModal = ({ onClose }) => {
     }
   };
 
-  const isWide = Dimensions.get('window').width > 600;
+  const { width: winWidth } = useWindowDimensions();
+  const isWide = winWidth > 600;
 
   return (
     <Modal visible animationType="fade" transparent>
