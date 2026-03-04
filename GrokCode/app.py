@@ -836,12 +836,15 @@ class BidAllowanceItem(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     category_id = db.Column(db.Integer, db.ForeignKey('bid_allowance_category.id'), nullable=False)
     name = db.Column(db.String(255), nullable=False)
-    price = db.Column(db.Float, default=0)
+    quantity = db.Column(db.Float, default=1)
+    price_per = db.Column(db.Float, default=0)
 
     def to_dict(self):
+        total = self.quantity * self.price_per
         return {
             'id': self.id, 'category_id': self.category_id,
-            'name': self.name, 'price': self.price,
+            'name': self.name, 'quantity': self.quantity,
+            'price_per': self.price_per, 'price': total,
         }
 
 
@@ -4556,7 +4559,7 @@ def create_bid_allowance_item(cid):
     if not cat:
         return jsonify({'error': 'Category not found'}), 404
     data = request.get_json()
-    item = BidAllowanceItem(category_id=cid, name=data.get('name', 'New Item'), price=data.get('price', 0))
+    item = BidAllowanceItem(category_id=cid, name=data.get('name', 'New Item'), quantity=data.get('quantity', 1), price_per=data.get('price_per', 0))
     db.session.add(item)
     db.session.commit()
     return jsonify(cat.to_dict()), 201
@@ -4570,8 +4573,10 @@ def update_bid_allowance_item(iid):
     data = request.get_json()
     if 'name' in data:
         item.name = data['name']
-    if 'price' in data:
-        item.price = data['price']
+    if 'quantity' in data:
+        item.quantity = data['quantity']
+    if 'price_per' in data:
+        item.price_per = data['price_per']
     db.session.commit()
     return jsonify(item.allowance_category.to_dict())
 

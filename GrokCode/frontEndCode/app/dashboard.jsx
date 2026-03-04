@@ -8342,7 +8342,7 @@ const BidDetailView = ({ project, onProjectUpdate }) => {
         setAllowanceCats(data);
         const es = {};
         data.forEach(cat => (cat.items || []).forEach(item => {
-          es[item.id] = { name: item.name, price: String(item.price) };
+          es[item.id] = { name: item.name, quantity: String(item.quantity), price_per: String(item.price_per) };
         }));
         setAllowanceEditState(es);
       }
@@ -8383,7 +8383,7 @@ const BidDetailView = ({ project, onProjectUpdate }) => {
         const updated = await res.json();
         setAllowanceCats(prev => prev.map(c => c.id === catId ? updated : c));
         const newItem = updated.items[updated.items.length - 1];
-        if (newItem) setAllowanceEditState(prev => ({ ...prev, [newItem.id]: { name: newItem.name, price: String(newItem.price) } }));
+        if (newItem) setAllowanceEditState(prev => ({ ...prev, [newItem.id]: { name: newItem.name, quantity: String(newItem.quantity), price_per: String(newItem.price_per) } }));
       }
     } catch (e) { /* */ }
   };
@@ -8408,7 +8408,8 @@ const BidDetailView = ({ project, onProjectUpdate }) => {
     allowanceSaveTimers.current[key] = setTimeout(() => {
       const payload = {};
       if (field === 'name') payload.name = value;
-      else if (field === 'price') payload.price = parseFloat(value) || 0;
+      else if (field === 'quantity') payload.quantity = parseFloat(value) || 0;
+      else if (field === 'price_per') payload.price_per = parseFloat(value) || 0;
       updateAllowanceItem(itemId, payload, catId);
     }, 600);
   }, []);
@@ -9117,15 +9118,18 @@ const BidDetailView = ({ project, onProjectUpdate }) => {
               {(cat.items || []).length > 0 && (
                 <View>
                   <View style={{ flexDirection: 'row', paddingVertical: 4, paddingHorizontal: 12, backgroundColor: C.w04 }}>
-                    <Text style={[headerTxt, { flex: 2 }]}>Item</Text>
-                    <Text style={[headerTxt, { flex: 1, textAlign: 'right' }]}>Price</Text>
+                    <Text style={[headerTxt, { flex: 3, paddingHorizontal: 4 }]}>Item</Text>
+                    <Text style={[headerTxt, { flex: 1, textAlign: 'right', paddingHorizontal: 4 }]}>Qty</Text>
+                    <Text style={[headerTxt, { flex: 1.5, textAlign: 'right', paddingHorizontal: 4 }]}>Price/Each</Text>
+                    <Text style={[headerTxt, { flex: 1.5, textAlign: 'right', paddingHorizontal: 4 }]}>Total</Text>
                     <View style={{ width: 30 }} />
                   </View>
                   {(cat.items || []).map((item, idx) => {
-                    const es = allowanceEditState[item.id] || { name: item.name, price: String(item.price) };
+                    const es = allowanceEditState[item.id] || { name: item.name, quantity: String(item.quantity), price_per: String(item.price_per) };
+                    const lineTotal = (parseFloat(es.quantity) || 0) * (parseFloat(es.price_per) || 0);
                     return (
                       <View key={item.id} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 2, paddingHorizontal: 12, borderTopWidth: 1, borderTopColor: C.w06, backgroundColor: rowBg(idx) }}>
-                        <View style={{ flex: 2, paddingHorizontal: 2 }}>
+                        <View style={{ flex: 3, paddingHorizontal: 2 }}>
                           <TextInput value={es.name}
                             onChangeText={v => handleAllowanceItemChange(item.id, cat.id, 'name', v)}
                             onFocus={() => setFocusedCell(`allow_${item.id}_name`)}
@@ -9133,12 +9137,23 @@ const BidDetailView = ({ project, onProjectUpdate }) => {
                             style={[cellInputStyle, focusedCell === `allow_${item.id}_name` && cellInputFocused]} />
                         </View>
                         <View style={{ flex: 1, paddingHorizontal: 2 }}>
-                          <TextInput value={es.price}
-                            onChangeText={v => handleAllowanceItemChange(item.id, cat.id, 'price', v)}
+                          <TextInput value={es.quantity}
+                            onChangeText={v => handleAllowanceItemChange(item.id, cat.id, 'quantity', v)}
+                            onFocus={() => setFocusedCell(`allow_${item.id}_qty`)}
+                            onBlur={() => setFocusedCell(null)}
+                            keyboardType="decimal-pad"
+                            style={[cellInputStyle, { textAlign: 'right' }, focusedCell === `allow_${item.id}_qty` && cellInputFocused]} />
+                        </View>
+                        <View style={{ flex: 1.5, paddingHorizontal: 2 }}>
+                          <TextInput value={es.price_per}
+                            onChangeText={v => handleAllowanceItemChange(item.id, cat.id, 'price_per', v)}
                             onFocus={() => setFocusedCell(`allow_${item.id}_price`)}
                             onBlur={() => setFocusedCell(null)}
                             keyboardType="decimal-pad"
                             style={[cellInputStyle, { textAlign: 'right' }, focusedCell === `allow_${item.id}_price` && cellInputFocused]} />
+                        </View>
+                        <View style={{ flex: 1.5, paddingHorizontal: 4 }}>
+                          <Text style={[cellTxt, { textAlign: 'right', fontWeight: '600' }]}>{fmt(lineTotal)}</Text>
                         </View>
                         <TouchableOpacity onPress={() => setConfirmDeleteAllowanceItem({ id: item.id, catId: cat.id })} style={{ width: 30, alignItems: 'center' }}>
                           <Feather name="x" size={15} color={C.rd || '#ef4444'} />
