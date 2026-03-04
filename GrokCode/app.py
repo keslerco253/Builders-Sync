@@ -2427,12 +2427,29 @@ def delete_project(project_id):
     Schedule.query.filter_by(job_id=project_id).delete()
     JobUsers.query.filter_by(job_id=project_id).delete()
     for co in ChangeOrders.query.filter_by(job_id=project_id).all():
+        ChangeOrderLineItem.query.filter_by(change_order_id=co.id).delete()
+        ChangeOrderSignature.query.filter_by(change_order_id=co.id).delete()
+        ChangeOrderDocument.query.filter_by(change_order_id=co.id).delete()
         db.session.delete(co)
     ProjectSelection.query.filter_by(job_id=project_id).delete()
     DailyLogs.query.filter_by(job_id=project_id).delete()
     Todos.query.filter_by(job_id=project_id).delete()
     Documents.query.filter_by(job_id=project_id).delete()
     WorkdayExemption.query.filter(WorkdayExemption.job_id == project_id).delete()
+    GoLiveProjectStep.query.filter_by(project_id=project_id).delete()
+    ClientTask.query.filter_by(job_id=project_id).delete()
+    # Bid categories and their line items
+    for bc in BidCategory.query.filter_by(job_id=project_id).all():
+        BidLineItem.query.filter_by(category_id=bc.id).delete()
+        db.session.delete(bc)
+    # Bid allowance categories and their items
+    for bac in BidAllowanceCategory.query.filter_by(job_id=project_id).all():
+        BidAllowanceItem.query.filter_by(category_id=bac.id).delete()
+        db.session.delete(bac)
+    # Allowances and their line items
+    for a in Allowance.query.filter_by(job_id=project_id).all():
+        AllowanceLineItem.query.filter_by(allowance_id=a.id).delete()
+        db.session.delete(a)
 
     db.session.delete(p)
     db.session.commit()
