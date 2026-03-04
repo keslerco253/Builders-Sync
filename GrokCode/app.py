@@ -4367,7 +4367,7 @@ def delete_bid_line_item(lid):
 
 @app.route('/bid-templates', methods=['GET'])
 def get_bid_templates():
-    uid = getattr(g, 'user_id', None)
+    uid = request.current_user.get('user_id')
     u = LoginInfo.query.get(uid) if uid else None
     if not u:
         return jsonify([])
@@ -4381,7 +4381,7 @@ def create_bid_template():
     name = (data.get('name') or '').strip()
     if not name:
         return jsonify({'error': 'Name is required'}), 400
-    uid = getattr(g, 'user_id', None)
+    uid = request.current_user.get('user_id')
     u = LoginInfo.query.get(uid) if uid else None
     from datetime import datetime
     tmpl = BidTemplate(
@@ -4472,7 +4472,7 @@ def save_as_bid_template(pid):
     name = (data.get('name') or '').strip()
     if not name:
         return jsonify({'error': 'Name is required'}), 400
-    uid = getattr(g, 'user_id', None)
+    uid = request.current_user.get('user_id')
     u = LoginInfo.query.get(uid) if uid else None
     proj = Projects.query.get(pid)
     if not proj:
