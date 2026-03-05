@@ -2523,6 +2523,8 @@ export default function Dashboard() {
                         city: selectedSub.city || '',
                         state: selectedSub.state || '',
                         zip_code: selectedSub.zip_code || '',
+                        primary_contact_phone: selectedSub.primary_contact_phone || '',
+                        primary_contact_email: selectedSub.primary_contact_email || '',
                       });
                       setSubEditTrades(tradesArr);
                       setSubEditing(true);
@@ -2565,6 +2567,15 @@ export default function Dashboard() {
                         style={{ width: 90, fontSize: 20, color: C.text, backgroundColor: C.inputBg, borderWidth: 1, borderColor: C.w10, borderRadius: 8, padding: 10 }} />
                     </View>
                   </View>
+                  <View>
+                    <Text style={st.subSectionLbl}>PRIMARY CONTACT</Text>
+                    <TextInput value={fPhone(subEditFields.primary_contact_phone)} onChangeText={v => setSubEditFields(p => ({ ...p, primary_contact_phone: v.replace(/\D/g, '').slice(0, 10) }))}
+                      placeholder="Phone" placeholderTextColor={C.ph} keyboardType="phone-pad"
+                      style={{ fontSize: 20, color: C.text, backgroundColor: C.inputBg, borderWidth: 1, borderColor: C.w10, borderRadius: 8, padding: 10, marginBottom: 8 }} />
+                    <TextInput value={subEditFields.primary_contact_email} onChangeText={v => setSubEditFields(p => ({ ...p, primary_contact_email: v }))}
+                      placeholder="Email" placeholderTextColor={C.ph} keyboardType="email-address" autoCapitalize="none"
+                      style={{ fontSize: 20, color: C.text, backgroundColor: C.inputBg, borderWidth: 1, borderColor: C.w10, borderRadius: 8, padding: 10 }} />
+                  </View>
                 </View>
               ) : (
                 <View style={{ gap: 8, marginBottom: 14 }}>
@@ -2587,6 +2598,24 @@ export default function Dashboard() {
                         {[selectedSub.street_address, [selectedSub.city, selectedSub.state].filter(Boolean).join(', '), selectedSub.zip_code].filter(Boolean).join('\n')}
                       </Text>
                     </View>
+                  )}
+                  {(selectedSub.primary_contact_phone || selectedSub.primary_contact_email) && (
+                    <>
+                      <View style={{ borderTopWidth: 1, borderTopColor: C.w06, marginVertical: 6 }} />
+                      <Text style={[st.subSectionLbl, { marginBottom: 4 }]}>PRIMARY CONTACT</Text>
+                      {selectedSub.primary_contact_phone ? (
+                        <View style={st.subInfoRow}>
+                          <Text style={st.subInfoLabel}>Phone</Text>
+                          <Text style={st.subInfoVal}>{fPhone(selectedSub.primary_contact_phone)}</Text>
+                        </View>
+                      ) : null}
+                      {selectedSub.primary_contact_email ? (
+                        <View style={st.subInfoRow}>
+                          <Text style={st.subInfoLabel}>Email</Text>
+                          <Text style={st.subInfoVal}>{selectedSub.primary_contact_email}</Text>
+                        </View>
+                      ) : null}
+                    </>
                   )}
                 </View>
               )}
@@ -2640,6 +2669,8 @@ export default function Dashboard() {
                             city: subEditFields.city.trim(),
                             state: subEditFields.state.trim(),
                             zip_code: subEditFields.zip_code.trim(),
+                            primary_contact_phone: subEditFields.primary_contact_phone,
+                            primary_contact_email: subEditFields.primary_contact_email.trim(),
                           }),
                         });
                         if (res.ok) {

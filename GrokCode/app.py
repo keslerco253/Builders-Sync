@@ -96,6 +96,8 @@ class LoginInfo(db.Model):
     authorized = db.Column(db.Boolean, default=True)
     registered = db.Column(db.Boolean, default=True)  # False = invited but hasn't completed registration
     is_project_manager = db.Column(db.Boolean, default=False)  # PM flag for builders
+    primary_contact_phone = db.Column(db.String(30), default='')
+    primary_contact_email = db.Column(db.String(200), default='')
 
     def __init__(self, username, password, firstName, lastName, companyName='',
                  role='builder', phone='', trades='', street_address='', city='', state='', zip_code='',
@@ -138,6 +140,8 @@ class LoginInfo(db.Model):
             'company_id': self.company_id,
             'registered': self.registered if self.registered is not None else True,
             'is_project_manager': bool(self.is_project_manager) if self.is_project_manager is not None else False,
+            'primary_contact_phone': self.primary_contact_phone or '',
+            'primary_contact_email': self.primary_contact_email or '',
             'created_at': self.created_at.isoformat() if self.created_at else None,
         }
 
@@ -1678,6 +1682,10 @@ def update_user(user_id):
         user.state = data['state']
     if 'zip_code' in data:
         user.zip_code = data['zip_code']
+    if 'primary_contact_phone' in data:
+        user.primary_contact_phone = data['primary_contact_phone']
+    if 'primary_contact_email' in data:
+        user.primary_contact_email = data['primary_contact_email']
 
     db.session.commit()
     return jsonify(user.to_dict())
