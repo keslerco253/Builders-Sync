@@ -323,9 +323,13 @@ export default function Dashboard() {
   const [pendingTaskEdit, setPendingTaskEdit] = useState(null); // task object to open in project viewer edit modal
   const [taskActionDate, setTaskActionDate] = useState('');
   const [taskActionSaving, setTaskActionSaving] = useState(false);
-  const [subProjectPopup, setSubProjectPopup] = useState(null); // { project, tab, sub, taskEdit }
-  const [subPopupTab, setSubPopupTab] = useState('schedule');
-  const [subPopupSub, setSubPopupSub] = useState('calendar');
+  const [subTaskInfoEdit, setSubTaskInfoEdit] = useState(null); // task edit modal from right-click
+  const [subTaskInfoSaving, setSubTaskInfoSaving] = useState(false);
+  const [subTaskSubsList, setSubTaskSubsList] = useState([]); // contractors list for task edit
+  const [subTaskPredDropOpen, setSubTaskPredDropOpen] = useState(false);
+  const [subTaskTradeDropOpen, setSubTaskTradeDropOpen] = useState(false);
+  const [subTaskSubsSearch, setSubTaskSubsSearch] = useState('');
+  const [subTaskSchedule, setSubTaskSchedule] = useState([]); // schedule for predecessor dropdown
   const [subTaskFilter, setSubTaskFilter] = useState(null); // task name string or null
   const [subTaskFilterOpen, setSubTaskFilterOpen] = useState(false);
   const [subChangeOrders, setSubChangeOrders] = useState([]);
@@ -1868,15 +1872,98 @@ export default function Dashboard() {
     setSubEditSaving(false);
   };
 
+  // Right-click task edit (same as double-click in project calendar)
+  const handleSubTaskRightClick = async (task, e) => {
+    if (Platform.OS !== 'web') return;
+    e.preventDefault(); e.stopPropagation();
+    const wd = subWorkdayCount(task.start_date, task.end_date);
+    setSubTaskPredDropOpen(false);
+    setSubTaskTradeDropOpen(false);
+    setSubTaskSubsSearch('');
+    setSubTaskInfoEdit({
+      id: task.id,
+      job_id: task.job_id,
+      task: task.task || '',
+      trade: task.trade || '',
+      trades: task.trades || (task.trade ? [task.trade] : []),
+      contractor: task.contractor || '',
+      contractors: task.contractors || (task.contractor ? [task.contractor] : []),
+      hidden_from_customer: task.hidden_from_customer || false,
+      workdays: String(wd),
+      predecessor_id: task.predecessor_id || null,
+      rel_type: task.rel_type || 'FS',
+      lag_days: String(task.lag_days || '0'),
+      start_date: task.start_date || '',
+      end_date: task.end_date || '',
+      project_name: task.project_name || 'Unknown',
+    });
+    // Fetch schedule for predecessor dropdown
+    try {
+      const res = await apiFetch(`/projects/${task.job_id}/schedule`);
+      const data = await res.json();
+      if (Array.isArray(data)) setSubTaskSchedule(data);
+    } catch(e) { console.warn('fetch schedule:', e); }
+    // Fetch subs list
+    try {
+      const res = await apiFetch(`/users${user?.company_id ? `?company_id=${user.company_id}` : ''}`);
+      const data = await res.json();
+      if (Array.isArray(data)) setSubTaskSubsList(data.filter(u => (u.role === 'contractor' || u.role === 'builder') && u.active !== false));
+    } catch(e) { console.warn('fetch subs:', e); }
+  };
+
+  const closeSubTaskInfoEdit = () => { setSubTaskInfoEdit(null); setSubTaskPredDropOpen(false); setSubTaskTradeDropOpen(false); setSubTaskSubsSearch(''); };
+
+  const saveSubTaskInfoEdit = async () => {
+    if (!subTaskInfoEdit || !subTaskInfoEdit.task.trim() || subTaskInfoSaving) return;
+    setSubTaskInfoSaving(true);
+    try {
+      const wd = parseInt(subTaskInfoEdit.workdays) || 1;
+      const updates = {
+        task: subTaskInfoEdit.task.trim(),
+        trade: (subTaskInfoEdit.trades || [])[0] || '',
+        trades: subTaskInfoEdit.trades || [],
+        contractor: (subTaskInfoEdit.contractors || [])[0] || '',
+        contractors: subTaskInfoEdit.contractors || [],
+        hidden_from_customer: subTaskInfoEdit.hidden_from_customer || false,
+        predecessor_id: subTaskInfoEdit.predecessor_id,
+        rel_type: subTaskInfoEdit.rel_type || 'FS',
+        lag_days: parseInt(subTaskInfoEdit.lag_days) || 0,
+      };
+      if (subTaskInfoEdit.start_date) {
+        updates.start_date = subTaskInfoEdit.start_date;
+        updates.end_date = subCalcEnd(subTaskInfoEdit.start_date, wd);
+      }
+      const editedBy = user ? `${user.first_name} ${user.last_name}`.trim() : '';
+      const res = await apiFetch(`/schedule/${subTaskInfoEdit.id}/edit`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...updates, reason: 'Task updated', edited_by: editedBy }),
+      });
+      if (res.ok) {
+        const cascaded = await res.json();
+        if (Array.isArray(cascaded)) {
+          setSubTasks(prev => prev.map(t => {
+            const updated = cascaded.find(c => c.id === t.id);
+            return updated ? { ...t, ...updated } : t;
+          }));
+        }
+      }
+      closeSubTaskInfoEdit();
+      setScheduleVersion(v => v + 1);
+    } catch(e) { console.warn('save sub task info:', e); }
+    setSubTaskInfoSaving(false);
+  };
+
   const closeSubEditPopup = () => { setSubEditPopup(null); setSubEditDuration(''); setSubEditReason(''); setSubEditSaving(false); };
 
   // Task action popup helpers
   const closeTaskActionPopup = () => { setTaskActionPopup(null); setTaskActionDate(''); setTaskActionSaving(false); };
   const taskActionNav = (proj, tab, sub) => {
     closeTaskActionPopup();
-    setSubProjectPopup({ project: proj });
-    setSubPopupTab(tab || 'schedule');
-    setSubPopupSub(sub || 'calendar');
+    if (isContractor) { setContractorProject(proj); setSubTab('projects'); }
+    else { setDashView('projects'); setSelectedProject(proj); }
+    if (tab) setActiveTab(tab);
+    if (sub) setActiveSub(sub);
   };
   const handleMoveTaskDate = async () => {
     if (!taskActionPopup || !taskActionDate) return;
@@ -3156,11 +3243,7 @@ export default function Dashboard() {
                               onPointerDown: (e) => subHandleDragStart(task, e),
                             } : {})}
                             {...(Platform.OS === 'web' ? {
-                              onContextMenu: (e) => {
-                                e.preventDefault(); e.stopPropagation();
-                                const proj = projects.find(pr => pr.id === task.job_id);
-                                if (proj) { setTaskActionPopup({ task, project: proj }); setTaskActionDate(''); }
-                              },
+                              onContextMenu: (e) => handleSubTaskRightClick(task, e),
                             } : {})}
                           >
                             <View style={{ flex: 1, justifyContent: 'center' }}>
@@ -3238,11 +3321,7 @@ export default function Dashboard() {
                                   onPointerDown: (e) => subHandleDragStart(task, e),
                                 } : {})}
                                 {...(Platform.OS === 'web' ? {
-                                  onContextMenu: (e) => {
-                                    e.preventDefault(); e.stopPropagation();
-                                    const proj = projects.find(pr => pr.id === task.job_id);
-                                    if (proj) { setTaskActionPopup({ task, project: proj }); setTaskActionDate(''); }
-                                  },
+                                  onContextMenu: (e) => handleSubTaskRightClick(task, e),
                                 } : {})}
                               >
                                 <Text style={{ fontSize: 14, fontWeight: '700', color: isHighlight ? '#fff' : C.text, textDecorationLine: isComplete ? 'line-through' : 'none' }} numberOfLines={1}>
@@ -3431,47 +3510,327 @@ export default function Dashboard() {
               </View>
             )}
 
-            {/* Sub Project Popup Modal */}
-            {subProjectPopup && (
-              <View style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 1050, alignItems: 'center', justifyContent: 'center' }}>
-                <TouchableOpacity style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)' }} activeOpacity={1} onPress={() => setSubProjectPopup(null)} />
-                <View style={{ width: '90%', maxWidth: 1100, height: '90%', zIndex: 1051, backgroundColor: C.modalBg, borderRadius: 12, borderWidth: 1, borderColor: C.w12, overflow: 'hidden',
-                  ...(Platform.OS === 'web' ? { boxShadow: '0 12px 40px rgba(0,0,0,0.3)' } : { elevation: 20 }) }}>
-                  {/* Close button */}
-                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: C.w08, backgroundColor: C.w03 }}>
-                    <Text style={{ fontSize: 21, fontWeight: '700', color: C.textBold }} numberOfLines={1}>{subProjectPopup.project.name}</Text>
-                    <TouchableOpacity onPress={() => setSubProjectPopup(null)} style={{ width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center', backgroundColor: C.w06 }}>
-                      <Text style={{ fontSize: 27, color: C.mt, marginTop: -1 }}>×</Text>
-                    </TouchableOpacity>
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <CurrentProjectViewer
-                      embedded
-                      project={subProjectPopup.project}
-                      clientView={isContractor}
-                      activeTab={subPopupTab}
-                      activeSub={subPopupSub}
-                      onTabChange={setSubPopupTab}
-                      onSubChange={setSubPopupSub}
-                      onProjectUpdate={(updatedFields) => {
-                        const updated = { ...subProjectPopup.project, ...updatedFields };
-                        setSubProjectPopup(prev => prev ? { ...prev, project: updated } : null);
-                        setProjects(prev => prev.map(p => p.id === updated.id ? { ...p, ...updatedFields } : p));
-                      }}
-                      onProjectDeleted={() => { setSubProjectPopup(null); }}
-                      scheduleVersion={scheduleVersion}
-                      onScheduleChange={handleScheduleChange}
-                      syncRef={syncRef}
-                      subdivisions={subdivisions}
-                      builderTrades={builderTrades}
-                      floorPlans={floorPlans}
-                      calYear={globalCalMonth.getFullYear()}
-                      calMonth={globalCalMonth.getMonth()}
-                      onMonthChange={(y, m) => setGlobalCalMonth(new Date(y, m, 1))}
-                    />
+            {/* Sub Task Info Edit Modal (right-click on sub calendar) */}
+            {subTaskInfoEdit && (
+              <Modal visible animationType="fade" transparent>
+                <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }}>
+                  <View style={{ width: '92%', maxWidth: 700, maxHeight: '90%', backgroundColor: C.modalBg, borderRadius: 12, borderWidth: 1, borderColor: C.w12, overflow: 'hidden',
+                    ...(Platform.OS === 'web' ? { boxShadow: '0 12px 40px rgba(0,0,0,0.3)' } : { elevation: 20 }) }}>
+                    {/* Header */}
+                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: C.w08, backgroundColor: C.w03 }}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 21, fontWeight: '700', color: C.textBold }}>Edit Task</Text>
+                        <Text style={{ fontSize: 14, color: C.dm, marginTop: 2 }}>{subTaskInfoEdit.project_name}</Text>
+                      </View>
+                      <TouchableOpacity onPress={closeSubTaskInfoEdit} style={{ width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center', backgroundColor: C.w06 }}>
+                        <Text style={{ fontSize: 27, color: C.mt, marginTop: -1 }}>×</Text>
+                      </TouchableOpacity>
+                    </View>
+
+                    <ScrollView style={{ flex: 1 }} keyboardShouldPersistTaps="handled">
+                    <View style={{ padding: 18, gap: 14 }}>
+                      {/* Row 1: Task Name + Trade + Workdays */}
+                      <View style={{ flexDirection: 'row', gap: 12, alignItems: 'flex-end' }}>
+                        <View style={{ flex: 3 }}>
+                          <Text style={{ fontSize: 13, fontWeight: '700', color: C.dm, letterSpacing: 1, marginBottom: 5 }}>TASK NAME</Text>
+                          <TextInput
+                            value={subTaskInfoEdit.task}
+                            onChangeText={v => setSubTaskInfoEdit(prev => ({ ...prev, task: v }))}
+                            placeholder="Task name"
+                            placeholderTextColor={C.ph}
+                            style={{ fontSize: 20, color: C.text, backgroundColor: C.w04, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, borderWidth: 1, borderColor: C.w08, ...(Platform.OS === 'web' ? { outlineStyle: 'none' } : {}) }}
+                          />
+                        </View>
+                        <View style={{ flex: 2 }}>
+                          <Text style={{ fontSize: 13, fontWeight: '700', color: C.dm, letterSpacing: 1, marginBottom: 5 }}>TRADES</Text>
+                          <TouchableOpacity
+                            onPress={() => { setSubTaskPredDropOpen(false); setSubTaskTradeDropOpen(p => !p); }}
+                            style={{ fontSize: 20, backgroundColor: C.w04, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, borderWidth: 1, borderColor: C.w08, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}
+                            activeOpacity={0.7}
+                          >
+                            <Text style={{ fontSize: 20, color: (subTaskInfoEdit.trades || []).length > 0 ? C.bl : C.ph, flex: 1 }} numberOfLines={1}>
+                              {(subTaskInfoEdit.trades || []).length > 0 ? subTaskInfoEdit.trades.join(', ') : 'Select trades'}
+                            </Text>
+                            <Text style={{ fontSize: 14, color: C.dm, marginLeft: 6 }}>{subTaskTradeDropOpen ? '▲' : '▼'}</Text>
+                          </TouchableOpacity>
+                        </View>
+                        <View style={{ width: 90 }}>
+                          <Text style={{ fontSize: 13, fontWeight: '700', color: C.dm, letterSpacing: 1, marginBottom: 5 }}>WORKDAYS</Text>
+                          <TextInput
+                            value={subTaskInfoEdit.workdays}
+                            onChangeText={v => setSubTaskInfoEdit(prev => ({ ...prev, workdays: v.replace(/\D/g, '') }))}
+                            keyboardType="numeric"
+                            placeholder="1"
+                            placeholderTextColor={C.ph}
+                            style={{ fontSize: 20, color: C.text, backgroundColor: C.w04, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, borderWidth: 1, borderColor: C.w08, textAlign: 'center', ...(Platform.OS === 'web' ? { outlineStyle: 'none' } : {}) }}
+                          />
+                        </View>
+                      </View>
+
+                      {/* Selected trades chips */}
+                      {(subTaskInfoEdit.trades || []).length > 0 && (
+                        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4 }}>
+                          {subTaskInfoEdit.trades.map(t => (
+                            <View key={t} style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(59,130,246,0.1)', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4, gap: 4 }}>
+                              <Text style={{ fontSize: 14, color: '#3b82f6', fontWeight: '600' }}>{t}</Text>
+                              <TouchableOpacity onPress={() => setSubTaskInfoEdit(prev => ({ ...prev, trades: prev.trades.filter(tr => tr !== t), trade: prev.trades.filter(tr => tr !== t)[0] || '' }))}
+                                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                                <Text style={{ fontSize: 16, color: '#f87171', fontWeight: '600' }}>×</Text>
+                              </TouchableOpacity>
+                            </View>
+                          ))}
+                        </View>
+                      )}
+
+                      {/* Trade dropdown */}
+                      {subTaskTradeDropOpen && (
+                        <View style={{ borderRadius: 8, borderWidth: 1, borderColor: C.w06, overflow: 'hidden', maxHeight: 250 }}>
+                          <ScrollView nestedScrollEnabled keyboardShouldPersistTaps="handled">
+                            {(builderTrades || DEFAULT_TRADES).map(t => {
+                              const isActive = (subTaskInfoEdit.trades || []).includes(t);
+                              return (
+                                <TouchableOpacity
+                                  key={t}
+                                  onPress={() => {
+                                    setSubTaskInfoEdit(prev => {
+                                      const cur = prev.trades || [];
+                                      const next = cur.includes(t) ? cur.filter(tr => tr !== t) : [...cur, t];
+                                      return { ...prev, trades: next, trade: next[0] || '' };
+                                    });
+                                  }}
+                                  style={{ paddingVertical: 9, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: C.w04, backgroundColor: isActive ? 'rgba(59,130,246,0.08)' : 'transparent' }}
+                                >
+                                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                                    <Text style={{ fontSize: 18, color: isActive ? C.bl : C.text, fontWeight: isActive ? '600' : '400' }}>{t}</Text>
+                                    {isActive && <Feather name="check" size={17} color={C.bl} />}
+                                  </View>
+                                </TouchableOpacity>
+                              );
+                            })}
+                          </ScrollView>
+                        </View>
+                      )}
+
+                      {/* Row 2: Predecessor + FS/SS + Lag */}
+                      <View style={{ flexDirection: 'row', gap: 12, alignItems: 'flex-end' }}>
+                        <View style={{ flex: 3 }}>
+                          <Text style={{ fontSize: 13, fontWeight: '700', color: C.dm, letterSpacing: 1, marginBottom: 5 }}>PREDECESSOR</Text>
+                          <TouchableOpacity
+                            onPress={() => { setSubTaskTradeDropOpen(false); setSubTaskPredDropOpen(p => !p); }}
+                            style={{ backgroundColor: C.w04, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, borderWidth: 1, borderColor: C.w08, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}
+                            activeOpacity={0.7}
+                          >
+                            <Text style={{ fontSize: 20, color: subTaskInfoEdit.predecessor_id ? '#a78bfa' : C.ph, flex: 1 }} numberOfLines={1}>
+                              {(() => {
+                                if (!subTaskInfoEdit.predecessor_id) return 'None';
+                                const pred = subTaskSchedule.find(t => t.id === subTaskInfoEdit.predecessor_id);
+                                if (!pred) return 'None';
+                                return `${subTaskSchedule.indexOf(pred) + 1}. ${pred.task || 'Untitled'}`;
+                              })()}
+                            </Text>
+                            <Text style={{ fontSize: 14, color: C.dm, marginLeft: 6 }}>{subTaskPredDropOpen ? '▲' : '▼'}</Text>
+                          </TouchableOpacity>
+                        </View>
+                        <View>
+                          <Text style={{ fontSize: 13, fontWeight: '700', color: C.dm, letterSpacing: 1, marginBottom: 5 }}>TYPE</Text>
+                          <View style={{ flexDirection: 'row', borderRadius: 8, overflow: 'hidden', borderWidth: 1, borderColor: C.w08 }}>
+                            {['FS', 'SS'].map(r => (
+                              <TouchableOpacity
+                                key={r}
+                                onPress={() => { if (subTaskInfoEdit.predecessor_id) setSubTaskInfoEdit(prev => ({ ...prev, rel_type: r })); }}
+                                style={{ paddingHorizontal: 18, paddingVertical: 10, backgroundColor: (subTaskInfoEdit.rel_type || 'FS') === r && subTaskInfoEdit.predecessor_id ? 'rgba(139,92,246,0.15)' : C.w02 }}
+                              >
+                                <Text style={{ fontSize: 18, fontWeight: '700', color: (subTaskInfoEdit.rel_type || 'FS') === r && subTaskInfoEdit.predecessor_id ? '#a78bfa' : C.dm }}>{r}</Text>
+                              </TouchableOpacity>
+                            ))}
+                          </View>
+                        </View>
+                        <View style={{ width: 90 }}>
+                          <Text style={{ fontSize: 13, fontWeight: '700', color: C.dm, letterSpacing: 1, marginBottom: 5 }}>LAG</Text>
+                          <TextInput
+                            value={subTaskInfoEdit.lag_days}
+                            onChangeText={v => { if (subTaskInfoEdit.predecessor_id) setSubTaskInfoEdit(prev => ({ ...prev, lag_days: v.replace(/[^0-9-]/g, '') })); }}
+                            keyboardType="numeric"
+                            placeholder="0"
+                            placeholderTextColor={C.ph}
+                            editable={!!subTaskInfoEdit.predecessor_id}
+                            style={{ fontSize: 20, color: C.text, backgroundColor: C.w04, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, borderWidth: 1, borderColor: C.w08, textAlign: 'center', opacity: subTaskInfoEdit.predecessor_id ? 1 : 0.4, ...(Platform.OS === 'web' ? { outlineStyle: 'none' } : {}) }}
+                          />
+                        </View>
+                      </View>
+
+                      {/* Predecessor dropdown list */}
+                      {subTaskPredDropOpen && (
+                        <View style={{ borderRadius: 8, borderWidth: 1, borderColor: C.w06, overflow: 'hidden', maxHeight: 200 }}>
+                          <ScrollView nestedScrollEnabled>
+                            <TouchableOpacity
+                              onPress={() => { setSubTaskInfoEdit(prev => ({ ...prev, predecessor_id: null, rel_type: 'FS', lag_days: '0' })); setSubTaskPredDropOpen(false); }}
+                              style={{ paddingVertical: 10, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: C.w04, backgroundColor: !subTaskInfoEdit.predecessor_id ? 'rgba(59,130,246,0.08)' : 'transparent' }}
+                            >
+                              <Text style={{ fontSize: 18, color: !subTaskInfoEdit.predecessor_id ? C.bl : C.dm, fontWeight: !subTaskInfoEdit.predecessor_id ? '600' : '400' }}>None</Text>
+                            </TouchableOpacity>
+                            {subTaskSchedule.filter(t => t.id !== subTaskInfoEdit.id).map(t => {
+                              const isActive = subTaskInfoEdit.predecessor_id === t.id;
+                              const taskIdx = subTaskSchedule.indexOf(t);
+                              return (
+                                <TouchableOpacity
+                                  key={t.id}
+                                  onPress={() => { setSubTaskInfoEdit(prev => ({ ...prev, predecessor_id: t.id })); setSubTaskPredDropOpen(false); }}
+                                  style={{ paddingVertical: 10, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: C.w04, backgroundColor: isActive ? 'rgba(139,92,246,0.1)' : 'transparent' }}
+                                >
+                                  <Text style={{ fontSize: 18, color: isActive ? '#a78bfa' : C.text, fontWeight: isActive ? '600' : '400' }} numberOfLines={1}>
+                                    {taskIdx + 1}. {t.task || 'Untitled'}
+                                  </Text>
+                                </TouchableOpacity>
+                              );
+                            })}
+                          </ScrollView>
+                        </View>
+                      )}
+
+                      {/* Move Start Date */}
+                      {isBuilder && (
+                        <View>
+                          <Text style={{ fontSize: 13, fontWeight: '700', color: C.dm, letterSpacing: 1, marginBottom: 5 }}>MOVE START DATE</Text>
+                          <DatePicker
+                            value={subTaskInfoEdit.start_date || ''}
+                            onChange={v => setSubTaskInfoEdit(prev => ({ ...prev, start_date: v }))}
+                            placeholder="Select new start date"
+                          />
+                        </View>
+                      )}
+
+                      {/* Subcontractor Selection */}
+                      {isBuilder && (
+                        <View>
+                          <Text style={{ fontSize: 13, fontWeight: '700', color: C.dm, letterSpacing: 1, marginBottom: 5 }}>SUBCONTRACTORS</Text>
+                          {(subTaskInfoEdit.contractors || []).length > 0 && (
+                            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+                              {subTaskInfoEdit.contractors.map(name => (
+                                <View key={name} style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(16,185,129,0.08)', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, gap: 6, borderWidth: 1, borderColor: 'rgba(16,185,129,0.2)' }}>
+                                  <Text style={{ fontSize: 15, fontWeight: '600', color: '#10b981' }}>{name}</Text>
+                                  <TouchableOpacity onPress={() => setSubTaskInfoEdit(prev => {
+                                    const next = (prev.contractors || []).filter(n => n !== name);
+                                    return { ...prev, contractors: next, contractor: next[0] || '' };
+                                  })} style={{ paddingHorizontal: 2 }} activeOpacity={0.7}>
+                                    <Feather name="x" size={14} color={C.rd} />
+                                  </TouchableOpacity>
+                                </View>
+                              ))}
+                            </View>
+                          )}
+                          <TextInput
+                            value={subTaskSubsSearch}
+                            onChangeText={setSubTaskSubsSearch}
+                            placeholder="Search subcontractors..."
+                            placeholderTextColor={C.ph}
+                            style={{ fontSize: 15, color: C.text, backgroundColor: C.w04, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8, borderWidth: 1, borderColor: C.w08, marginBottom: 6, ...(Platform.OS === 'web' ? { outlineStyle: 'none' } : {}) }}
+                          />
+                          <View style={{ borderRadius: 8, borderWidth: 1, borderColor: C.w06, overflow: 'hidden', maxHeight: 160 }}>
+                            <ScrollView nestedScrollEnabled keyboardShouldPersistTaps="handled">
+                              {(() => {
+                                const taskTrades = subTaskInfoEdit.trades || [];
+                                const filtered = subTaskSubsList
+                                  .filter(sub => {
+                                    if (subTaskSubsSearch.trim()) {
+                                      const q = subTaskSubsSearch.toLowerCase();
+                                      const name = `${sub.first_name || sub.firstName || ''} ${sub.last_name || sub.lastName || ''}`.toLowerCase();
+                                      const company = (sub.company_name || sub.companyName || '').toLowerCase();
+                                      if (!name.includes(q) && !company.includes(q)) return false;
+                                    }
+                                    return true;
+                                  })
+                                  .sort((a, b) => {
+                                    const aIsBuilder = a.role === 'builder' || a.role === 'company_admin';
+                                    const bIsBuilder = b.role === 'builder' || b.role === 'company_admin';
+                                    if (aIsBuilder && !bIsBuilder) return -1;
+                                    if (!aIsBuilder && bIsBuilder) return 1;
+                                    if (taskTrades.length > 0) {
+                                      const aMatch = taskTrades.some(tt => (a.trades || '').split(',').map(t => t.trim()).includes(tt));
+                                      const bMatch = taskTrades.some(tt => (b.trades || '').split(',').map(t => t.trim()).includes(tt));
+                                      if (aMatch && !bMatch) return -1;
+                                      if (!aMatch && bMatch) return 1;
+                                    }
+                                    return 0;
+                                  });
+                                if (filtered.length === 0) return (
+                                  <View style={{ padding: 14, alignItems: 'center' }}>
+                                    <Text style={{ fontSize: 15, color: C.dm }}>No subcontractors found</Text>
+                                  </View>
+                                );
+                                return filtered.map(sub => {
+                                  const name = `${sub.first_name || sub.firstName || ''} ${sub.last_name || sub.lastName || ''}`.trim();
+                                  const company = sub.company_name || sub.companyName || '';
+                                  const display = company ? `${company} (${name})` : name;
+                                  const isActive = (subTaskInfoEdit.contractors || []).includes(display) || (subTaskInfoEdit.contractors || []).includes(name);
+                                  const subTrades = (sub.trades || '').split(',').map(t => t.trim()).filter(Boolean);
+                                  const matchingTrades = taskTrades.filter(tt => subTrades.includes(tt));
+                                  return (
+                                    <TouchableOpacity
+                                      key={sub.id}
+                                      onPress={() => setSubTaskInfoEdit(prev => {
+                                        const cur = prev.contractors || [];
+                                        const next = cur.includes(display) ? cur.filter(n => n !== display) : [...cur, display];
+                                        return { ...prev, contractors: next, contractor: next[0] || '' };
+                                      })}
+                                      style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 9, paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: C.w04,
+                                        backgroundColor: isActive ? 'rgba(16,185,129,0.1)' : 'transparent' }}
+                                      activeOpacity={0.7}
+                                    >
+                                      <View style={{ flex: 1 }}>
+                                        <Text style={{ fontSize: 16, color: isActive ? '#10b981' : C.text, fontWeight: isActive ? '600' : '400' }} numberOfLines={1}>{display}</Text>
+                                        {matchingTrades.length > 0 && <Text style={{ fontSize: 12, color: C.bl, fontWeight: '600' }}>{matchingTrades.join(', ')}</Text>}
+                                      </View>
+                                      {isActive && <Feather name="check" size={17} color="#10b981" />}
+                                    </TouchableOpacity>
+                                  );
+                                });
+                              })()}
+                            </ScrollView>
+                          </View>
+                        </View>
+                      )}
+
+                      {/* Hide from Customer toggle */}
+                      {isBuilder && (
+                        <TouchableOpacity
+                          onPress={() => setSubTaskInfoEdit(prev => ({ ...prev, hidden_from_customer: !prev.hidden_from_customer }))}
+                          style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 4 }}
+                          activeOpacity={0.7}
+                        >
+                          <View style={{
+                            width: 22, height: 22, borderRadius: 5, borderWidth: 2,
+                            borderColor: subTaskInfoEdit.hidden_from_customer ? '#f59e0b' : C.w10,
+                            backgroundColor: subTaskInfoEdit.hidden_from_customer ? '#f59e0b' : 'transparent',
+                            alignItems: 'center', justifyContent: 'center',
+                          }}>
+                            {subTaskInfoEdit.hidden_from_customer && <Feather name="check" size={15} color="#fff" />}
+                          </View>
+                          <Feather name="eye-off" size={16} color={subTaskInfoEdit.hidden_from_customer ? '#f59e0b' : C.dm} />
+                          <Text style={{ fontSize: 15, color: subTaskInfoEdit.hidden_from_customer ? '#f59e0b' : C.dm, fontWeight: subTaskInfoEdit.hidden_from_customer ? '600' : '400' }}>
+                            Hide from customer
+                          </Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                    </ScrollView>
+
+                    {/* Save / Cancel */}
+                    <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 10, paddingHorizontal: 16, paddingVertical: 14, borderTopWidth: 1, borderTopColor: C.w08 }}>
+                      <TouchableOpacity onPress={closeSubTaskInfoEdit} style={{ paddingHorizontal: 16, paddingVertical: 9, borderRadius: 8, borderWidth: 1, borderColor: C.w10, backgroundColor: C.w04 }}>
+                        <Text style={{ fontSize: 20, color: C.mt, fontWeight: '500' }}>Cancel</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={saveSubTaskInfoEdit}
+                        disabled={!subTaskInfoEdit.task.trim() || subTaskInfoSaving}
+                        style={[{ paddingHorizontal: 20, paddingVertical: 9, borderRadius: 8, backgroundColor: C.gd }, (!subTaskInfoEdit.task.trim() || subTaskInfoSaving) && { opacity: 0.4 }]}
+                      >
+                        <Text style={{ fontSize: 20, color: '#000', fontWeight: '700' }}>{subTaskInfoSaving ? 'Saving...' : 'Save'}</Text>
+                      </TouchableOpacity>
+                    </View>
                   </View>
                 </View>
-              </View>
+              </Modal>
             )}
 
             {/* Sub Change Order Modal */}
