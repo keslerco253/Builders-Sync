@@ -9,6 +9,7 @@ import { AuthContext, ThemeContext, DARK_COLORS, LIGHT_COLORS, API_BASE, setAuth
 import { LoginScreen } from './login';
 import { Register } from './register';
 import Dashboard from './dashboard';
+import BuilderDashboard from './builderDashboard';
 import AdminDashboard from './admin';
 import UserManagement from './userManagement';
 import AccountScreen from './account';
@@ -140,6 +141,13 @@ export default function RootLayout() {
                 cardStyle: { backgroundColor: C.bg, flex: 1, minHeight: 0 },
               }}
             >
+              {(user.role === 'builder' || user.role === 'company_admin') && (
+                <MainStack.Screen
+                  name="BuilderHome"
+                  component={BuilderDashboard}
+                  options={{ headerShown: false }}
+                />
+              )}
               <MainStack.Screen
                 name="Dashboard"
                 component={Dashboard}
