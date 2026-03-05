@@ -4813,6 +4813,8 @@ ${sectionsHtml}
 // ============================================================
 
 const EscrowSubTab = ({ project, user, C, s, api, apiFetch, API_BASE }) => {
+  const { width: escrowWinW } = useWindowDimensions();
+  const isWideEscrow = escrowWinW > 700;
   const [escrows, setEscrows] = useState([]);
   const [holders, setHolders] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -4889,6 +4891,41 @@ const EscrowSubTab = ({ project, user, C, s, api, apiFetch, API_BASE }) => {
   };
 
   const selectedHolder = holders.find(h => h.id === newHolderId);
+
+  const pendingEscrows = escrows.filter(e => !e.completed);
+  const completedEscrows = escrows.filter(e => e.completed);
+
+  const renderEscrowCard = (esc) => (
+    <View key={esc.id} style={{
+      marginBottom: 10, padding: 14, backgroundColor: C.card, borderRadius: 10,
+      borderWidth: 1, borderColor: esc.completed ? (C.gn || '#10b981') + '40' : C.w08,
+    }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+        <TouchableOpacity onPress={() => toggleCompleted(esc)} activeOpacity={0.7}>
+          <Feather name={esc.completed ? 'check-circle' : 'circle'} size={22} color={esc.completed ? (C.gn || '#10b981') : C.dm} />
+        </TouchableOpacity>
+        <View style={{ flex: 1 }}>
+          <Text style={{ fontSize: 17, fontWeight: '700', color: C.textBold, textDecorationLine: esc.completed ? 'line-through' : 'none' }}>{esc.title}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 4 }}>
+            <Text style={{ fontSize: 15, fontWeight: '600', color: C.gd }}>{f$(esc.amount)}</Text>
+            {esc.escrow_holder_name ? (
+              <Text style={{ fontSize: 13, color: C.dm }}>Holder: {esc.escrow_holder_name}</Text>
+            ) : null}
+          </View>
+        </View>
+        <TouchableOpacity
+          onPress={() => {
+            if (Platform.OS === 'web') { if (confirm('Delete this escrow?')) deleteEscrow(esc.id); }
+            else Alert.alert('Delete Escrow', 'Are you sure?', [{ text: 'Cancel' }, { text: 'Delete', style: 'destructive', onPress: () => deleteEscrow(esc.id) }]);
+          }}
+          style={{ padding: 6 }}
+          activeOpacity={0.7}
+        >
+          <Feather name="trash-2" size={18} color="#ef4444" />
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
 
   if (loading) return <ActivityIndicator color={C.gd} style={{ marginTop: 40 }} />;
 
@@ -4998,7 +5035,7 @@ const EscrowSubTab = ({ project, user, C, s, api, apiFetch, API_BASE }) => {
         </Modal>
       )}
 
-      {/* Escrow list */}
+      {/* Double-column layout: Pending (left) | Completed (right) */}
       {escrows.length === 0 ? (
         <View style={{ alignItems: 'center', paddingVertical: 40 }}>
           <Feather name="shield" size={40} color={C.dm} style={{ marginBottom: 10 }} />
@@ -5008,37 +5045,39 @@ const EscrowSubTab = ({ project, user, C, s, api, apiFetch, API_BASE }) => {
           </Text>
         </View>
       ) : (
-        escrows.map(esc => (
-          <View key={esc.id} style={{
-            marginBottom: 10, padding: 14, backgroundColor: C.card, borderRadius: 10,
-            borderWidth: 1, borderColor: esc.completed ? (C.gn || '#10b981') + '40' : C.w08,
-          }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-              <TouchableOpacity onPress={() => toggleCompleted(esc)} activeOpacity={0.7}>
-                <Feather name={esc.completed ? 'check-circle' : 'circle'} size={22} color={esc.completed ? (C.gn || '#10b981') : C.dm} />
-              </TouchableOpacity>
-              <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 17, fontWeight: '700', color: C.textBold, textDecorationLine: esc.completed ? 'line-through' : 'none' }}>{esc.title}</Text>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 4 }}>
-                  <Text style={{ fontSize: 15, fontWeight: '600', color: C.gd }}>{f$(esc.amount)}</Text>
-                  {esc.escrow_holder_name ? (
-                    <Text style={{ fontSize: 13, color: C.dm }}>Holder: {esc.escrow_holder_name}</Text>
-                  ) : null}
-                </View>
+        <View style={{ flexDirection: isWideEscrow ? 'row' : 'column', gap: 16 }}>
+          {/* Pending Escrows Column */}
+          <View style={{ flex: 1 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+              <Feather name="clock" size={18} color={C.gd} />
+              <Text style={{ fontSize: 18, fontWeight: '700', color: C.textBold }}>Pending</Text>
+              <View style={{ backgroundColor: C.gd + '25', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10 }}>
+                <Text style={{ fontSize: 13, fontWeight: '700', color: C.gd }}>{pendingEscrows.length}</Text>
               </View>
-              <TouchableOpacity
-                onPress={() => {
-                  if (Platform.OS === 'web') { if (confirm('Delete this escrow?')) deleteEscrow(esc.id); }
-                  else Alert.alert('Delete Escrow', 'Are you sure?', [{ text: 'Cancel' }, { text: 'Delete', style: 'destructive', onPress: () => deleteEscrow(esc.id) }]);
-                }}
-                style={{ padding: 6 }}
-                activeOpacity={0.7}
-              >
-                <Feather name="trash-2" size={18} color="#ef4444" />
-              </TouchableOpacity>
             </View>
+            {pendingEscrows.length === 0 ? (
+              <View style={{ alignItems: 'center', paddingVertical: 24, backgroundColor: C.card, borderRadius: 10, borderWidth: 1, borderColor: C.w04 }}>
+                <Text style={{ fontSize: 14, color: C.dm }}>No pending escrows</Text>
+              </View>
+            ) : pendingEscrows.map(renderEscrowCard)}
           </View>
-        ))
+
+          {/* Completed Escrows Column */}
+          <View style={{ flex: 1 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+              <Feather name="check-circle" size={18} color={C.gn || '#10b981'} />
+              <Text style={{ fontSize: 18, fontWeight: '700', color: C.textBold }}>Completed</Text>
+              <View style={{ backgroundColor: (C.gn || '#10b981') + '25', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10 }}>
+                <Text style={{ fontSize: 13, fontWeight: '700', color: C.gn || '#10b981' }}>{completedEscrows.length}</Text>
+              </View>
+            </View>
+            {completedEscrows.length === 0 ? (
+              <View style={{ alignItems: 'center', paddingVertical: 24, backgroundColor: C.card, borderRadius: 10, borderWidth: 1, borderColor: C.w04 }}>
+                <Text style={{ fontSize: 14, color: C.dm }}>No completed escrows</Text>
+              </View>
+            ) : completedEscrows.map(renderEscrowCard)}
+          </View>
+        </View>
       )}
     </ScrollView>
   );
