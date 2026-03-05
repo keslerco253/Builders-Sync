@@ -3240,7 +3240,7 @@ ${sectionsHtml}
 
         // 3 columns: Pending Builder | Pending Others | Completed
         const pendingBuilderCOs = changeOrders.filter(co =>
-          co.status === 'draft' || co.status === 'pending_super' ||
+          co.status === 'draft' || co.status === 'pending_pm' || co.status === 'pending_super' ||
           (co.status === 'pending_customer' && co.initiated_by === 'customer')
         );
         const completedCOs = changeOrders.filter(co => co.status === 'approved' || co.status === 'declined' || co.status === 'expired');
@@ -4642,7 +4642,7 @@ const ChangeOrderDetailModal = ({ co, isB, isC, isCon, signCO, declineCO, onClos
     : currentSignRole.startsWith('sub:') ? 'sub'
     : currentSignRole;
   const canDecline = co.status !== 'draft' && co.status !== 'approved' && co.status !== 'declined' && co.status !== 'expired' && canSign;
-  const canEdit = isB && (co.status === 'draft' || (co.status === 'pending_super' && co.initiated_by !== 'super'));
+  const canEdit = isB && (co.status === 'draft' || (co.status === 'pending_pm' && co.initiated_by !== 'super') || (co.status === 'pending_super' && co.initiated_by !== 'super'));
 
   useEffect(() => {
     apiFetch(`/change-orders/${co.id}/documents`)
@@ -4934,7 +4934,7 @@ const ChangeOrderDetailModal = ({ co, isB, isC, isCon, signCO, declineCO, onClos
         <View style={[s.card, { marginBottom: 10, padding: 14 }]}>
           <Text style={{ fontSize: 18, color: C.dm, fontStyle: 'italic' }}>Draft — not yet submitted for signatures</Text>
           {isB && (
-            <Btn onPress={() => setSignConfirmRole('super')} style={{ marginTop: 10 }}>
+            <Btn onPress={() => setSignConfirmRole('pm')} style={{ marginTop: 10 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                 <Feather name="send" size={14} color={C.chromeTxt} />
                 <Text style={s.btnTxt}>Sign & Send</Text>
@@ -5182,12 +5182,12 @@ const NewChangeOrderModal = ({ project, api, onClose, onCreated, user, schedule 
         return;
       }
       let finalCo = res;
-      // If signing (not draft), sign as super
+      // If signing (not draft), sign as PM
       if (!isDraft && res.id) {
         const signRes = await apiFetch(`/change-orders/${res.id}/sign`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ role: 'super', initials: getInitials(signerName.trim()), signer_name: signerName.trim(), user_id: user?.id }),
+          body: JSON.stringify({ role: 'pm', initials: getInitials(signerName.trim()), signer_name: signerName.trim(), user_id: user?.id }),
         });
         if (signRes.ok) finalCo = await signRes.json();
       }
@@ -5756,7 +5756,7 @@ const SelectionChangeOrderModal = ({ project, api, selections, onClose, onCreate
         const signRes = await apiFetch(`/change-orders/${res.id}/sign`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ role: 'super', initials: getInitials(signerName.trim()), signer_name: signerName.trim(), user_id: user?.id }),
+          body: JSON.stringify({ role: 'pm', initials: getInitials(signerName.trim()), signer_name: signerName.trim(), user_id: user?.id }),
         });
         if (signRes.ok) finalCo = await signRes.json();
       }

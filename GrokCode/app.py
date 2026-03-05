@@ -2805,22 +2805,38 @@ def get_user_tasks(uid):
 # CHANGE ORDERS
 # ============================================================
 
-def _co_build_sign_order(initiated_by, line_items_data):
+def _co_build_sign_order(initiated_by, line_items_data, project=None):
     """Build the signing order based on who initiated and which subs are involved."""
     # Collect unique sub IDs from line items
     sub_ids = list(set(li.get('sub_id') for li in (line_items_data or []) if li.get('sub_id')))
     sub_steps = [f'sub:{sid}' for sid in sub_ids]
 
+    # Check if PM and Super are the same person on this project
+    pm_is_super = False
+    if project and project.project_manager_id and project.superintendent_id:
+        pm_is_super = (project.project_manager_id == project.superintendent_id)
+
     if initiated_by == 'super':
-        # Super -> Customer -> Sub/s -> PM
-        return ['super', 'customer'] + sub_steps + ['pm']
+        # PM signs first -> Super (if different person) -> Customer -> Sub/s
+        if pm_is_super or not (project and project.superintendent_id):
+            return ['pm', 'customer'] + sub_steps
+        else:
+            return ['pm', 'super', 'customer'] + sub_steps
     elif initiated_by == 'customer':
-        # Customer creates (no sig) -> Super reviews/prices -> Customer reviews -> Sub/s -> PM
-        return ['super', 'customer_review'] + sub_steps + ['pm']
+        # Customer creates (no sig) -> PM reviews/prices -> Customer reviews -> Sub/s
+        if pm_is_super or not (project and project.superintendent_id):
+            return ['pm', 'customer_review'] + sub_steps
+        else:
+            return ['pm', 'super', 'customer_review'] + sub_steps
     elif initiated_by == 'sub':
-        # Sub -> Super -> Customer -> PM
-        return ['sub', 'super', 'customer'] + ['pm']
-    return ['super', 'customer'] + sub_steps + ['pm']
+        # Sub -> PM -> Super (if different) -> Customer
+        if pm_is_super or not (project and project.superintendent_id):
+            return ['sub', 'pm', 'customer']
+        else:
+            return ['sub', 'pm', 'super', 'customer']
+    if pm_is_super or not (project and project.superintendent_id):
+        return ['pm', 'customer'] + sub_steps
+    return ['pm', 'super', 'customer'] + sub_steps
 
 
 def _co_recalc_amount(co):
@@ -2927,20 +2943,21 @@ def add_change_order(pid):
     line_items_data = data.get('line_items', [])
 
     try:
+        project = Projects.query.get(pid)
         co_number = _co_next_number(pid)
-        sign_order = _co_build_sign_order(initiated_by, line_items_data)
+        sign_order = _co_build_sign_order(initiated_by, line_items_data, project=project)
 
         # Determine initial status
         if is_draft:
             status = 'draft'
         elif initiated_by == 'customer':
-            # Customer creates without signing — goes to super first
-            status = 'pending_super'
+            # Customer creates without signing — goes to PM first
+            status = 'pending_pm'
         elif initiated_by == 'sub':
-            # Sub auto-signs at creation — goes to super
-            status = 'pending_super'
+            # Sub auto-signs at creation — goes to PM
+            status = 'pending_pm'
         else:
-            # Super creates as draft by default, or signs immediately
+            # Builder/PM creates as draft by default, or signs immediately
             status = 'draft'
 
         co = ChangeOrders(
@@ -3022,7 +3039,8 @@ def update_change_order(co_id):
                 db.session.add(item)
             db.session.flush()
             # Rebuild sign order with new subs
-            co.sign_order = json.dumps(_co_build_sign_order(co.initiated_by, data['line_items']))
+            project = Projects.query.get(co.job_id)
+            co.sign_order = json.dumps(_co_build_sign_order(co.initiated_by, data['line_items'], project=project))
             _co_recalc_amount(co)
 
         db.session.commit()
@@ -3056,9 +3074,9 @@ def sign_change_order(co_id):
         initials = data.get('initials', '')
         signer_name = data.get('signer_name', '')
 
-        # If signing from draft → set to first pending status
+        # If signing from draft → set to first pending status (will be recalculated by _co_advance_status)
         if co.status == 'draft':
-            co.status = 'pending_super'  # will be recalculated below
+            co.status = 'pending_pm'  # will be recalculated below
 
         # Record signature
         sig = ChangeOrderSignature(
@@ -3072,7 +3090,7 @@ def sign_change_order(co_id):
         db.session.add(sig)
 
         # Also update legacy fields for backwards compat
-        if role == 'super' or _is_builder(role):
+        if role in ('super', 'pm') or _is_builder(role):
             co.builder_sig = True
             co.builder_sig_date = timestamp
             co.builder_sig_initials = initials
