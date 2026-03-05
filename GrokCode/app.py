@@ -2197,6 +2197,41 @@ def spec_report():
     return jsonify(rows)
 
 
+@app.route('/reports/escrow', methods=['GET'])
+def escrow_report():
+    """Return projects with their pending escrows for the escrow report."""
+    company_id = request.args.get('company_id', type=int)
+    q = Projects.query
+    if company_id:
+        q = q.filter_by(company_id=company_id)
+    projects = q.all()
+
+    rows = []
+    for p in projects:
+        escrows = Escrow.query.filter_by(job_id=p.id, completed=False).order_by(Escrow.created_at.desc()).all()
+        if not escrows:
+            continue
+
+        sub_name = ''
+        if p.subdivision_id:
+            sd = Subdivision.query.get(p.subdivision_id)
+            if sd:
+                sub_name = sd.name
+
+        address = p.street_address or p.address or ''
+
+        rows.append({
+            'id': p.id,
+            'name': p.name or '',
+            'subdivision': sub_name,
+            'address': address,
+            'pending_count': len(escrows),
+            'escrows': [e.to_dict() for e in escrows],
+        })
+
+    return jsonify(rows)
+
+
 @app.route('/projects', methods=['POST'])
 def add_project():
     try:
