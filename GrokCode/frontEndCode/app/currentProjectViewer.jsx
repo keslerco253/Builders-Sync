@@ -758,7 +758,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
         { id: 'changeorders', label: 'Change Orders', subs: ['co', 'allowances'] },
         { id: 'selections', label: 'Selections' },
         { id: 'docs', label: 'Docs', subs: ['documents', 'photos', 'videos'] },
-        { id: 'more', label: 'More', subs: ['assignments', 'escrow'] },
+        { id: 'more', label: 'More', subs: ['assignments', 'escrow', 'warranty'] },
       ]
     : isC
     ? [
@@ -767,6 +767,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
         { id: 'changeorders', label: 'Change Orders', subs: ['co', 'allowances'] },
         { id: 'selections', label: 'Selections' },
         { id: 'docs', label: 'Docs', subs: ['documents', 'photos', 'videos'] },
+        { id: 'more', label: 'More', subs: ['warranty'] },
       ]
     : isCon
     ? [
@@ -786,6 +787,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
     co: 'Change Orders', allowances: 'Allowances', selections: 'Selections',
     documents: 'Documents', photos: 'Photos', videos: 'Videos',
     escrow: 'Escrow',
+    warranty: 'Warranty',
   };
 
   // Calendar sub-view: Gantt vs List
@@ -2075,6 +2077,21 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
           api={api}
           apiFetch={apiFetch}
           API_BASE={API_BASE}
+        />
+      );
+    }
+
+    // --- MORE: WARRANTY ---
+    if (tab === 'more' && sub === 'warranty') {
+      return (
+        <WarrantySubTab
+          project={project}
+          user={user}
+          C={C}
+          s={s}
+          apiFetch={apiFetch}
+          isB={isB}
+          isC={isC}
         />
       );
     }
@@ -5082,6 +5099,423 @@ const EscrowSubTab = ({ project, user, C, s, api, apiFetch, API_BASE }) => {
     </ScrollView>
   );
 };
+
+// ============================================================
+// WARRANTY SUB-TAB COMPONENT
+// ============================================================
+
+const WARRANTY_STATUSES = ['submitted', 'under_review', 'in_progress', 'resolved', 'closed'];
+const WARRANTY_STATUS_LABELS = {
+  submitted: 'Submitted', under_review: 'Under Review', in_progress: 'In Progress',
+  resolved: 'Resolved', closed: 'Closed',
+};
+const WARRANTY_STATUS_COLORS = {
+  submitted: '#6366f1', under_review: '#f59e0b', in_progress: '#3b82f6',
+  resolved: '#10b981', closed: '#ef4444',
+};
+const WARRANTY_CATEGORIES = ['Plumbing', 'Electrical', 'HVAC', 'Structural', 'Roofing', 'Drywall', 'Flooring', 'Paint', 'Appliances', 'Windows/Doors', 'Other'];
+const WARRANTY_PRIORITIES = ['low', 'normal', 'high', 'urgent'];
+const PRIORITY_COLORS = { low: '#6b7280', normal: '#3b82f6', high: '#f59e0b', urgent: '#ef4444' };
+
+const WarrantySubTab = ({ project, user, C, s, apiFetch, isB, isC }) => {
+  const { width: winW } = useWindowDimensions();
+  const isWide = winW > 700;
+  const [requests, setRequests] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showAdd, setShowAdd] = useState(false);
+  const [showDetail, setShowDetail] = useState(null);
+  const [newTitle, setNewTitle] = useState('');
+  const [newDesc, setNewDesc] = useState('');
+  const [newCategory, setNewCategory] = useState('');
+  const [newPriority, setNewPriority] = useState('normal');
+  const [showCategoryPicker, setShowCategoryPicker] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const fetchRequests = useCallback(async () => {
+    if (!project?.id) return;
+    try {
+      const res = await apiFetch(`/projects/${project.id}/warranty-requests`);
+      const data = await res.json();
+      if (Array.isArray(data)) setRequests(data);
+    } catch (e) { console.warn('fetch warranty requests error:', e); }
+  }, [project?.id]);
+
+  useEffect(() => {
+    fetchRequests().then(() => setLoading(false));
+  }, [fetchRequests]);
+
+  const handleAdd = async () => {
+    if (!newTitle.trim()) return;
+    setSaving(true);
+    try {
+      const res = await apiFetch(`/projects/${project.id}/warranty-requests`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: newTitle.trim(),
+          description: newDesc.trim(),
+          category: newCategory,
+          priority: newPriority,
+          submitted_by: user?.id,
+          company_id: user?.company_id,
+        }),
+      });
+      if (res.ok) {
+        await fetchRequests();
+        setNewTitle(''); setNewDesc(''); setNewCategory(''); setNewPriority('normal');
+        setShowAdd(false);
+      }
+    } catch (e) { console.warn('create warranty request error:', e); }
+    setSaving(false);
+  };
+
+  const updateStatus = async (req, newStatus) => {
+    try {
+      const res = await apiFetch(`/warranty-requests/${req.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus }),
+      });
+      if (res.ok) {
+        fetchRequests();
+        if (showDetail?.id === req.id) {
+          const updated = await res.json();
+          setShowDetail(updated);
+        }
+      }
+    } catch (e) { console.warn('update warranty status error:', e); }
+  };
+
+  const updateResolutionNotes = async (req, notes) => {
+    try {
+      await apiFetch(`/warranty-requests/${req.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ resolution_notes: notes }),
+      });
+      fetchRequests();
+    } catch (e) { console.warn('update resolution notes error:', e); }
+  };
+
+  const deleteRequest = async (rid) => {
+    try {
+      const res = await apiFetch(`/warranty-requests/${rid}`, { method: 'DELETE' });
+      if (res.ok) { fetchRequests(); setShowDetail(null); }
+    } catch (e) { console.warn('delete warranty request error:', e); }
+  };
+
+  const currentIdx = showDetail ? WARRANTY_STATUSES.indexOf(showDetail.status) : -1;
+
+  const renderStatusTracker = (req) => {
+    const idx = WARRANTY_STATUSES.indexOf(req.status);
+    return (
+      <View style={{ flexDirection: 'row', alignItems: 'center', marginVertical: 8, gap: 2 }}>
+        {WARRANTY_STATUSES.map((st, i) => (
+          <React.Fragment key={st}>
+            <View style={{ alignItems: 'center', flex: 1 }}>
+              <View style={{
+                width: 24, height: 24, borderRadius: 12,
+                backgroundColor: i <= idx ? WARRANTY_STATUS_COLORS[st] : C.w08,
+                alignItems: 'center', justifyContent: 'center',
+              }}>
+                {i < idx ? (
+                  <Feather name="check" size={14} color="#fff" />
+                ) : i === idx ? (
+                  <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#fff' }} />
+                ) : null}
+              </View>
+              <Text style={{ fontSize: 9, color: i <= idx ? WARRANTY_STATUS_COLORS[st] : C.dm, marginTop: 3, textAlign: 'center' }}>
+                {WARRANTY_STATUS_LABELS[st]}
+              </Text>
+            </View>
+            {i < WARRANTY_STATUSES.length - 1 && (
+              <View style={{ height: 2, flex: 0.5, backgroundColor: i < idx ? WARRANTY_STATUS_COLORS[WARRANTY_STATUSES[i + 1]] : C.w06, marginBottom: 16 }} />
+            )}
+          </React.Fragment>
+        ))}
+      </View>
+    );
+  };
+
+  const renderCard = (req) => (
+    <TouchableOpacity key={req.id} onPress={() => setShowDetail(req)} activeOpacity={0.7}
+      style={{ marginBottom: 10, padding: 14, backgroundColor: C.card, borderRadius: 10, borderWidth: 1, borderColor: C.w08, borderLeftWidth: 4, borderLeftColor: WARRANTY_STATUS_COLORS[req.status] || C.w08 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+        <View style={{ flex: 1 }}>
+          <Text style={{ fontSize: 16, fontWeight: '700', color: C.textBold }}>{req.title}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4, flexWrap: 'wrap' }}>
+            {req.category ? <Text style={{ fontSize: 12, color: C.dm, backgroundColor: C.w06, paddingHorizontal: 6, paddingVertical: 1, borderRadius: 4 }}>{req.category}</Text> : null}
+            <Text style={{ fontSize: 12, color: PRIORITY_COLORS[req.priority] || C.dm, fontWeight: '600' }}>{(req.priority || 'normal').toUpperCase()}</Text>
+          </View>
+        </View>
+        <View style={{ backgroundColor: (WARRANTY_STATUS_COLORS[req.status] || C.dm) + '20', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 }}>
+          <Text style={{ fontSize: 11, fontWeight: '700', color: WARRANTY_STATUS_COLORS[req.status] || C.dm }}>{WARRANTY_STATUS_LABELS[req.status] || req.status}</Text>
+        </View>
+      </View>
+      {renderStatusTracker(req)}
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 4 }}>
+        <Text style={{ fontSize: 12, color: C.dm }}>By: {req.submitter_name}</Text>
+        {req.assignee_name ? <Text style={{ fontSize: 12, color: C.dm }}>Assigned: {req.assignee_name}</Text> : null}
+        <Text style={{ fontSize: 12, color: C.dm }}>{req.created_at ? new Date(req.created_at).toLocaleDateString() : ''}</Text>
+      </View>
+    </TouchableOpacity>
+  );
+
+  if (loading) return <ActivityIndicator color={C.gd} style={{ marginTop: 40 }} />;
+
+  return (
+    <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
+      {/* Header */}
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+        <Text style={{ fontSize: 22, fontWeight: '700', color: C.textBold }}>Warranty Requests</Text>
+        <TouchableOpacity
+          onPress={() => setShowAdd(true)}
+          style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: C.gd, alignItems: 'center', justifyContent: 'center' }}
+          activeOpacity={0.7}>
+          <Feather name="plus" size={20} color="#fff" />
+        </TouchableOpacity>
+      </View>
+
+      {/* New Request Modal */}
+      {showAdd && (
+        <Modal visible animationType="fade" transparent>
+          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+            <View style={{
+              width: isWide ? 520 : '100%', maxWidth: 560, backgroundColor: C.bg, borderRadius: 16, overflow: 'hidden',
+              ...(Platform.OS === 'web' ? { boxShadow: '0 20px 60px rgba(0,0,0,0.4)' } : { elevation: 20 }),
+            }}>
+              <View style={{ padding: 20, borderBottomWidth: 1, borderBottomColor: C.w06, flexDirection: 'row', alignItems: 'center' }}>
+                <Text style={{ flex: 1, fontSize: 22, fontWeight: '700', color: C.textBold }}>New Warranty Request</Text>
+                <TouchableOpacity onPress={() => setShowAdd(false)} style={{ padding: 6 }}>
+                  <Feather name="x" size={22} color={C.dm} />
+                </TouchableOpacity>
+              </View>
+              <ScrollView style={{ padding: 20 }} contentContainerStyle={{ gap: 14 }}>
+                <TextInput
+                  value={newTitle}
+                  onChangeText={setNewTitle}
+                  placeholder="Issue title"
+                  placeholderTextColor={C.dm}
+                  style={{ backgroundColor: C.inputBg, borderWidth: 1, borderColor: C.w12, borderRadius: 8, padding: 12, fontSize: 16, color: C.text }}
+                />
+                <TextInput
+                  value={newDesc}
+                  onChangeText={setNewDesc}
+                  placeholder="Describe the issue..."
+                  placeholderTextColor={C.dm}
+                  multiline
+                  numberOfLines={4}
+                  style={{ backgroundColor: C.inputBg, borderWidth: 1, borderColor: C.w12, borderRadius: 8, padding: 12, fontSize: 16, color: C.text, minHeight: 100, textAlignVertical: 'top' }}
+                />
+                <View>
+                  <Text style={{ fontSize: 14, fontWeight: '600', color: C.dm, marginBottom: 4 }}>Category</Text>
+                  <TouchableOpacity
+                    onPress={() => setShowCategoryPicker(p => !p)}
+                    style={{ backgroundColor: C.inputBg, borderWidth: 1, borderColor: C.w12, borderRadius: 8, padding: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <Text style={{ fontSize: 16, color: newCategory ? C.text : C.dm }}>{newCategory || 'Select category'}</Text>
+                    <Feather name={showCategoryPicker ? 'chevron-up' : 'chevron-down'} size={18} color={C.dm} />
+                  </TouchableOpacity>
+                  {showCategoryPicker && (
+                    <View style={{ backgroundColor: C.card, borderWidth: 1, borderColor: C.w12, borderRadius: 8, marginTop: 4, maxHeight: 200 }}>
+                      <ScrollView nestedScrollEnabled>
+                        {WARRANTY_CATEGORIES.map(cat => (
+                          <TouchableOpacity key={cat} onPress={() => { setNewCategory(cat); setShowCategoryPicker(false); }}
+                            style={{ padding: 12, borderBottomWidth: 1, borderBottomColor: C.w04, backgroundColor: newCategory === cat ? C.gd + '15' : 'transparent' }} activeOpacity={0.7}>
+                            <Text style={{ fontSize: 15, color: newCategory === cat ? C.gd : C.text }}>{cat}</Text>
+                          </TouchableOpacity>
+                        ))}
+                      </ScrollView>
+                    </View>
+                  )}
+                </View>
+                <View>
+                  <Text style={{ fontSize: 14, fontWeight: '600', color: C.dm, marginBottom: 4 }}>Priority</Text>
+                  <View style={{ flexDirection: 'row', gap: 8 }}>
+                    {WARRANTY_PRIORITIES.map(p => (
+                      <TouchableOpacity key={p} onPress={() => setNewPriority(p)}
+                        style={{ flex: 1, paddingVertical: 10, borderRadius: 8, alignItems: 'center',
+                          backgroundColor: newPriority === p ? PRIORITY_COLORS[p] + '20' : C.w04,
+                          borderWidth: newPriority === p ? 1 : 0, borderColor: PRIORITY_COLORS[p],
+                        }} activeOpacity={0.7}>
+                        <Text style={{ fontSize: 13, fontWeight: '600', color: newPriority === p ? PRIORITY_COLORS[p] : C.dm,
+                          textTransform: 'capitalize' }}>{p}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+                <TouchableOpacity
+                  onPress={handleAdd} disabled={saving || !newTitle.trim()}
+                  style={{ backgroundColor: C.gd, paddingVertical: 14, borderRadius: 10, alignItems: 'center', opacity: saving || !newTitle.trim() ? 0.5 : 1, marginTop: 6 }}
+                  activeOpacity={0.8}>
+                  <Text style={{ fontSize: 18, fontWeight: '700', color: '#fff' }}>{saving ? 'Submitting...' : 'Submit Request'}</Text>
+                </TouchableOpacity>
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
+      )}
+
+      {/* Detail Modal */}
+      {showDetail && (
+        <Modal visible animationType="fade" transparent>
+          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+            <View style={{
+              width: isWide ? 560 : '100%', maxWidth: 600, maxHeight: '85%', backgroundColor: C.bg, borderRadius: 16, overflow: 'hidden',
+              ...(Platform.OS === 'web' ? { boxShadow: '0 20px 60px rgba(0,0,0,0.4)' } : { elevation: 20 }),
+            }}>
+              <View style={{ padding: 20, borderBottomWidth: 1, borderBottomColor: C.w06, flexDirection: 'row', alignItems: 'center' }}>
+                <Text style={{ flex: 1, fontSize: 20, fontWeight: '700', color: C.textBold }} numberOfLines={2}>{showDetail.title}</Text>
+                <TouchableOpacity onPress={() => setShowDetail(null)} style={{ padding: 6 }}>
+                  <Feather name="x" size={22} color={C.dm} />
+                </TouchableOpacity>
+              </View>
+              <ScrollView style={{ padding: 20 }} contentContainerStyle={{ gap: 16 }}>
+                {/* Status Tracker */}
+                <View>
+                  <Text style={{ fontSize: 14, fontWeight: '600', color: C.dm, marginBottom: 6 }}>Status Progress</Text>
+                  {renderStatusTracker(showDetail)}
+                </View>
+
+                {/* Details */}
+                <View style={{ gap: 8 }}>
+                  {showDetail.description ? (
+                    <View>
+                      <Text style={{ fontSize: 13, fontWeight: '600', color: C.dm }}>Description</Text>
+                      <Text style={{ fontSize: 15, color: C.text, marginTop: 2 }}>{showDetail.description}</Text>
+                    </View>
+                  ) : null}
+                  <View style={{ flexDirection: 'row', gap: 16, flexWrap: 'wrap' }}>
+                    {showDetail.category ? (
+                      <View>
+                        <Text style={{ fontSize: 13, fontWeight: '600', color: C.dm }}>Category</Text>
+                        <Text style={{ fontSize: 15, color: C.text }}>{showDetail.category}</Text>
+                      </View>
+                    ) : null}
+                    <View>
+                      <Text style={{ fontSize: 13, fontWeight: '600', color: C.dm }}>Priority</Text>
+                      <Text style={{ fontSize: 15, color: PRIORITY_COLORS[showDetail.priority] || C.text, fontWeight: '600', textTransform: 'capitalize' }}>{showDetail.priority}</Text>
+                    </View>
+                    <View>
+                      <Text style={{ fontSize: 13, fontWeight: '600', color: C.dm }}>Submitted By</Text>
+                      <Text style={{ fontSize: 15, color: C.text }}>{showDetail.submitter_name}</Text>
+                    </View>
+                    {showDetail.assignee_name ? (
+                      <View>
+                        <Text style={{ fontSize: 13, fontWeight: '600', color: C.dm }}>Assigned To</Text>
+                        <Text style={{ fontSize: 15, color: C.text }}>{showDetail.assignee_name}</Text>
+                      </View>
+                    ) : null}
+                    <View>
+                      <Text style={{ fontSize: 13, fontWeight: '600', color: C.dm }}>Submitted</Text>
+                      <Text style={{ fontSize: 15, color: C.text }}>{showDetail.created_at ? new Date(showDetail.created_at).toLocaleDateString() : '—'}</Text>
+                    </View>
+                  </View>
+                </View>
+
+                {/* Resolution Notes (builder can edit) */}
+                {isB && (showDetail.status === 'resolved' || showDetail.status === 'closed') && (
+                  <View>
+                    <Text style={{ fontSize: 13, fontWeight: '600', color: C.dm, marginBottom: 4 }}>Resolution Notes</Text>
+                    <TextInput
+                      defaultValue={showDetail.resolution_notes || ''}
+                      onBlur={(e) => updateResolutionNotes(showDetail, e.nativeEvent.text)}
+                      placeholder="Add resolution notes..."
+                      placeholderTextColor={C.dm}
+                      multiline
+                      style={{ backgroundColor: C.inputBg, borderWidth: 1, borderColor: C.w12, borderRadius: 8, padding: 12, fontSize: 15, color: C.text, minHeight: 80, textAlignVertical: 'top' }}
+                    />
+                  </View>
+                )}
+                {!isB && showDetail.resolution_notes ? (
+                  <View>
+                    <Text style={{ fontSize: 13, fontWeight: '600', color: C.dm }}>Resolution Notes</Text>
+                    <Text style={{ fontSize: 15, color: C.text, marginTop: 2 }}>{showDetail.resolution_notes}</Text>
+                  </View>
+                ) : null}
+
+                {/* Status Actions (builder only) */}
+                {isB && showDetail.status !== 'closed' && (
+                  <View>
+                    <Text style={{ fontSize: 13, fontWeight: '600', color: C.dm, marginBottom: 6 }}>Update Status</Text>
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                      {WARRANTY_STATUSES.filter(st => {
+                        const curIdx = WARRANTY_STATUSES.indexOf(showDetail.status);
+                        const stIdx = WARRANTY_STATUSES.indexOf(st);
+                        return stIdx === curIdx + 1; // only allow advancing to next status
+                      }).map(st => (
+                        <TouchableOpacity key={st} onPress={() => updateStatus(showDetail, st)}
+                          style={{ paddingHorizontal: 16, paddingVertical: 10, borderRadius: 8, backgroundColor: WARRANTY_STATUS_COLORS[st] }}
+                          activeOpacity={0.7}>
+                          <Text style={{ fontSize: 14, fontWeight: '700', color: '#fff' }}>
+                            {st === 'under_review' ? 'Start Review' : st === 'in_progress' ? 'Begin Work' : st === 'resolved' ? 'Mark Resolved' : 'Close'}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </View>
+                )}
+
+                {/* Delete (builder only) */}
+                {isB && (
+                  <TouchableOpacity
+                    onPress={() => {
+                      if (Platform.OS === 'web') { if (confirm('Delete this warranty request?')) deleteRequest(showDetail.id); }
+                      else Alert.alert('Delete Request', 'Are you sure?', [{ text: 'Cancel' }, { text: 'Delete', style: 'destructive', onPress: () => deleteRequest(showDetail.id) }]);
+                    }}
+                    style={{ alignSelf: 'flex-start', paddingVertical: 8, paddingHorizontal: 14, borderRadius: 8, backgroundColor: '#ef444415' }}
+                    activeOpacity={0.7}>
+                    <Text style={{ fontSize: 14, fontWeight: '600', color: '#ef4444' }}>Delete Request</Text>
+                  </TouchableOpacity>
+                )}
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
+      )}
+
+      {/* Request List */}
+      {requests.length === 0 ? (
+        <View style={{ alignItems: 'center', paddingVertical: 40 }}>
+          <Feather name="shield" size={40} color={C.dm} style={{ marginBottom: 10 }} />
+          <Text style={{ fontSize: 18, fontWeight: '600', color: C.text }}>No Warranty Requests</Text>
+          <Text style={{ fontSize: 14, color: C.dm, marginTop: 4, textAlign: 'center' }}>
+            Tap the + button to submit a warranty request.
+          </Text>
+        </View>
+      ) : (
+        <View>
+          {/* Active requests */}
+          {requests.filter(r => r.status !== 'closed').length > 0 && (
+            <View style={{ marginBottom: 16 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                <Feather name="clock" size={18} color={C.gd} />
+                <Text style={{ fontSize: 18, fontWeight: '700', color: C.textBold }}>Active</Text>
+                <View style={{ backgroundColor: C.gd + '25', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10 }}>
+                  <Text style={{ fontSize: 13, fontWeight: '700', color: C.gd }}>{requests.filter(r => r.status !== 'closed').length}</Text>
+                </View>
+              </View>
+              {requests.filter(r => r.status !== 'closed').map(renderCard)}
+            </View>
+          )}
+          {/* Closed requests */}
+          {requests.filter(r => r.status === 'closed').length > 0 && (
+            <View>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                <Feather name="check-circle" size={18} color={'#ef4444'} />
+                <Text style={{ fontSize: 18, fontWeight: '700', color: C.textBold }}>Closed</Text>
+                <View style={{ backgroundColor: '#ef444425', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10 }}>
+                  <Text style={{ fontSize: 13, fontWeight: '700', color: '#ef4444' }}>{requests.filter(r => r.status === 'closed').length}</Text>
+                </View>
+              </View>
+              {requests.filter(r => r.status === 'closed').map(renderCard)}
+            </View>
+          )}
+        </View>
+      )}
+    </ScrollView>
+  );
+};
+
 
 // ============================================================
 // ISOLATED MODAL COMPONENTS
