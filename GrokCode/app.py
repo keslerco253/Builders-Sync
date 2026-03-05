@@ -517,6 +517,9 @@ class ProjectSelection(db.Model):
     price_override = db.Column(db.Float, nullable=True)  # builder sets this for Price TBD options
     customer_comment = db.Column(db.Text, nullable=True)  # customer note visible to builder
     nested_selected = db.Column(db.Text, nullable=True)  # JSON: {"parentOptionName": "nestedChoice"}
+    due_date = db.Column(db.String(20), default='')  # YYYY-MM-DD, synced from linked schedule task
+    linked_schedule_id = db.Column(db.Integer, nullable=True)  # FK to schedule.id
+    linked_date_type = db.Column(db.String(10), nullable=True)  # 'start' or 'end'
 
     def to_dict(self):
         item = SelectionItem.query.get(self.selection_item_id)
@@ -543,6 +546,9 @@ class ProjectSelection(db.Model):
             except (json.JSONDecodeError, ValueError):
                 ns = None
         d['nested_selected'] = ns
+        d['due_date'] = self.due_date or ''
+        d['linked_schedule_id'] = self.linked_schedule_id
+        d['linked_date_type'] = self.linked_date_type or ''
         return d
 
 
@@ -2508,6 +2514,7 @@ def toggle_project_hold(project_id):
         # Return updated schedule with project
         all_tasks = Schedule.query.filter_by(job_id=project_id).order_by(Schedule.start_date).all()
         sync_linked_client_tasks([t.id for t in all_tasks])
+        sync_linked_selections([t.id for t in all_tasks])
         return jsonify({'project': p.to_dict(), 'schedule': [t.to_dict() for t in all_tasks]})
 
     return jsonify({'error': 'Action must be "hold" or "release"'}), 400
@@ -3472,9 +3479,18 @@ def get_project_selections(pid):
             db.session.add(ps)
             existing[item.id] = ps
     db.session.commit()
+    # Check if requester is a customer — hide selections without a due_date
+    is_customer = False
+    if hasattr(request, 'current_user') and request.current_user:
+        caller = LoginInfo.query.get(request.current_user.get('user_id'))
+        if caller and caller.role == 'customer':
+            is_customer = True
+
     for item in applicable_items:
         ps = existing.get(item.id)
         if ps:
+            if is_customer and not ps.due_date:
+                continue  # hide from customer until due_date is assigned
             result.append(ps.to_dict())
     return jsonify(result)
 
@@ -3559,6 +3575,19 @@ def update_project_selection(psid):
         ps.status = 'pending'
         ps.price_override = None
         ps.nested_selected = None
+    # Link to a schedule task (like client tasks)
+    if 'linked_schedule_id' in data:
+        ps.linked_schedule_id = data['linked_schedule_id']
+        ps.linked_date_type = data.get('linked_date_type', 'start')
+        if ps.linked_schedule_id:
+            sched = Schedule.query.get(ps.linked_schedule_id)
+            if sched:
+                ps.due_date = sched.start_date if ps.linked_date_type == 'start' else sched.end_date
+        else:
+            ps.due_date = ''
+            ps.linked_date_type = None
+    if 'due_date' in data and 'linked_schedule_id' not in data:
+        ps.due_date = data['due_date'] or ''
     db.session.commit()
     return jsonify(ps.to_dict())
 
@@ -3726,6 +3755,7 @@ def update_schedule_item(item_id):
     db.session.commit()
     sync_project_dates(item.job_id)
     sync_linked_client_tasks([item.id])
+    sync_linked_selections([item.id])
     return jsonify(item.to_dict())
 
 
@@ -3761,6 +3791,7 @@ def batch_update_schedule():
     for jid in job_ids:
         sync_project_dates(jid)
     sync_linked_client_tasks([i.id for i in updated])
+    sync_linked_selections([i.id for i in updated])
     return jsonify([i.to_dict() for i in updated])
 
 
@@ -4095,6 +4126,7 @@ def edit_schedule_with_reason(item_id):
     db.session.commit()
     sync_project_dates(item.job_id)
     sync_linked_client_tasks([t.id for t in all_items])
+    sync_linked_selections([t.id for t in all_items])
     return jsonify([t.to_dict() for t in all_items])
 
 
@@ -4186,6 +4218,7 @@ def add_exception(pid):
     all_items = Schedule.query.filter_by(job_id=pid).all()
     sync_project_dates(pid)
     sync_linked_client_tasks([t.id for t in all_items])
+    sync_linked_selections([t.id for t in all_items])
     return jsonify([t.to_dict() for t in all_items]), 201
 
 
@@ -4348,6 +4381,27 @@ def sync_linked_client_tasks(schedule_ids):
         new_date = sched.start_date if ct.linked_date_type == 'start' else sched.end_date
         if new_date and new_date != ct.due_date:
             ct.due_date = new_date
+    db.session.commit()
+
+
+def sync_linked_selections(schedule_ids):
+    """Update due_date on project selections linked to any of the given schedule task IDs."""
+    if not schedule_ids:
+        return
+    linked = ProjectSelection.query.filter(
+        ProjectSelection.linked_schedule_id.in_(schedule_ids),
+        ProjectSelection.linked_date_type.isnot(None),
+    ).all()
+    if not linked:
+        return
+    sched_map = {s.id: s for s in Schedule.query.filter(Schedule.id.in_(schedule_ids)).all()}
+    for ps in linked:
+        sched = sched_map.get(ps.linked_schedule_id)
+        if not sched:
+            continue
+        new_date = sched.start_date if ps.linked_date_type == 'start' else sched.end_date
+        if new_date and new_date != ps.due_date:
+            ps.due_date = new_date
     db.session.commit()
 
 @app.route('/projects/<int:pid>/client-tasks', methods=['GET'])
@@ -5183,6 +5237,19 @@ def auto_migrate():
         db.session.commit()
     except Exception:
         db.session.rollback()
+
+    # Add linked_schedule_id, linked_date_type, due_date to project_selection for task linking
+    for col, coldef in [
+        ('due_date', "VARCHAR(20) DEFAULT ''"),
+        ('linked_schedule_id', 'INTEGER NULL'),
+        ('linked_date_type', 'VARCHAR(10) NULL'),
+    ]:
+        try:
+            db.session.execute(text(f"ALTER TABLE project_selection ADD COLUMN {col} {coldef}"))
+            db.session.commit()
+            changes.append(f"ADD project_selection.{col}")
+        except Exception:
+            db.session.rollback()
 
     if changes:
         try:
