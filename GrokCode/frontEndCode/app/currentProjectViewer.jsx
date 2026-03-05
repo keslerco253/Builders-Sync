@@ -2150,7 +2150,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
         let sectionsHtml = '';
         specCategories.forEach(([cat, sels]) => {
           const sc = subdivContractors.find(c => (c.trade || '').toLowerCase() === cat.toLowerCase());
-          const subName = sc?.contractor ? `${sc.contractor.first_name || ''} ${sc.contractor.last_name || ''}`.trim() : '';
+          const subName = sc?.contractor?.company_name || '';
           sectionsHtml += `<div class="spec-section">`;
           sectionsHtml += `<div class="section-header">${esc(cat)}${subName ? ` <span class="section-sub">${esc(subName)}</span>` : ''}</div>`;
           sels.forEach(sel => {
@@ -2246,7 +2246,7 @@ ${sectionsHtml}
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
               {specCategories.map(([cat, sels]) => {
                 const sc = subdivContractors.find(c => (c.trade || '').toLowerCase() === cat.toLowerCase());
-                const subName = sc?.contractor ? `${sc.contractor.first_name || ''} ${sc.contractor.last_name || ''}`.trim() : '';
+                const subName = sc?.contractor?.company_name || '';
                 return (
                 <View key={cat} style={{ width: '48%', minWidth: 260, flexGrow: 1, marginBottom: 8 }}>
                   <Card style={{ flex: 1 }}>
