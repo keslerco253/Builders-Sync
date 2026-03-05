@@ -3471,6 +3471,26 @@ ${sectionsHtml}
         api(`/project-selections/${psId}`, { method: 'PUT', body: { customer_comment: comment } });
       };
 
+      const linkSelectionToTask = (sel) => {
+        if (!isB) return;
+        setModal({ type: 'linksel', sel });
+      };
+
+      const unlinkSelection = async (psId) => {
+        const result = await api(`/project-selections/${psId}`, { method: 'PUT', body: { linked_schedule_id: null, due_date: '' } });
+        if (result) {
+          setSelections(prev => prev.map(s => s.project_selection_id === psId ? { ...s, linked_schedule_id: null, linked_date_type: '', due_date: '' } : s));
+        }
+      };
+
+      const saveSelectionLink = async (psId, taskId, dateType) => {
+        const result = await api(`/project-selections/${psId}`, { method: 'PUT', body: { linked_schedule_id: taskId, linked_date_type: dateType } });
+        if (result) {
+          setSelections(prev => prev.map(s => s.project_selection_id === psId ? { ...s, ...result } : s));
+        }
+        setModal(null);
+      };
+
       const renderSelectionCard = (sel) => {
         const isConfirmed = sel.status === 'confirmed';
         const isAwaitingPrice = sel.status === 'awaiting_price';
@@ -3493,16 +3513,37 @@ ${sectionsHtml}
           .map(o => ({ name: o.name, description: o.description }));
         const itemKey = sel.project_selection_id || sel.id;
         const isExpanded = !!expandedSelItems[itemKey];
+        const linkedTask = sel.linked_schedule_id ? schedule.find(t => t.id === sel.linked_schedule_id) : null;
+
+        const cardContextMenu = isB && Platform.OS === 'web' ? {
+          onContextMenu: (e) => {
+            e.preventDefault();
+            linkSelectionToTask(sel);
+          },
+        } : {};
+        const cardLongPress = isB ? () => linkSelectionToTask(sel) : undefined;
+
         return (
-          <Card key={itemKey} style={{ marginBottom: 14 }}>
+          <View key={itemKey} {...cardContextMenu}>
+          <Card style={{ marginBottom: 14 }}>
             {/* Collapsible header */}
             <TouchableOpacity
               onPress={() => setExpandedSelItems(prev => ({ ...prev, [itemKey]: !prev[itemKey] }))}
+              onLongPress={cardLongPress}
               activeOpacity={0.7}
               style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
               <View style={{ flex: 1, flexDirection: 'row', alignItems: 'flex-start', gap: 8, minWidth: 0 }}>
                 <Text style={{ fontSize: 18, color: C.dm, marginTop: 4 }}>{isExpanded ? '▼' : '▶'}</Text>
-                <Text style={{ fontSize: 24, fontWeight: '600', color: C.text, flexShrink: 1 }}>{sel.item}</Text>
+                <View style={{ flexShrink: 1 }}>
+                  <Text style={{ fontSize: 24, fontWeight: '600', color: C.text }}>{sel.item}</Text>
+                  {sel.due_date ? (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 }}>
+                      <Feather name="calendar" size={13} color={C.gd} />
+                      <Text style={{ fontSize: 13, color: C.gd }}>Due: {sel.due_date}</Text>
+                      {linkedTask && <Text style={{ fontSize: 12, color: C.dm }}> ({linkedTask.task})</Text>}
+                    </View>
+                  ) : null}
+                </View>
                 {allowMulti && (
                   <View style={{ backgroundColor: C.bH12, paddingHorizontal: 7, paddingVertical: 2, borderRadius: 5 }}>
                     <Text style={{ fontSize: 12, fontWeight: '700', color: C.gd }}>MULTI</Text>
@@ -3800,6 +3841,7 @@ ${sectionsHtml}
               </View>
             )}
           </Card>
+          </View>
         );
       };
 
@@ -3926,7 +3968,68 @@ ${sectionsHtml}
             </View>
           )}
 
-          {/* Confirm Selection Modal */}
+          {/* Link Selection to Task Modal */}
+          {modal?.type === 'linksel' && (() => {
+            const sel = modal.sel;
+            const tasks = schedule.filter(t => t.task && t.start_date);
+            return (
+              <Modal visible animationType="fade" transparent>
+                <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+                  <View style={{
+                    backgroundColor: C.modalBg, borderRadius: 16, padding: 28, width: '90%', maxWidth: 500,
+                    maxHeight: '80%', borderWidth: 1, borderColor: C.w10,
+                    ...(Platform.OS === 'web' ? { boxShadow: '0 20px 60px rgba(0,0,0,0.4)' } : { elevation: 20 }),
+                  }}>
+                    <Text style={{ fontSize: 26, fontWeight: '700', color: C.textBold, textAlign: 'center', marginBottom: 4 }}>Link to Schedule Task</Text>
+                    <Text style={{ fontSize: 18, color: C.gd, textAlign: 'center', marginBottom: 16 }}>{sel.item}</Text>
+
+                    {sel.linked_schedule_id ? (
+                      <View style={{ marginBottom: 16 }}>
+                        <View style={{ backgroundColor: C.bH08, padding: 12, borderRadius: 8, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <View>
+                            <Text style={{ fontSize: 16, color: C.text }}>Currently linked to: <Text style={{ fontWeight: '700' }}>{schedule.find(t => t.id === sel.linked_schedule_id)?.task || 'Unknown'}</Text></Text>
+                            <Text style={{ fontSize: 14, color: C.dm }}>Using {sel.linked_date_type === 'end' ? 'end' : 'start'} date — Due: {sel.due_date}</Text>
+                          </View>
+                          <TouchableOpacity onPress={() => { unlinkSelection(sel.project_selection_id); setModal(null); }}
+                            style={{ backgroundColor: 'rgba(239,68,68,0.15)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 6 }}>
+                            <Text style={{ fontSize: 14, fontWeight: '600', color: '#ef4444' }}>Unlink</Text>
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    ) : null}
+
+                    <Text style={{ fontSize: 16, fontWeight: '600', color: C.mt, marginBottom: 8 }}>Select a task:</Text>
+                    <ScrollView style={{ maxHeight: 350 }}>
+                      {tasks.length === 0 ? (
+                        <Text style={{ fontSize: 15, color: C.dm, fontStyle: 'italic', padding: 12 }}>No schedule tasks available</Text>
+                      ) : tasks.map(t => (
+                        <View key={t.id} style={{ borderBottomWidth: 1, borderBottomColor: C.w06, paddingVertical: 10 }}>
+                          <Text style={{ fontSize: 17, fontWeight: '600', color: C.text, marginBottom: 6 }}>{t.task}</Text>
+                          <Text style={{ fontSize: 13, color: C.dm, marginBottom: 8 }}>{t.start_date} — {t.end_date}</Text>
+                          <View style={{ flexDirection: 'row', gap: 10 }}>
+                            <TouchableOpacity onPress={() => saveSelectionLink(sel.project_selection_id, t.id, 'start')}
+                              style={{ flex: 1, backgroundColor: C.gd + '22', paddingVertical: 8, borderRadius: 6, alignItems: 'center', borderWidth: 1, borderColor: C.gd + '44' }}>
+                              <Text style={{ fontSize: 15, fontWeight: '600', color: C.gd }}>Start Date ({t.start_date})</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity onPress={() => saveSelectionLink(sel.project_selection_id, t.id, 'end')}
+                              style={{ flex: 1, backgroundColor: C.gd + '22', paddingVertical: 8, borderRadius: 6, alignItems: 'center', borderWidth: 1, borderColor: C.gd + '44' }}>
+                              <Text style={{ fontSize: 15, fontWeight: '600', color: C.gd }}>End Date ({t.end_date})</Text>
+                            </TouchableOpacity>
+                          </View>
+                        </View>
+                      ))}
+                    </ScrollView>
+
+                    <TouchableOpacity onPress={() => setModal(null)}
+                      style={{ marginTop: 16, paddingVertical: 12, borderRadius: 8, borderWidth: 1, borderColor: C.w12, alignItems: 'center' }}>
+                      <Text style={{ fontSize: 18, fontWeight: '600', color: C.mt }}>Cancel</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </Modal>
+            );
+          })()}
+
           {/* Confirm Selection Modal */}
           {modal?.type === 'confirmsel' && (
             <Modal visible animationType="fade" transparent>
