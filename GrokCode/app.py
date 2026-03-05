@@ -5505,7 +5505,7 @@ def builder_dashboard():
     for p in all_projects:
         if p.is_bid:
             status_counts['bid'] += 1
-        elif (p.status or '').lower() in ('closed', 'complete', 'completed'):
+        elif (p.phase or '').lower() in ('closed', 'complete', 'completed'):
             status_counts['closed'] += 1
         else:
             status_counts['open'] += 1
