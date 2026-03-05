@@ -3364,7 +3364,7 @@ ${sectionsHtml}
                   )}
                 </View>
                 <View style={s.threeColCell}>
-                  <Text style={s.groupSubtitle}>Completed ({completedCOs.length})</Text>
+                  <Text style={s.groupSubtitle}>Completed ({completedCOs.length}) — {f$(completedCOs.filter(co => co.status === 'approved').reduce((sum, co) => sum + (co.amount || 0), 0))}</Text>
                   {completedCOs.length > 0 ? completedCOs.map(renderCOCard) : (
                     <Text style={{ fontSize: 15, color: C.dm, fontStyle: 'italic', marginTop: 6 }}>None</Text>
                   )}
@@ -3877,7 +3877,22 @@ ${sectionsHtml}
               </View>
               {/* Right column — Completed */}
               <View style={s.threeColCell}>
-                <Text style={s.groupSubtitle}>Completed ({confirmedSels.length})</Text>
+                <Text style={s.groupSubtitle}>Completed ({confirmedSels.length}) — {f$(confirmedSels.reduce((sum, sel) => {
+                  const selectedArr = Array.isArray(sel.selected) ? sel.selected : (sel.selected ? [sel.selected] : []);
+                  const hasTbd = (sel.options || []).some(o => typeof o === 'object' && o.price_tbd && selectedArr.includes(o.name));
+                  if (hasTbd && sel.price_override != null) return sum + sel.price_override;
+                  return sum + selectedArr.reduce((s, optName) => {
+                    const opt = (sel.options || []).find(o => (typeof o === 'object' ? o.name : o) === optName);
+                    const isObj = typeof opt === 'object';
+                    const price = isObj ? (opt.comes_standard ? 0 : (opt.price_tbd ? 0 : (opt.price || 0))) : 0;
+                    let nested = 0;
+                    if (sel.has_nested && sel.nested_selected && sel.nested_selected[optName] && isObj && opt.nested_options) {
+                      const nOpt = opt.nested_options.find(n => typeof n === 'object' && n.name === sel.nested_selected[optName]);
+                      if (nOpt) nested = nOpt.comes_standard ? 0 : (nOpt.price_tbd ? 0 : (nOpt.price || 0));
+                    }
+                    return s + price + nested;
+                  }, 0);
+                }, 0))}</Text>
                 {confirmedSels.length > 0 ? groupByCategory(confirmedSels).map(([cat, sels]) => {
                   const key = `confirmed-${cat}`;
                   const isOpen = !!expandedSelTrades[key];
