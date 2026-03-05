@@ -475,8 +475,9 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
         homeowner2_email: editInfo.homeowner2_email.trim(),
         start_date: editInfo.start_date,
         est_completion: (() => {
-          if (!editInfo.start_date) return '';
-          const d = new Date(editInfo.start_date + 'T00:00:00');
+          const src = project.date || editInfo.start_date;
+          if (!src) return '';
+          const d = new Date(src + (src.includes('T') ? '' : 'T00:00:00'));
           if (isNaN(d.getTime())) return '';
           d.setFullYear(d.getFullYear() + 1);
           return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
@@ -898,10 +899,11 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
     const ends = sched.filter(t => t.end_date).map(t => t.end_date).sort();
     const schedStart = starts.length > 0 ? starts[0] : '';
     const schedEnd = ends.length > 0 ? ends[ends.length - 1] : '';
-    // est_completion = 1 year from start
+    // est_completion = 1 year from contract date (fallback to start date)
     let estCompletion = '';
-    if (schedStart) {
-      const d = new Date(schedStart + 'T00:00:00');
+    const estSrc = proj.date || schedStart;
+    if (estSrc) {
+      const d = new Date(estSrc + (estSrc.includes('T') ? '' : 'T00:00:00'));
       if (!isNaN(d.getTime())) {
         d.setFullYear(d.getFullYear() + 1);
         estCompletion = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
@@ -1391,16 +1393,17 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
                 <View style={{ marginBottom: 14 }}>
                   <Text style={s.infoLbl}>ESTIMATED COMPLETION</Text>
                   <Text style={s.infoVal}>{(() => {
-                    if (!editInfo.start_date) return '—';
+                    const src = project.date || editInfo.start_date;
+                    if (!src) return '—';
                     try {
-                      const d = new Date(editInfo.start_date + 'T00:00:00');
+                      const d = new Date(src + (src.includes('T') ? '' : 'T00:00:00'));
                       if (isNaN(d.getTime())) return '—';
                       d.setFullYear(d.getFullYear() + 1);
                       return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
                     } catch { return '—'; }
                   })()}</Text>
-                  {editInfo.start_date ? (
-                    <Text style={{ fontSize: 13, color: C.dm, fontStyle: 'italic', marginTop: 2 }}>1 year from start date</Text>
+                  {(project.date || editInfo.start_date) ? (
+                    <Text style={{ fontSize: 13, color: C.dm, fontStyle: 'italic', marginTop: 2 }}>1 year from contract date</Text>
                   ) : null}
                 </View>
                 <View style={{ marginBottom: 14 }}>
@@ -3331,9 +3334,9 @@ ${sectionsHtml}
               onPress={() => setExpandedSelItems(prev => ({ ...prev, [itemKey]: !prev[itemKey] }))}
               activeOpacity={0.7}
               style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-              <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, minWidth: 0 }}>
-                <Text style={{ fontSize: 18, color: C.dm }}>{isExpanded ? '▼' : '▶'}</Text>
-                <Text numberOfLines={1} style={{ fontSize: 24, fontWeight: '600', color: C.text, flexShrink: 1 }}>{sel.item}</Text>
+              <View style={{ flex: 1, flexDirection: 'row', alignItems: 'flex-start', gap: 8, minWidth: 0 }}>
+                <Text style={{ fontSize: 18, color: C.dm, marginTop: 4 }}>{isExpanded ? '▼' : '▶'}</Text>
+                <Text style={{ fontSize: 24, fontWeight: '600', color: C.text, flexShrink: 1 }}>{sel.item}</Text>
                 {allowMulti && (
                   <View style={{ backgroundColor: C.bH12, paddingHorizontal: 7, paddingVertical: 2, borderRadius: 5 }}>
                     <Text style={{ fontSize: 12, fontWeight: '700', color: C.gd }}>MULTI</Text>
