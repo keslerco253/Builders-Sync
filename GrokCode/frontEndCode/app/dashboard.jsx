@@ -91,6 +91,9 @@ export default function Dashboard() {
   const [showPmManager, setShowPmManager] = useState(false);
   const [pmBuilders, setPmBuilders] = useState([]);
   const [pmLoading, setPmLoading] = useState(false);
+  const [showWarrantyManager, setShowWarrantyManager] = useState(false);
+  const [warrantyBuilders, setWarrantyBuilders] = useState([]);
+  const [warrantyLoading, setWarrantyLoading] = useState(false);
   const [companyBuilders, setCompanyBuilders] = useState([]); // for PM/superintendent dropdowns
   const [builderTrades, setBuilderTrades] = useState(DEFAULT_TRADES);
   const [newTradeName, setNewTradeName] = useState('');
@@ -570,6 +573,34 @@ export default function Dashboard() {
         setPmBuilders(prev => prev.map(b => b.id === uid ? { ...b, is_project_manager: updated.is_project_manager } : b));
       }
     } catch (e) { console.warn('Toggle PM:', e); }
+  };
+
+  const fetchWarrantyBuilders = async () => {
+    if (!user?.company_id) return;
+    setWarrantyLoading(true);
+    try {
+      const res = await apiFetch(`/company/${user.company_id}/builders`);
+      if (res.ok) { const data = await res.json(); setWarrantyBuilders(Array.isArray(data) ? data : []); }
+    } catch (e) { console.warn('Fetch builders for warranty:', e); }
+    setWarrantyLoading(false);
+  };
+
+  const toggleWarrantySpecialist = async (uid, currentStatus) => {
+    try {
+      const res = await apiFetch(`/users/${uid}/warranty-specialist`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_warranty_specialist: !currentStatus }),
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        // Only one specialist allowed — clear others in local state
+        setWarrantyBuilders(prev => prev.map(b =>
+          b.id === uid
+            ? { ...b, is_warranty_specialist: updated.is_warranty_specialist }
+            : { ...b, is_warranty_specialist: false }
+        ));
+      }
+    } catch (e) { console.warn('Toggle warranty specialist:', e); }
   };
 
   const fetchEscrowHolders = async () => {
@@ -4715,6 +4746,73 @@ export default function Dashboard() {
         </Modal>
       )}
 
+      {/* Warranty Specialist Manager Modal (company admin only) */}
+      {showWarrantyManager && (
+        <Modal visible animationType="fade" transparent>
+          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }}>
+            <View style={{ width: isWide ? 500 : '92%', maxHeight: '80%', backgroundColor: C.bg, borderRadius: 16, overflow: 'hidden' }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 18, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: C.bd }}>
+                <Text style={{ fontSize: 20, fontWeight: '700', color: C.textBold }}>Manage Warranty Specialist</Text>
+                <TouchableOpacity onPress={() => setShowWarrantyManager(false)} activeOpacity={0.7}>
+                  <Text style={{ fontSize: 28, color: C.dm, fontWeight: '300' }}>×</Text>
+                </TouchableOpacity>
+              </View>
+              <View style={{ paddingHorizontal: 18, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: C.bd }}>
+                <Text style={{ fontSize: 13, color: C.dm }}>
+                  Assign one builder as the warranty specialist. They will be auto-assigned to all new warranty requests.
+                </Text>
+              </View>
+              <ScrollView style={{ maxHeight: 500 }} contentContainerStyle={{ paddingVertical: 4 }}>
+                {warrantyLoading ? (
+                  <ActivityIndicator color={C.gd} style={{ marginVertical: 30 }} />
+                ) : warrantyBuilders.length === 0 ? (
+                  <View style={{ padding: 24, alignItems: 'center' }}>
+                    <Text style={{ fontSize: 16, color: C.dm }}>No builders found in company</Text>
+                  </View>
+                ) : (
+                  warrantyBuilders.map((b, idx) => (
+                    <View key={b.id} style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 18, paddingVertical: 14,
+                      borderBottomWidth: idx < warrantyBuilders.length - 1 ? 1 : 0, borderBottomColor: C.w04 }}>
+                      <View style={{
+                        width: 38, height: 38, borderRadius: 19,
+                        backgroundColor: b.is_warranty_specialist ? '#f59e0b20' : C.w06,
+                        alignItems: 'center', justifyContent: 'center', marginRight: 12,
+                      }}>
+                        <Text style={{ fontSize: 14, fontWeight: '700', color: b.is_warranty_specialist ? '#f59e0b' : C.dm }}>
+                          {(b.first_name || '')[0]}{(b.last_name || '')[0]}
+                        </Text>
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 17, fontWeight: '600', color: C.textBold }}>{b.name}</Text>
+                        <Text style={{ fontSize: 13, color: C.dm }}>
+                          {b.role === 'company_admin' ? 'Company Admin' : 'Builder'} · {b.username}
+                        </Text>
+                      </View>
+                      <TouchableOpacity
+                        onPress={() => toggleWarrantySpecialist(b.id, b.is_warranty_specialist)}
+                        style={{
+                          width: 52, height: 30, borderRadius: 15,
+                          backgroundColor: b.is_warranty_specialist ? '#f59e0b' : C.w10,
+                          justifyContent: 'center',
+                          paddingHorizontal: 3,
+                        }}
+                        activeOpacity={0.7}>
+                        <View style={{
+                          width: 24, height: 24, borderRadius: 12,
+                          backgroundColor: '#fff',
+                          alignSelf: b.is_warranty_specialist ? 'flex-end' : 'flex-start',
+                          ...(Platform.OS === 'web' ? { boxShadow: '0 1px 3px rgba(0,0,0,0.2)' } : { elevation: 2 }),
+                        }} />
+                      </TouchableOpacity>
+                    </View>
+                  ))
+                )}
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
+      )}
+
       {/* Escrow Holder Manager Modal */}
       {showEscrowHolderManager && (
         <Modal visible animationType="fade" transparent>
@@ -5324,6 +5422,16 @@ export default function Dashboard() {
                     >
                       <Feather name="briefcase" size={20} color={C.text} />
                       <Text style={st.settingsItemTxt}>Manage Project Managers</Text>
+                    </TouchableOpacity>
+                  )}
+                  {user?.role === 'company_admin' && (
+                    <TouchableOpacity
+                      onPress={() => { setShowSettings(false); fetchWarrantyBuilders(); setShowWarrantyManager(true); }}
+                      style={st.settingsItem}
+                      activeOpacity={0.7}
+                    >
+                      <Feather name="shield" size={20} color={C.text} />
+                      <Text style={st.settingsItemTxt}>Manage Warranty Specialist</Text>
                     </TouchableOpacity>
                   )}
                 </View>

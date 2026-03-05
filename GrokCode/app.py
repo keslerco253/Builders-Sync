@@ -96,6 +96,7 @@ class LoginInfo(db.Model):
     authorized = db.Column(db.Boolean, default=True)
     registered = db.Column(db.Boolean, default=True)  # False = invited but hasn't completed registration
     is_project_manager = db.Column(db.Boolean, default=False)  # PM flag for builders
+    is_warranty_specialist = db.Column(db.Boolean, default=False)  # Warranty specialist flag (one per company)
     primary_contact_phone = db.Column(db.String(30), default='')
     primary_contact_email = db.Column(db.String(200), default='')
 
@@ -140,6 +141,7 @@ class LoginInfo(db.Model):
             'company_id': self.company_id,
             'registered': self.registered if self.registered is not None else True,
             'is_project_manager': bool(self.is_project_manager) if self.is_project_manager is not None else False,
+            'is_warranty_specialist': bool(self.is_warranty_specialist) if self.is_warranty_specialist is not None else False,
             'primary_contact_phone': self.primary_contact_phone or '',
             'primary_contact_email': self.primary_contact_email or '',
             'created_at': self.created_at.isoformat() if self.created_at else None,
@@ -1004,6 +1006,42 @@ class Escrow(db.Model):
             'escrow_holder_name': holder.name if holder else '',
             'completed': self.completed, 'company_id': self.company_id,
             'created_at': self.created_at.isoformat() if self.created_at else None,
+        }
+
+
+class WarrantyRequest(db.Model):
+    """Warranty requests submitted by customers for a project.
+    Status flow: submitted → under_review → in_progress → resolved → closed"""
+    __tablename__ = 'warranty_request'
+    id = db.Column(db.Integer, primary_key=True)
+    job_id = db.Column(db.Integer, db.ForeignKey('projects.id'), nullable=False)
+    company_id = db.Column(db.Integer, db.ForeignKey('company.id'), nullable=False)
+    submitted_by = db.Column(db.Integer, db.ForeignKey('login_info.id'), nullable=False)
+    assigned_to = db.Column(db.Integer, db.ForeignKey('login_info.id'), nullable=True)  # warranty specialist
+    title = db.Column(db.String(255), nullable=False)
+    description = db.Column(db.Text, default='')
+    category = db.Column(db.String(100), default='')  # e.g. Plumbing, Electrical, HVAC, Structural, etc.
+    status = db.Column(db.String(30), nullable=False, default='submitted')  # submitted | under_review | in_progress | resolved | closed
+    priority = db.Column(db.String(20), default='normal')  # low | normal | high | urgent
+    resolution_notes = db.Column(db.Text, default='')
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def to_dict(self):
+        submitter = LoginInfo.query.get(self.submitted_by) if self.submitted_by else None
+        assignee = LoginInfo.query.get(self.assigned_to) if self.assigned_to else None
+        return {
+            'id': self.id, 'job_id': self.job_id, 'company_id': self.company_id,
+            'submitted_by': self.submitted_by,
+            'submitter_name': f'{submitter.firstName} {submitter.lastName}' if submitter else '',
+            'assigned_to': self.assigned_to,
+            'assignee_name': f'{assignee.firstName} {assignee.lastName}' if assignee else '',
+            'title': self.title, 'description': self.description or '',
+            'category': self.category or '', 'status': self.status,
+            'priority': self.priority or 'normal',
+            'resolution_notes': self.resolution_notes or '',
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
         }
 
 
@@ -5269,6 +5307,108 @@ def delete_escrow(eid):
     db.session.delete(e)
     db.session.commit()
     return jsonify({'ok': True})
+
+
+# ============================================================
+# WARRANTY SPECIALIST TOGGLE
+# ============================================================
+
+@app.route('/users/<int:user_id>/warranty-specialist', methods=['PUT'])
+def toggle_warranty_specialist(user_id):
+    """Toggle is_warranty_specialist flag. Only one specialist per company."""
+    user = LoginInfo.query.get_or_404(user_id)
+    data = request.get_json() or {}
+    new_val = bool(data.get('is_warranty_specialist', not (user.is_warranty_specialist or False)))
+    # If enabling, clear any other warranty specialist in the same company
+    if new_val and user.company_id:
+        LoginInfo.query.filter(
+            LoginInfo.company_id == user.company_id,
+            LoginInfo.id != user.id,
+            LoginInfo.is_warranty_specialist == True
+        ).update({'is_warranty_specialist': False})
+    user.is_warranty_specialist = new_val
+    db.session.commit()
+    return jsonify(user.to_dict())
+
+
+# ============================================================
+# WARRANTY REQUEST ROUTES
+# ============================================================
+
+@app.route('/projects/<int:pid>/warranty-requests', methods=['GET'])
+def list_warranty_requests(pid):
+    reqs = WarrantyRequest.query.filter_by(job_id=pid).order_by(WarrantyRequest.created_at.desc()).all()
+    return jsonify([r.to_dict() for r in reqs])
+
+
+@app.route('/projects/<int:pid>/warranty-requests', methods=['POST'])
+def create_warranty_request(pid):
+    data = request.get_json() or {}
+    title = (data.get('title') or '').strip()
+    if not title:
+        return jsonify({'error': 'title required'}), 400
+    project = Projects.query.get_or_404(pid)
+    # Auto-assign to company warranty specialist if one exists
+    specialist = LoginInfo.query.filter_by(
+        company_id=project.company_id, is_warranty_specialist=True
+    ).first()
+    wr = WarrantyRequest(
+        job_id=pid,
+        company_id=project.company_id or data.get('company_id', 0),
+        submitted_by=data.get('submitted_by'),
+        assigned_to=specialist.id if specialist else None,
+        title=title,
+        description=data.get('description', ''),
+        category=data.get('category', ''),
+        status='submitted',
+        priority=data.get('priority', 'normal'),
+    )
+    db.session.add(wr)
+    db.session.commit()
+    return jsonify(wr.to_dict()), 201
+
+
+@app.route('/warranty-requests/<int:wid>', methods=['GET'])
+def get_warranty_request(wid):
+    wr = WarrantyRequest.query.get_or_404(wid)
+    return jsonify(wr.to_dict())
+
+
+@app.route('/warranty-requests/<int:wid>', methods=['PUT'])
+def update_warranty_request(wid):
+    wr = WarrantyRequest.query.get_or_404(wid)
+    data = request.get_json() or {}
+    if 'title' in data:
+        wr.title = (data['title'] or '').strip()
+    if 'description' in data:
+        wr.description = data['description']
+    if 'category' in data:
+        wr.category = data['category']
+    if 'status' in data:
+        wr.status = data['status']
+    if 'priority' in data:
+        wr.priority = data['priority']
+    if 'assigned_to' in data:
+        wr.assigned_to = data['assigned_to']
+    if 'resolution_notes' in data:
+        wr.resolution_notes = data['resolution_notes']
+    db.session.commit()
+    return jsonify(wr.to_dict())
+
+
+@app.route('/warranty-requests/<int:wid>', methods=['DELETE'])
+def delete_warranty_request(wid):
+    wr = WarrantyRequest.query.get_or_404(wid)
+    db.session.delete(wr)
+    db.session.commit()
+    return jsonify({'ok': True})
+
+
+@app.route('/company/<int:cid>/warranty-requests', methods=['GET'])
+def list_company_warranty_requests(cid):
+    """List all warranty requests for a company (for warranty specialist dashboard)."""
+    reqs = WarrantyRequest.query.filter_by(company_id=cid).order_by(WarrantyRequest.created_at.desc()).all()
+    return jsonify([r.to_dict() for r in reqs])
 
 
 # ============================================================
