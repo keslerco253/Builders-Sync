@@ -188,7 +188,7 @@ function SpecReport({ C, user, onBack, navigation }) {
     let rowsHtml = '';
     sorted.forEach((row, idx) => {
       const cls = idx % 2 === 1 ? ' class="alt"' : '';
-      rowsHtml += `<tr${cls}><td>${esc(row.subdivision)}</td><td>${esc(row.address)}</td><td>${esc(row.plan_name)}</td><td>${esc(row.current_task)}</td><td>${esc(row.current_trade)}</td><td>${esc(row.current_contractor)}</td><td>${fD(row.end_date)}</td></tr>`;
+      rowsHtml += `<tr${cls}><td>${esc(row.subdivision)}</td><td>${esc(row.address)}</td><td>${esc(row.plan_name)}</td><td>${esc(row.current_task)}</td><td>${fD(row.end_date)}</td></tr>`;
     });
 
     const filterDesc = [filterSubdiv ? 'Subdivision: ' + esc(filterSubdiv) : '', filterPlan ? 'Plan: ' + esc(filterPlan) : ''].filter(Boolean).join('  |  ');
@@ -224,7 +224,7 @@ function SpecReport({ C, user, onBack, navigation }) {
 <div class="report-title">Spec Report — ${sorted.length} ${sorted.length === 1 ? 'project' : 'projects'}</div>
 ${filterDesc ? `<div class="report-subtitle">${filterDesc}</div>` : ''}
 <table>
-<thead><tr><th>Subdivision</th><th>Address</th><th>Plan Name</th><th>Current Task</th><th>Trade</th><th>Sub Contractor</th><th>End Date</th></tr></thead>
+<thead><tr><th>Subdivision</th><th>Address</th><th>Plan Name</th><th>Current Task</th><th>End Date</th></tr></thead>
 <tbody>${rowsHtml}</tbody>
 </table>
 <script>window.onload=function(){window.print();}</script>
@@ -235,13 +235,11 @@ ${filterDesc ? `<div class="report-subtitle">${filterDesc}</div>` : ''}
   };
 
   const COLS = [
-    { key: 'subdivision', label: 'Subdivision', flex: 1.1 },
-    { key: 'address', label: 'Address', flex: 1.3 },
-    { key: 'plan_name', label: 'Plan Name', flex: 0.9 },
-    { key: 'current_task', label: 'Current Task', flex: 1.2 },
-    { key: 'current_trade', label: 'Trade', flex: 0.8 },
-    { key: 'current_contractor', label: 'Sub Contractor', flex: 1 },
-    { key: 'end_date', label: 'End Date', flex: 0.8 },
+    { key: 'subdivision', label: 'Subdivision', flex: 1.2 },
+    { key: 'address', label: 'Address', flex: 1.5 },
+    { key: 'plan_name', label: 'Plan Name', flex: 1 },
+    { key: 'current_task', label: 'Current Task', flex: 1.3 },
+    { key: 'end_date', label: 'End Date', flex: 0.9 },
   ];
 
   return (
@@ -366,25 +364,19 @@ ${filterDesc ? `<div class="report-subtitle">${filterDesc}</div>` : ''}
             ) : (
               sorted.map((row, idx) => (
                 <View key={row.id} style={[st.tableRow, idx % 2 === 1 && st.tableRowAlt]}>
-                  <View style={[st.tableCell, { flex: 1.1 }]}>
+                  <View style={[st.tableCell, { flex: 1.2 }]}>
                     <Text style={st.tableCellTxt} numberOfLines={1}>{row.subdivision || '—'}</Text>
                   </View>
-                  <View style={[st.tableCell, { flex: 1.3 }]}>
+                  <View style={[st.tableCell, { flex: 1.5 }]}>
                     <Text style={st.tableCellTxt} numberOfLines={1}>{row.address || '—'}</Text>
                   </View>
-                  <View style={[st.tableCell, { flex: 0.9 }]}>
+                  <View style={[st.tableCell, { flex: 1 }]}>
                     <Text style={st.tableCellTxt} numberOfLines={1}>{row.plan_name || '—'}</Text>
                   </View>
-                  <View style={[st.tableCell, { flex: 1.2 }]}>
+                  <View style={[st.tableCell, { flex: 1.3 }]}>
                     <Text style={st.tableCellTxt} numberOfLines={1}>{row.current_task || '—'}</Text>
                   </View>
-                  <View style={[st.tableCell, { flex: 0.8 }]}>
-                    <Text style={st.tableCellTxt} numberOfLines={1}>{row.current_trade || '—'}</Text>
-                  </View>
-                  <View style={[st.tableCell, { flex: 1 }]}>
-                    <Text style={st.tableCellTxt} numberOfLines={1}>{row.current_contractor || '—'}</Text>
-                  </View>
-                  <View style={[st.tableCell, { flex: 0.8 }]}>
+                  <View style={[st.tableCell, { flex: 0.9 }]}>
                     <Text style={st.tableCellTxt} numberOfLines={1}>{fD(row.end_date)}</Text>
                   </View>
                 </View>

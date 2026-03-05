@@ -2214,18 +2214,12 @@ def spec_report():
         # Get schedule tasks for current task and end date
         tasks = Schedule.query.filter_by(job_id=p.id).order_by(Schedule.start_date).all()
         current_task = ''
-        current_trade = ''
-        current_contractor = ''
         job_end_date = ''
         for t in tasks:
             if t.end_date and t.end_date > job_end_date:
                 job_end_date = t.end_date
             if t.progress < 100 and not current_task:
                 current_task = t.task
-                trades = t._get_trades()
-                current_trade = ', '.join([tr for tr in trades if tr]) if trades else ''
-                contractors = t._get_contractors()
-                current_contractor = ', '.join([c for c in contractors if c]) if contractors else ''
 
         address = p.street_address or p.address or ''
 
@@ -2235,8 +2229,6 @@ def spec_report():
             'address': address,
             'plan_name': p.plan_name or '',
             'current_task': current_task,
-            'current_trade': current_trade,
-            'current_contractor': current_contractor,
             'end_date': job_end_date,
         })
 
