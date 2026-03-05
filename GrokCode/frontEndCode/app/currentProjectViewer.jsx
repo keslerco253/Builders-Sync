@@ -594,6 +594,9 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
   const [loading, setLoading] = useState(false);
   const [assigningTrade, setAssigningTrade] = useState(null); // trade name being assigned
   const [assigningSaving, setAssigningSaving] = useState(false);
+  const [showSubTmplPicker, setShowSubTmplPicker] = useState(false);
+  const [subTmpls, setSubTmpls] = useState([]);
+  const [applyingSubTmpl, setApplyingSubTmpl] = useState(false);
 
   // API helper
   const api = useCallback(async (path, opts = {}) => {
@@ -1835,8 +1838,62 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
         );
       };
 
+      const fetchSubTmplsForProject = async () => {
+        try {
+          const res = await apiFetch(`/subcontractor-templates${user?.company_id ? `?company_id=${user.company_id}` : ''}`);
+          const data = await res.json();
+          if (Array.isArray(data)) setSubTmpls(data);
+        } catch (e) { console.warn(e.message); }
+      };
+
+      const applySubTmplToProject = async (tmplId) => {
+        setApplyingSubTmpl(true);
+        try {
+          const result = await api(`/projects/${project.id}/apply-subcontractor-template`, {
+            method: 'POST', body: { template_id: tmplId },
+          });
+          if (result) setSchedule(result);
+        } catch (e) { console.warn('Apply template error:', e); }
+        setApplyingSubTmpl(false);
+        setShowSubTmplPicker(false);
+      };
+
       return (
         <ScrollView style={{ flex: 1 }} contentContainerStyle={[s.scroll, { maxWidth: windowWidth * 0.9 }]}>
+          {/* Apply Template button */}
+          {isB && schedule.length > 0 && (
+            <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginBottom: 12 }}>
+              <View style={{ position: 'relative' }}>
+                <TouchableOpacity
+                  onPress={() => { if (!showSubTmplPicker) fetchSubTmplsForProject(); setShowSubTmplPicker(p => !p); }}
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderColor: C.gd, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8 }}
+                  activeOpacity={0.7}
+                >
+                  <Feather name="download" size={14} color={C.gd} />
+                  <Text style={{ fontSize: 13, fontWeight: '600', color: C.gd }}>Apply Template</Text>
+                </TouchableOpacity>
+                {showSubTmplPicker && (
+                  <View style={{ position: 'absolute', top: '100%', right: 0, marginTop: 4, backgroundColor: C.card, borderRadius: 10, borderWidth: 1, borderColor: C.w12, minWidth: 240, zIndex: 100, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 8, elevation: 5 }}>
+                    {subTmpls.length === 0 ? (
+                      <View style={{ padding: 16, alignItems: 'center' }}>
+                        <Text style={{ fontSize: 14, color: C.dm }}>No templates available</Text>
+                      </View>
+                    ) : (
+                      subTmpls.map(tmpl => (
+                        <TouchableOpacity key={tmpl.id} onPress={() => applySubTmplToProject(tmpl.id)} disabled={applyingSubTmpl}
+                          style={{ padding: 12, borderBottomWidth: 1, borderBottomColor: C.w06 }} activeOpacity={0.7}>
+                          <Text style={{ fontSize: 15, fontWeight: '600', color: C.textBold }}>{tmpl.name}</Text>
+                          {tmpl.description ? <Text style={{ fontSize: 13, color: C.dm, marginTop: 2 }} numberOfLines={1}>{tmpl.description}</Text> : null}
+                          <Text style={{ fontSize: 12, color: C.mt, marginTop: 2 }}>{(tmpl.assignments || []).length} trade{(tmpl.assignments || []).length !== 1 ? 's' : ''}</Text>
+                        </TouchableOpacity>
+                      ))
+                    )}
+                  </View>
+                )}
+              </View>
+            </View>
+          )}
+
           {schedule.length === 0 ? (
             <View style={{ alignItems: 'center', paddingVertical: 40 }}>
               <Feather name="clipboard" size={40} color={C.dm} style={{ marginBottom: 10 }} />
