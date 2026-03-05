@@ -5418,7 +5418,7 @@ def list_company_warranty_requests(cid):
 @app.route('/builder-dashboard', methods=['GET'])
 def builder_dashboard():
     """Aggregated data for the builder home dashboard."""
-    uid = g.user_id
+    uid = request.current_user.get('user_id')
     user = LoginInfo.query.get(uid)
     if not user or not user.company_id:
         return jsonify({'error': 'unauthorized'}), 403
