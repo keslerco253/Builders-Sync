@@ -3223,13 +3223,9 @@ export default function Dashboard() {
                         const highlightColor = isOnHold ? C.rd : (isExc ? C.og : null);
 
                         return (
-                          <TouchableOpacity
+                          <View
                             key={`${task.id}-${wi}`}
-                            activeOpacity={0.7}
-                            onPress={() => {
-                              const proj = projects.find(pr => pr.id === task.job_id);
-                              if (proj) { setTaskActionPopup({ task, project: proj }); setTaskActionDate(''); }
-                            }}
+                            {...(Platform.OS === 'web' ? { onContextMenu: (e) => handleSubTaskRightClick(task, e) } : {})}
                             style={[st.subCalTaskBar, {
                               left: leftPct, width: widthPct, top: laneTop,
                               borderColor: isHighlight ? highlightColor : pColor, opacity: isDragged ? 0.7 : 1,
@@ -3239,18 +3235,24 @@ export default function Dashboard() {
                             isDragged && { borderWidth: 2, borderColor: C.textBold, borderStyle: 'dashed' },
                             Platform.OS === 'web' ? { cursor: 'pointer' } : {},
                             ]}
-                            {...(Platform.OS === 'web' && isBuilder && !subView ? {
-                              onPointerDown: (e) => subHandleDragStart(task, e),
-                            } : {})}
-                            {...(Platform.OS === 'web' ? {
-                              onContextMenu: (e) => handleSubTaskRightClick(task, e),
-                            } : {})}
                           >
-                            <View style={{ flex: 1, justifyContent: 'center' }}>
-                              <Text style={[st.subCalTaskTxt, isHighlight && { color: '#fff' }]} numberOfLines={1}>{task.task || 'Untitled'}</Text>
-                              <Text style={[st.subCalTaskTxtSub, isHighlight && { color: 'rgba(255,255,255,0.8)' }]} numberOfLines={1}>{task.project_name || 'Unknown'}</Text>
-                            </View>
-                          </TouchableOpacity>
+                            <TouchableOpacity
+                              activeOpacity={0.7}
+                              onPress={() => {
+                                const proj = projects.find(pr => pr.id === task.job_id);
+                                if (proj) { setTaskActionPopup({ task, project: proj }); setTaskActionDate(''); }
+                              }}
+                              style={{ flex: 1 }}
+                              {...(Platform.OS === 'web' && isBuilder && !subView ? {
+                                onPointerDown: (e) => subHandleDragStart(task, e),
+                              } : {})}
+                            >
+                              <View style={{ flex: 1, justifyContent: 'center' }}>
+                                <Text style={[st.subCalTaskTxt, isHighlight && { color: '#fff' }]} numberOfLines={1}>{task.task || 'Untitled'}</Text>
+                                <Text style={[st.subCalTaskTxtSub, isHighlight && { color: 'rgba(255,255,255,0.8)' }]} numberOfLines={1}>{task.project_name || 'Unknown'}</Text>
+                              </View>
+                            </TouchableOpacity>
+                          </View>
                         );
                       })
                     ))}
@@ -3300,13 +3302,9 @@ export default function Dashboard() {
                             const highlightColor = isOnHold ? C.rd : (isExc ? C.og : null);
 
                             return (
-                              <TouchableOpacity
+                              <View
                                 key={task.id}
-                                activeOpacity={0.7}
-                                onPress={() => {
-                                  const proj = projects.find(pr => pr.id === task.job_id);
-                                  if (proj) { setTaskActionPopup({ task, project: proj }); setTaskActionDate(''); }
-                                }}
+                                {...(Platform.OS === 'web' ? { onContextMenu: (e) => handleSubTaskRightClick(task, e) } : {})}
                                 style={[{
                                   flexDirection: 'column', gap: 2, marginTop: 4, marginRight: 4,
                                   paddingVertical: 7, paddingHorizontal: 8,
@@ -3317,21 +3315,27 @@ export default function Dashboard() {
                                 Platform.OS === 'web' ? { cursor: 'pointer', userSelect: 'none' } : {},
                                 isDragged && { borderWidth: 2, borderColor: C.textBold, borderStyle: 'dashed', borderLeftWidth: 2 },
                                 ]}
-                                {...(Platform.OS === 'web' && isBuilder && !subView ? {
-                                  onPointerDown: (e) => subHandleDragStart(task, e),
-                                } : {})}
-                                {...(Platform.OS === 'web' ? {
-                                  onContextMenu: (e) => handleSubTaskRightClick(task, e),
-                                } : {})}
                               >
-                                <Text style={{ fontSize: 14, fontWeight: '700', color: isHighlight ? '#fff' : C.text, textDecorationLine: isComplete ? 'line-through' : 'none' }} numberOfLines={1}>
-                                  {task.task || 'Untitled'}
-                                </Text>
-                                <Text style={{ fontSize: 16, fontWeight: '600', color: isHighlight ? 'rgba(255,255,255,0.9)' : C.text, lineHeight: 22 }} numberOfLines={1}>
-                                  {task.project_name || 'Unknown'}
-                                </Text>
-                                <Text style={{ fontSize: 13, color: isHighlight ? 'rgba(255,255,255,0.7)' : C.dm, fontWeight: '500' }}>Completion: {subShortDate(task.end_date)}</Text>
-                              </TouchableOpacity>
+                                <TouchableOpacity
+                                  activeOpacity={0.7}
+                                  onPress={() => {
+                                    const proj = projects.find(pr => pr.id === task.job_id);
+                                    if (proj) { setTaskActionPopup({ task, project: proj }); setTaskActionDate(''); }
+                                  }}
+                                  style={{ flex: 1 }}
+                                  {...(Platform.OS === 'web' && isBuilder && !subView ? {
+                                    onPointerDown: (e) => subHandleDragStart(task, e),
+                                  } : {})}
+                                >
+                                  <Text style={{ fontSize: 14, fontWeight: '700', color: isHighlight ? '#fff' : C.text, textDecorationLine: isComplete ? 'line-through' : 'none' }} numberOfLines={1}>
+                                    {task.task || 'Untitled'}
+                                  </Text>
+                                  <Text style={{ fontSize: 16, fontWeight: '600', color: isHighlight ? 'rgba(255,255,255,0.9)' : C.text, lineHeight: 22 }} numberOfLines={1}>
+                                    {task.project_name || 'Unknown'}
+                                  </Text>
+                                  <Text style={{ fontSize: 13, color: isHighlight ? 'rgba(255,255,255,0.7)' : C.dm, fontWeight: '500' }}>Completion: {subShortDate(task.end_date)}</Text>
+                                </TouchableOpacity>
+                              </View>
                             );
                           })}
                         </View>
@@ -3347,7 +3351,7 @@ export default function Dashboard() {
             {/* Hint */}
             {Platform.OS === 'web' && (
               <View style={{ paddingVertical: 6, alignItems: 'center', borderTopWidth: 1, borderTopColor: C.bd }}>
-                <Text style={{ fontSize: 15, color: C.dm }}>{isBuilder && !subView ? 'Click task to open project · Drag to reschedule' : 'Click task to open project'}</Text>
+                <Text style={{ fontSize: 15, color: C.dm }}>{isBuilder && !subView ? 'Click task to open project · Right-click to edit · Drag to reschedule' : 'Click task to open project · Right-click to edit'}</Text>
               </View>
             )}
 
@@ -5504,17 +5508,9 @@ export default function Dashboard() {
                                 const isHighlight = isExc || isOnHold;
                                 const highlightColor = isOnHold ? C.rd : (isExc ? C.og : null);
                                 return (
-                                  <TouchableOpacity
+                                  <View
                                     key={`${task.id}-${wi}`}
-                                    activeOpacity={0.7}
-                                    onPress={() => {
-                                      const proj = projects.find(pr => pr.id === task.job_id);
-                                      if (proj) {
-                                        setShowBuilderCal(false);
-                                        setDashView('projects');
-                                        setSelectedProject(proj);
-                                      }
-                                    }}
+                                    {...(Platform.OS === 'web' ? { onContextMenu: (e) => builderHandleContextMenu(task, e) } : {})}
                                     style={[st.subCalTaskBar, {
                                       left: leftPct, width: widthPct, top: laneTop,
                                       borderColor: isHighlight ? highlightColor : pColor, opacity: isDragged ? 0.7 : 1,
@@ -5524,15 +5520,28 @@ export default function Dashboard() {
                                     isDragged && { borderWidth: 2, borderColor: C.textBold, borderStyle: 'dashed' },
                                     Platform.OS === 'web' ? { cursor: 'pointer' } : {},
                                     ]}
-                                    {...(Platform.OS === 'web' ? {
-                                      onPointerDown: (e) => builderHandleDragStart(task, e),
-                                    } : {})}
                                   >
-                                    <View style={{ flex: 1, justifyContent: 'center' }}>
-                                      <Text style={[st.subCalTaskTxt, isHighlight && { color: '#fff' }]} numberOfLines={1}>{task.task || 'Untitled'}</Text>
-                                      <Text style={[st.subCalTaskTxtSub, isHighlight && { color: 'rgba(255,255,255,0.8)' }]} numberOfLines={1}>{task.project_name || 'Unknown'}</Text>
-                                    </View>
-                                  </TouchableOpacity>
+                                    <TouchableOpacity
+                                      activeOpacity={0.7}
+                                      onPress={() => {
+                                        const proj = projects.find(pr => pr.id === task.job_id);
+                                        if (proj) {
+                                          setShowBuilderCal(false);
+                                          setDashView('projects');
+                                          setSelectedProject(proj);
+                                        }
+                                      }}
+                                      style={{ flex: 1 }}
+                                      {...(Platform.OS === 'web' ? {
+                                        onPointerDown: (e) => builderHandleDragStart(task, e),
+                                      } : {})}
+                                    >
+                                      <View style={{ flex: 1, justifyContent: 'center' }}>
+                                        <Text style={[st.subCalTaskTxt, isHighlight && { color: '#fff' }]} numberOfLines={1}>{task.task || 'Untitled'}</Text>
+                                        <Text style={[st.subCalTaskTxtSub, isHighlight && { color: 'rgba(255,255,255,0.8)' }]} numberOfLines={1}>{task.project_name || 'Unknown'}</Text>
+                                      </View>
+                                    </TouchableOpacity>
+                                  </View>
                                 );
                               })
                             ))}
@@ -5582,17 +5591,9 @@ export default function Dashboard() {
                                     const highlightColor = isOnHold ? C.rd : (isExc ? C.og : null);
 
                                     return (
-                                      <TouchableOpacity
+                                      <View
                                         key={task.id}
-                                        activeOpacity={0.7}
-                                        onPress={() => {
-                                          const proj = projects.find(pr => pr.id === task.job_id);
-                                          if (proj) {
-                                            setShowBuilderCal(false);
-                                            setDashView('projects');
-                                            setSelectedProject(proj);
-                                          }
-                                        }}
+                                        {...(Platform.OS === 'web' ? { onContextMenu: (e) => builderHandleContextMenu(task, e) } : {})}
                                         style={[{
                                           flexDirection: 'column', gap: 2, marginTop: 4, marginRight: 4,
                                           paddingVertical: 7, paddingHorizontal: 8,
@@ -5603,18 +5604,31 @@ export default function Dashboard() {
                                         Platform.OS === 'web' ? { cursor: 'pointer', userSelect: 'none' } : {},
                                         isDragged && { borderWidth: 2, borderColor: C.textBold, borderStyle: 'dashed', borderLeftWidth: 2 },
                                         ]}
-                                        {...(Platform.OS === 'web' ? {
-                                          onPointerDown: (e) => builderHandleDragStart(task, e),
-                                        } : {})}
                                       >
-                                        <Text style={{ fontSize: 14, fontWeight: '700', color: isHighlight ? '#fff' : C.text, textDecorationLine: isComplete ? 'line-through' : 'none' }} numberOfLines={1}>
-                                          {task.task || 'Untitled'}
-                                        </Text>
-                                        <Text style={{ fontSize: 16, fontWeight: '600', color: isHighlight ? 'rgba(255,255,255,0.9)' : C.text, lineHeight: 22 }} numberOfLines={1}>
-                                          {task.project_name || 'Unknown'}
-                                        </Text>
-                                        <Text style={{ fontSize: 13, color: isHighlight ? 'rgba(255,255,255,0.7)' : C.dm, fontWeight: '500' }}>→ {bShortDate(task.end_date)}</Text>
-                                      </TouchableOpacity>
+                                        <TouchableOpacity
+                                          activeOpacity={0.7}
+                                          onPress={() => {
+                                            const proj = projects.find(pr => pr.id === task.job_id);
+                                            if (proj) {
+                                              setShowBuilderCal(false);
+                                              setDashView('projects');
+                                              setSelectedProject(proj);
+                                            }
+                                          }}
+                                          style={{ flex: 1 }}
+                                          {...(Platform.OS === 'web' ? {
+                                            onPointerDown: (e) => builderHandleDragStart(task, e),
+                                          } : {})}
+                                        >
+                                          <Text style={{ fontSize: 14, fontWeight: '700', color: isHighlight ? '#fff' : C.text, textDecorationLine: isComplete ? 'line-through' : 'none' }} numberOfLines={1}>
+                                            {task.task || 'Untitled'}
+                                          </Text>
+                                          <Text style={{ fontSize: 16, fontWeight: '600', color: isHighlight ? 'rgba(255,255,255,0.9)' : C.text, lineHeight: 22 }} numberOfLines={1}>
+                                            {task.project_name || 'Unknown'}
+                                          </Text>
+                                          <Text style={{ fontSize: 13, color: isHighlight ? 'rgba(255,255,255,0.7)' : C.dm, fontWeight: '500' }}>→ {bShortDate(task.end_date)}</Text>
+                                        </TouchableOpacity>
+                                      </View>
                                     );
                                   })}
                                 </View>
