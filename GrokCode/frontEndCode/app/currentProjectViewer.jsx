@@ -288,7 +288,7 @@ const HoverTab = ({ onPress, active, style, activeStyle, children }) => {
 // ============================================================
 // MAIN COMPONENT
 // ============================================================
-const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onClientViewToggle, activeTab, activeSub, onTabChange, onSubChange, onProjectUpdate, onProjectDeleted, scheduleVersion, onScheduleChange, syncRef, calYear, calMonth, onMonthChange, subdivisions = [], builderTrades: builderTradesProp, floorPlans = [] }) => {
+const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onClientViewToggle, activeTab, activeSub, onTabChange, onSubChange, onProjectUpdate, onProjectDeleted, scheduleVersion, onScheduleChange, syncRef, calYear, calMonth, onMonthChange, subdivisions = [], builderTrades: builderTradesProp, floorPlans = [], initialTaskEdit, onTaskEditConsumed }) => {
   const C = React.useContext(ThemeContext);
   const s = React.useMemo(() => getStyles(C), [C]);
   const bl = React.useMemo(() => getBLStyles(C), [C]);
@@ -822,6 +822,16 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
     if (!project) return;
     api(`/projects/${project.id}/schedule`).then(d => d && setSchedule(d));
   }, [project?.id]);
+
+  // Open task edit modal when navigated from dashboard right-click
+  useEffect(() => {
+    if (!initialTaskEdit || schedule.length === 0) return;
+    const task = schedule.find(t => t.id === initialTaskEdit.id);
+    if (task) {
+      handleTaskDoubleClick(task);
+      onTaskEditConsumed?.();
+    }
+  }, [initialTaskEdit, schedule]);
 
   // Load other data when tab/sub changes
   useEffect(() => {

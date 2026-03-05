@@ -320,6 +320,7 @@ export default function Dashboard() {
   const [subEditReason, setSubEditReason] = useState('');
   const [subEditSaving, setSubEditSaving] = useState(false);
   const [taskActionPopup, setTaskActionPopup] = useState(null); // { task, project }
+  const [pendingTaskEdit, setPendingTaskEdit] = useState(null); // task object to open in project viewer edit modal
   const [taskActionDate, setTaskActionDate] = useState('');
   const [taskActionSaving, setTaskActionSaving] = useState(false);
   const [subTaskFilter, setSubTaskFilter] = useState(null); // task name string or null
@@ -3156,7 +3157,12 @@ export default function Dashboard() {
                               onContextMenu: (e) => {
                                 e.preventDefault(); e.stopPropagation();
                                 const proj = projects.find(pr => pr.id === task.job_id);
-                                if (proj) { setTaskActionPopup({ task, project: proj }); setTaskActionDate(''); }
+                                if (proj) {
+                                  setPendingTaskEdit(task);
+                                  if (isContractor) { setContractorProject(proj); setSubTab('projects'); }
+                                  else { setDashView('projects'); setSelectedProject(proj); }
+                                  setActiveTab('schedule'); setActiveSub('calendar');
+                                }
                               },
                             } : {})}
                           >
@@ -3238,7 +3244,12 @@ export default function Dashboard() {
                                   onContextMenu: (e) => {
                                     e.preventDefault(); e.stopPropagation();
                                     const proj = projects.find(pr => pr.id === task.job_id);
-                                    if (proj) { setTaskActionPopup({ task, project: proj }); setTaskActionDate(''); }
+                                    if (proj) {
+                                      setPendingTaskEdit(task);
+                                      if (isContractor) { setContractorProject(proj); setSubTab('projects'); }
+                                      else { setDashView('projects'); setSelectedProject(proj); }
+                                      setActiveTab('schedule'); setActiveSub('calendar');
+                                    }
                                   },
                                 } : {})}
                               >
@@ -4291,7 +4302,6 @@ export default function Dashboard() {
           builderTrades={builderTrades}
           companyBuilders={companyBuilders}
           currentUser={user}
-          existingAddresses={projects.map(p => p.street_address).filter(Boolean)}
           onCreated={(newProj) => {
             setProjects(prev => [newProj, ...prev]);
             setSelectedProject(newProj);
@@ -4309,7 +4319,6 @@ export default function Dashboard() {
           companyBuilders={companyBuilders}
           currentUser={user}
           initialData={convertBidData}
-          existingAddresses={projects.map(p => p.street_address).filter(Boolean)}
           onCreated={(newProj) => {
             setProjects(prev => [newProj, ...prev]);
             setSelectedProject(newProj);
@@ -5548,6 +5557,8 @@ export default function Dashboard() {
                 calYear={globalCalMonth.getFullYear()}
                 calMonth={globalCalMonth.getMonth()}
                 onMonthChange={(y, m) => setGlobalCalMonth(new Date(y, m, 1))}
+                initialTaskEdit={pendingTaskEdit}
+                onTaskEditConsumed={() => setPendingTaskEdit(null)}
               />
             )}
           </View>
@@ -5653,6 +5664,8 @@ export default function Dashboard() {
                 calYear={globalCalMonth.getFullYear()}
                 calMonth={globalCalMonth.getMonth()}
                 onMonthChange={(y, m) => setGlobalCalMonth(new Date(y, m, 1))}
+                initialTaskEdit={pendingTaskEdit}
+                onTaskEditConsumed={() => setPendingTaskEdit(null)}
               />
             ) : (
               <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
@@ -5959,6 +5972,8 @@ export default function Dashboard() {
                   calYear={globalCalMonth.getFullYear()}
                   calMonth={globalCalMonth.getMonth()}
                   onMonthChange={(y, m) => setGlobalCalMonth(new Date(y, m, 1))}
+                  initialTaskEdit={pendingTaskEdit}
+                  onTaskEditConsumed={() => setPendingTaskEdit(null)}
                 />
               ) : selectedSubdivision ? (
                 renderSubdivisionDetail()
@@ -5999,6 +6014,8 @@ export default function Dashboard() {
               calYear={globalCalMonth.getFullYear()}
               calMonth={globalCalMonth.getMonth()}
               onMonthChange={(y, m) => setGlobalCalMonth(new Date(y, m, 1))}
+              initialTaskEdit={pendingTaskEdit}
+              onTaskEditConsumed={() => setPendingTaskEdit(null)}
             />
             )
           ) : (
@@ -6068,25 +6085,41 @@ export default function Dashboard() {
 const STATUSES = ['Pre-Construction', 'In Progress', 'Punch List', 'Complete'];
 const PHASES = ['Planning', 'Permitting', 'Foundation', 'Framing', 'Roofing', 'MEP Rough-In', 'Insulation', 'Drywall', 'Trim', 'Cabinets', 'Paint', 'Flooring', 'Final Punch'];
 
-const AddressAutofill = ({ value, onChange, placeholder, existingAddresses = [], style: ss }) => {
+const AddressAutofill = ({ value, onChange, onSelectAddress, placeholder, style: ss }) => {
   const C = React.useContext(ThemeContext);
   const st = React.useMemo(() => getStyles(C), [C]);
   const [suggestions, setSuggestions] = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const debounceRef = useRef(null);
+
+  const fetchSuggestions = (text) => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    if (text.trim().length < 3) { setSuggestions([]); setShowSuggestions(false); return; }
+    debounceRef.current = setTimeout(async () => {
+      try {
+        const q = encodeURIComponent(text.trim());
+        const res = await fetch(`https://photon.komoot.io/api/?q=${q}&limit=5&lang=en&layer=house&layer=street`);
+        const data = await res.json();
+        if (data?.features?.length) {
+          const results = data.features.map(f => {
+            const p = f.properties || {};
+            const street = [p.housenumber, p.street].filter(Boolean).join(' ');
+            const city = p.city || p.town || p.village || '';
+            const state = p.state || '';
+            const zip = p.postcode || '';
+            const country = p.country || '';
+            return { street, city, state, zip, country, display: [street, city, state, zip].filter(Boolean).join(', ') };
+          }).filter(r => r.street);
+          setSuggestions(results);
+          setShowSuggestions(results.length > 0);
+        } else { setSuggestions([]); setShowSuggestions(false); }
+      } catch (e) { console.warn('Address lookup failed:', e); }
+    }, 300);
+  };
 
   const handleChange = (text) => {
     onChange(text);
-    if (text.trim().length >= 2) {
-      const q = text.trim().toLowerCase();
-      const matches = [...new Set(existingAddresses)]
-        .filter(addr => addr && addr.toLowerCase().includes(q))
-        .slice(0, 5);
-      setSuggestions(matches);
-      setShowSuggestions(matches.length > 0);
-    } else {
-      setSuggestions([]);
-      setShowSuggestions(false);
-    }
+    fetchSuggestions(text);
   };
 
   return (
@@ -6098,10 +6131,8 @@ const AddressAutofill = ({ value, onChange, placeholder, existingAddresses = [],
         placeholder={placeholder || '1245 Oakwood Dr'}
         placeholderTextColor={C.ph}
         style={st.formInp}
-        onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
-        onFocus={() => {
-          if (value && value.trim().length >= 2 && suggestions.length > 0) setShowSuggestions(true);
-        }}
+        onBlur={() => setTimeout(() => setShowSuggestions(false), 250)}
+        onFocus={() => { if (suggestions.length > 0) setShowSuggestions(true); }}
       />
       {showSuggestions && (
         <View style={{
@@ -6113,11 +6144,15 @@ const AddressAutofill = ({ value, onChange, placeholder, existingAddresses = [],
           {suggestions.map((addr, i) => (
             <TouchableOpacity
               key={i}
-              onPress={() => { onChange(addr); setShowSuggestions(false); }}
+              onPress={() => {
+                onChange(addr.street);
+                if (onSelectAddress) onSelectAddress(addr);
+                setShowSuggestions(false);
+              }}
               style={{ paddingVertical: 10, paddingHorizontal: 12, borderBottomWidth: i < suggestions.length - 1 ? 1 : 0, borderBottomColor: C.w06 }}
               activeOpacity={0.7}
             >
-              <Text style={{ fontSize: 15, color: C.text }}>{addr}</Text>
+              <Text style={{ fontSize: 15, color: C.text }}>{addr.display}</Text>
             </TouchableOpacity>
           ))}
         </View>
@@ -6679,7 +6714,7 @@ const TemplateManagerModal = ({ onClose, builderTrades = [] }) => {
   );
 };
 
-const NewProjectModal = ({ onClose, onCreated, subdivisions = [], builderTrades = [], companyBuilders = [], currentUser, initialData = null, existingAddresses = [] }) => {
+const NewProjectModal = ({ onClose, onCreated, subdivisions = [], builderTrades = [], companyBuilders = [], currentUser, initialData = null }) => {
   const C = React.useContext(ThemeContext);
   const { user } = React.useContext(AuthContext);
   const st = React.useMemo(() => getStyles(C), [C]);
@@ -6925,7 +6960,16 @@ const NewProjectModal = ({ onClose, onCreated, subdivisions = [], builderTrades 
                 </View>
               )}
 
-              <AddressAutofill value={f.street_address} onChange={v => set('street_address', v)} placeholder="1245 Oakwood Dr" existingAddresses={existingAddresses} />
+              <AddressAutofill value={f.street_address} onChange={v => set('street_address', v)} placeholder="1245 Oakwood Dr"
+                onSelectAddress={(addr) => {
+                  if (addr.city) set('city', addr.city);
+                  if (addr.state) {
+                    const stMap = { alabama:'AL',alaska:'AK',arizona:'AZ',arkansas:'AR',california:'CA',colorado:'CO',connecticut:'CT',delaware:'DE',florida:'FL',georgia:'GA',hawaii:'HI',idaho:'ID',illinois:'IL',indiana:'IN',iowa:'IA',kansas:'KS',kentucky:'KY',louisiana:'LA',maine:'ME',maryland:'MD',massachusetts:'MA',michigan:'MI',minnesota:'MN',mississippi:'MS',missouri:'MO',montana:'MT',nebraska:'NE',nevada:'NV','new hampshire':'NH','new jersey':'NJ','new mexico':'NM','new york':'NY','north carolina':'NC','north dakota':'ND',ohio:'OH',oklahoma:'OK',oregon:'OR',pennsylvania:'PA','rhode island':'RI','south carolina':'SC','south dakota':'SD',tennessee:'TN',texas:'TX',utah:'UT',vermont:'VT',virginia:'VA',washington:'WA','west virginia':'WV',wisconsin:'WI',wyoming:'WY' };
+                    const abbr = stMap[addr.state.toLowerCase()] || (addr.state.length === 2 ? addr.state.toUpperCase() : '');
+                    if (abbr) set('addr_state', abbr);
+                  }
+                  if (addr.zip) set('zip_code', addr.zip);
+                }} />
               <View style={{ flexDirection: 'row', gap: 12, zIndex: 10 }}>
                 <Inp2 label="CITY" value={f.city} onChange={v => set('city', v)} placeholder="Eagle" style={{ flex: 2 }} />
                 <View style={{ flex: 1, marginBottom: 16 }}>
