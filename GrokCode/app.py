@@ -368,6 +368,9 @@ class ChangeOrders(db.Model):
     due_date = db.Column(db.String(20), nullable=True)
     declined_by = db.Column(db.String(200), nullable=True)
     declined_reason = db.Column(db.Text, nullable=True)
+    # Selection change order fields — links CO to a specific project selection
+    selection_project_selection_id = db.Column(db.Integer, nullable=True)
+    selection_new_option = db.Column(db.String(500), nullable=True)
     documents = db.relationship('ChangeOrderDocument', backref='change_order', cascade='all, delete-orphan', lazy=True)
     line_items = db.relationship('ChangeOrderLineItem', backref='change_order', cascade='all, delete-orphan', lazy=True)
     signatures = db.relationship('ChangeOrderSignature', backref='change_order', cascade='all, delete-orphan', lazy=True)
@@ -400,6 +403,8 @@ class ChangeOrders(db.Model):
             'created_at': self.created_at, 'due_date': self.due_date,
             'declined_by': self.declined_by,
             'declined_reason': self.declined_reason,
+            'selection_project_selection_id': self.selection_project_selection_id,
+            'selection_new_option': self.selection_new_option,
             'line_items': items,
             'signatures': sigs,
         }
@@ -2787,6 +2792,8 @@ def add_change_order(pid):
             task_id=data.get('task_id'), task_name=data.get('task_name'),
             task_extension_days=data.get('task_extension_days', 0),
             created_at=today, due_date=data.get('due_date'),
+            selection_project_selection_id=data.get('selection_project_selection_id'),
+            selection_new_option=data.get('selection_new_option'),
         )
         db.session.add(co)
         db.session.flush()  # get co.id
@@ -2958,6 +2965,15 @@ def sign_change_order(co_id):
                         if not changed:
                             break
                     sync_project_dates(co.job_id)
+            # Apply selection change if this is a selection change order
+            if co.selection_project_selection_id and co.selection_new_option:
+                ps = ProjectSelection.query.get(co.selection_project_selection_id)
+                if ps:
+                    ps.selected = co.selection_new_option
+                    ps.status = 'confirmed'
+                    ps.nested_selected = None
+                    ps.price_override = None
+
             # Copy change order documents into project Documents folder
             co_docs = ChangeOrderDocument.query.filter_by(change_order_id=co.id).all()
             for cd in co_docs:
