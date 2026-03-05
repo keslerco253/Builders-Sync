@@ -2111,6 +2111,16 @@ ${sectionsHtml}
             const isTbd = isObj && !!opt.price_tbd;
             const price = isObj ? (opt.comes_standard ? 0 : (isTbd ? 0 : (opt.price || 0))) : 0;
             selectionLines.push({ item: sel.item, selected: optName, price, tbd: isTbd });
+            // Add nested option price line if applicable
+            if (sel.has_nested && sel.nested_selected && sel.nested_selected[optName] && isObj && opt.nested_options) {
+              const nestedName = sel.nested_selected[optName];
+              const nOpt = opt.nested_options.find(n => typeof n === 'object' && n.name === nestedName);
+              if (nOpt) {
+                const nTbd = !!nOpt.price_tbd;
+                const nPrice = nOpt.comes_standard ? 0 : (nTbd ? 0 : (nOpt.price || 0));
+                selectionLines.push({ item: `  └ ${sel.item}`, selected: nestedName, price: nPrice, tbd: nTbd });
+              }
+            }
           });
         }
       });
@@ -3279,8 +3289,18 @@ ${sectionsHtml}
       const changeSelection = async (psId) => {
         const result = await api(`/project-selections/${psId}`, { method: 'PUT', body: { change_selection: true } });
         if (result) {
-          setSelections(prev => prev.map(sel => sel.project_selection_id === psId ? { ...sel, selected: null, status: 'pending', price_override: null } : sel));
+          setSelections(prev => prev.map(sel => sel.project_selection_id === psId ? { ...sel, selected: null, status: 'pending', price_override: null, nested_selected: null } : sel));
         }
+      };
+      const pickNested = async (psId, parentOptName, nestedOptName, currentStatus) => {
+        if (currentStatus === 'confirmed' || currentStatus === 'awaiting_price') return;
+        setSelections(prev => prev.map(sel => {
+          if (sel.project_selection_id !== psId) return sel;
+          const ns = sel.nested_selected || {};
+          const updated = { ...ns, [parentOptName]: nestedOptName };
+          api(`/project-selections/${psId}`, { method: 'PUT', body: { nested_selected: updated } });
+          return { ...sel, nested_selected: updated };
+        }));
       };
       const submitOther = async (psId, otherText) => {
         if (!otherText?.trim()) return;
@@ -3318,7 +3338,13 @@ ${sectionsHtml}
         const allowMulti = !!sel.allow_multiple;
         const selectedArr = Array.isArray(sel.selected) ? sel.selected : (sel.selected ? [sel.selected] : []);
         const hasSelection = selectedArr.length > 0;
-        const needsConfirm = hasSelection && !isLocked;
+        // Check if all required nested selections are made
+        const nestedComplete = !sel.has_nested || !hasSelection || selectedArr.every(parentName => {
+          const parentOpt = (sel.options || []).find(o => typeof o === 'object' && o.name === parentName);
+          if (!parentOpt || !parentOpt.nested_options || parentOpt.nested_options.length === 0) return true;
+          return sel.nested_selected && sel.nested_selected[parentName];
+        });
+        const needsConfirm = hasSelection && !isLocked && nestedComplete;
         const knownOptionNames = (sel.options || []).map(o => typeof o === 'object' ? o.name : o);
         const isOtherSelection = hasSelection && selectedArr.some(n => !knownOptionNames.includes(n));
         const hasTbd = isOtherSelection || (sel.options || []).some(o => typeof o === 'object' && o.price_tbd && selectedArr.includes(o.name));
@@ -3345,7 +3371,10 @@ ${sectionsHtml}
               </View>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 0, maxWidth: '45%' }}>
                 {hasSelection && !isConfirmed && (
-                  <Text style={{ fontSize: 15, color: C.dm, flexShrink: 1 }} numberOfLines={2}>{selectedArr.join(', ')}</Text>
+                  <Text style={{ fontSize: 15, color: C.dm, flexShrink: 1 }} numberOfLines={2}>{selectedArr.map(n => {
+                    const ns = sel.nested_selected && sel.nested_selected[n];
+                    return ns ? `${n} → ${ns}` : n;
+                  }).join(', ')}</Text>
                 )}
                 {isConfirmed ? (
                   <View style={{ backgroundColor: 'rgba(34,197,94,0.12)', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 }}>
@@ -3433,6 +3462,66 @@ ${sectionsHtml}
                     </TouchableOpacity>
                   )}
                 </View>
+                {/* Nested options: show when parent option is selected and has nested_options */}
+                {sel.has_nested && hasSelection && (() => {
+                  const nestedSections = [];
+                  selectedArr.forEach(parentName => {
+                    const parentOpt = (sel.options || []).find(o => typeof o === 'object' && o.name === parentName);
+                    if (!parentOpt || !parentOpt.nested_options || parentOpt.nested_options.length === 0) return;
+                    const currentNested = sel.nested_selected && sel.nested_selected[parentName];
+                    nestedSections.push(
+                      <View key={parentName} style={{ marginTop: 14, paddingTop: 12, borderTopWidth: 1, borderTopColor: 'rgba(245,158,11,0.2)' }}>
+                        <Text style={{ fontSize: 16, fontWeight: '700', color: '#f59e0b', letterSpacing: 0.5, marginBottom: 10 }}>
+                          SELECT {parentName.toUpperCase()} TYPE {!isLocked && <Text style={{ color: C.rd }}>*</Text>}
+                        </Text>
+                        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
+                          {parentOpt.nested_options.map((nOpt, ni) => {
+                            const nName = typeof nOpt === 'object' ? nOpt.name : nOpt;
+                            const nImg = typeof nOpt === 'object' ? nOpt.image_path : null;
+                            const nPrice = typeof nOpt === 'object' ? nOpt.price : null;
+                            const nStandard = typeof nOpt === 'object' ? nOpt.comes_standard : false;
+                            const nTbd = typeof nOpt === 'object' ? nOpt.price_tbd : false;
+                            const nActive = currentNested === nName;
+                            return (
+                              <TouchableOpacity key={ni}
+                                onPress={() => canPick && !isLocked && sel.project_selection_id && pickNested(sel.project_selection_id, parentName, nName, sel.status)}
+                                activeOpacity={canPick && !isLocked ? 0.7 : 1}
+                                style={{
+                                  width: 150, borderRadius: 9, overflow: 'hidden',
+                                  borderWidth: nActive ? 2 : 1,
+                                  borderColor: nActive ? (isConfirmed ? C.gn : '#f59e0b') : C.w12,
+                                  backgroundColor: nActive ? 'rgba(245,158,11,0.1)' : C.w03,
+                                  opacity: isLocked && !nActive ? 0.5 : 1,
+                                }}>
+                                {nImg ? (
+                                  <Image source={{ uri: `${API_BASE}${nImg}` }} style={{ width: '100%', height: 95 }} resizeMode="cover" />
+                                ) : (
+                                  <View style={{ width: '100%', height: 95, backgroundColor: C.w06, alignItems: 'center', justifyContent: 'center' }}>
+                                    <Feather name="camera" size={32} color={C.dm} style={{ opacity: 0.4 }} />
+                                  </View>
+                                )}
+                                <View style={{ padding: 9 }}>
+                                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                                    {nActive && <Feather name="check" size={14} color="#f59e0b" />}
+                                    <Text style={{ fontSize: 17, fontWeight: '600', color: nActive ? '#f59e0b' : C.text }} numberOfLines={2}>{nName}</Text>
+                                  </View>
+                                  {nStandard ? (
+                                    <Text style={{ fontSize: 15, color: C.gn, fontWeight: '600', marginTop: 3 }}>Standard</Text>
+                                  ) : nTbd ? (
+                                    <Text style={{ fontSize: 15, color: '#f59e0b', fontWeight: '600', marginTop: 3 }}>Price TBD</Text>
+                                  ) : nPrice != null && nPrice > 0 ? (
+                                    <Text style={{ fontSize: 15, color: C.mt, marginTop: 3 }}>+{f$(nPrice)}</Text>
+                                  ) : null}
+                                </View>
+                              </TouchableOpacity>
+                            );
+                          })}
+                        </View>
+                      </View>
+                    );
+                  });
+                  return nestedSections.length > 0 ? nestedSections : null;
+                })()}
                 {/* Show "Other" custom text if selected */}
                 {isOtherSelection && (
                   <View style={{ marginTop: 12, padding: 12, backgroundColor: 'rgba(245,158,11,0.08)', borderRadius: 8, borderWidth: 1, borderColor: 'rgba(245,158,11,0.25)' }}>
@@ -3549,12 +3638,24 @@ ${sectionsHtml}
                 )}
                 {needsConfirm && canPick && (
                   <TouchableOpacity
-                    onPress={() => setModal({ type: 'confirmsel', psId: sel.project_selection_id, item: sel.item, selected: allowMulti ? selectedArr.join(', ') : sel.selected })}
+                    onPress={() => {
+                      const selDisplay = selectedArr.map(n => {
+                        const ns = sel.nested_selected && sel.nested_selected[n];
+                        return ns ? `${n} → ${ns}` : n;
+                      }).join(', ');
+                      setModal({ type: 'confirmsel', psId: sel.project_selection_id, item: sel.item, selected: selDisplay });
+                    }}
                     style={{ backgroundColor: C.gd, paddingVertical: 12, borderRadius: 8, marginTop: 14, alignItems: 'center' }}
                     activeOpacity={0.8}
                   >
                     <Text style={{ fontSize: 21, fontWeight: '700', color: C.textBold }}>Confirm Selection{allowMulti && selectedArr.length > 1 ? 's' : ''}</Text>
                   </TouchableOpacity>
+                )}
+                {/* Show message when nested selection is still required */}
+                {hasSelection && !isLocked && sel.has_nested && !nestedComplete && canPick && (
+                  <Text style={{ fontSize: 15, color: '#f59e0b', fontWeight: '600', marginTop: 10, textAlign: 'center' }}>
+                    Please select a nested option above to confirm
+                  </Text>
                 )}
               </View>
             )}
