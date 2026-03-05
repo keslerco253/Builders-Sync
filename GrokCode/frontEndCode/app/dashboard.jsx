@@ -5315,10 +5315,16 @@ export default function Dashboard() {
               <Text style={st.backBtnTxt}>‹</Text>
             </TouchableOpacity>
           )}
-          <View style={st.logoBox}>
-            <Text style={{ fontSize: 24, color: '#fff', fontWeight: '700' }}>⬡</Text>
-          </View>
-          <Text style={st.brandName}>{isWide || (!showingDetail && !showingContractorProject) ? 'BuilderSync' : ''}</Text>
+          <TouchableOpacity
+            onPress={() => isBuilder ? navigation.navigate('BuilderHome') : null}
+            activeOpacity={isBuilder ? 0.7 : 1}
+            style={{ flexDirection: 'row', alignItems: 'center', gap: 0 }}
+          >
+            <View style={st.logoBox}>
+              <Text style={{ fontSize: 24, color: '#fff', fontWeight: '700' }}>⬡</Text>
+            </View>
+            <Text style={st.brandName}>{isWide || (!showingDetail && !showingContractorProject) ? 'BuilderSync' : ''}</Text>
+          </TouchableOpacity>
         </View>
 
         {/* Spacer pushes search + icons right */}

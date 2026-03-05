@@ -5412,6 +5412,114 @@ def list_company_warranty_requests(cid):
 
 
 # ============================================================
+# BUILDER DASHBOARD
+# ============================================================
+
+@app.route('/builder-dashboard', methods=['GET'])
+def builder_dashboard():
+    """Aggregated data for the builder home dashboard."""
+    uid = g.user_id
+    user = LoginInfo.query.get(uid)
+    if not user or not user.company_id:
+        return jsonify({'error': 'unauthorized'}), 403
+    cid = user.company_id
+    role = user.role
+
+    # --- Change orders needing this user's signature ---
+    pending_statuses = ['pending_super', 'pending_customer', 'pending_customer_review', 'pending_subs', 'pending_pm']
+    all_cos = ChangeOrders.query.join(Projects, ChangeOrders.job_id == Projects.id)\
+        .filter(Projects.company_id == cid, ChangeOrders.status.in_(pending_statuses)).all()
+
+    cos_needing_sig = []
+    for co in all_cos:
+        sign_order = json.loads(co.sign_order) if co.sign_order else []
+        if co.current_sign_step is not None and co.current_sign_step < len(sign_order):
+            current_step = sign_order[co.current_sign_step]
+            needs_sig = False
+            if current_step == 'pm' and (role in ('builder', 'company_admin')):
+                proj = Projects.query.get(co.job_id)
+                if proj and proj.project_manager_id == uid:
+                    needs_sig = True
+            elif current_step == 'super' and (role in ('builder', 'company_admin')):
+                proj = Projects.query.get(co.job_id)
+                if proj and proj.superintendent_id == uid:
+                    needs_sig = True
+            elif current_step == 'customer' and role == 'customer':
+                proj = Projects.query.get(co.job_id)
+                if proj and proj.customer_id == uid:
+                    needs_sig = True
+            elif current_step == 'customer_review' and role == 'customer':
+                proj = Projects.query.get(co.job_id)
+                if proj and proj.customer_id == uid:
+                    needs_sig = True
+            elif current_step.startswith('sub:'):
+                sub_id = int(current_step.split(':')[1])
+                if sub_id == uid:
+                    needs_sig = True
+            if needs_sig:
+                d = co.to_dict()
+                proj = Projects.query.get(co.job_id)
+                d['project_name'] = proj.name if proj else ''
+                cos_needing_sig.append(d)
+
+    # --- Warranty requests (for warranty specialist) ---
+    warranty_requests = []
+    if user.is_warranty_specialist:
+        reqs = WarrantyRequest.query.filter_by(company_id=cid)\
+            .filter(WarrantyRequest.status.in_(['submitted', 'under_review', 'in_progress']))\
+            .order_by(WarrantyRequest.created_at.desc()).all()
+        for r in reqs:
+            d = r.to_dict()
+            proj = Projects.query.get(r.job_id)
+            d['project_name'] = proj.name if proj else ''
+            warranty_requests.append(d)
+
+    # --- On-hold projects ---
+    on_hold = Projects.query.filter_by(company_id=cid, on_hold=True).all()
+    on_hold_list = [{'id': p.id, 'name': p.name, 'hold_reason': p.hold_reason or '',
+                     'hold_start_date': p.hold_start_date or ''} for p in on_hold]
+
+    # --- Projects with pending (incomplete) escrows ---
+    pending_escrow_projects = []
+    escrows = Escrow.query.filter_by(company_id=cid, completed=False).all()
+    proj_ids_with_pending = list(set(e.job_id for e in escrows))
+    if proj_ids_with_pending:
+        projs = Projects.query.filter(Projects.id.in_(proj_ids_with_pending)).all()
+        proj_map = {p.id: p for p in projs}
+        # Group escrows by project
+        from collections import defaultdict
+        esc_by_proj = defaultdict(list)
+        for e in escrows:
+            esc_by_proj[e.job_id].append(e.to_dict())
+        for pid, esc_list in esc_by_proj.items():
+            p = proj_map.get(pid)
+            if p:
+                pending_escrow_projects.append({
+                    'id': p.id, 'name': p.name,
+                    'escrows': esc_list,
+                })
+
+    # --- Pie chart: project status counts ---
+    all_projects = Projects.query.filter_by(company_id=cid).all()
+    status_counts = {'open': 0, 'closed': 0, 'bid': 0}
+    for p in all_projects:
+        if p.is_bid:
+            status_counts['bid'] += 1
+        elif (p.status or '').lower() in ('closed', 'complete', 'completed'):
+            status_counts['closed'] += 1
+        else:
+            status_counts['open'] += 1
+
+    return jsonify({
+        'change_orders_needing_signature': cos_needing_sig,
+        'warranty_requests': warranty_requests,
+        'on_hold_projects': on_hold_list,
+        'pending_escrow_projects': pending_escrow_projects,
+        'project_status_counts': status_counts,
+    })
+
+
+# ============================================================
 # RUN
 # ============================================================
 
