@@ -9811,6 +9811,7 @@ const BidDetailView = ({ project, onProjectUpdate }) => {
   const [overheadPct, setOverheadPct] = useState(project.bid_overhead_pct != null ? project.bid_overhead_pct : 8);
   const [overheadPctText, setOverheadPctText] = useState(String(project.bid_overhead_pct != null ? project.bid_overhead_pct : 8));
   const [allowanceEditState, setAllowanceEditState] = useState({}); // { [itemId]: { name, price } }
+  const [allowanceCatEditState, setAllowanceCatEditState] = useState({}); // { [catId]: { name, description } }
   const [confirmDeleteAllowanceCat, setConfirmDeleteAllowanceCat] = useState(null);
   const [confirmDeleteAllowanceItem, setConfirmDeleteAllowanceItem] = useState(null);
   // Info tab state
@@ -9978,6 +9979,33 @@ const BidDetailView = ({ project, onProjectUpdate }) => {
     debounceAllowanceSave(itemId, catId, field, value);
   }, [debounceAllowanceSave]);
 
+  const allowanceCatSaveTimers = useRef({});
+  const updateAllowanceCat = async (catId, data) => {
+    try {
+      const res = await apiFetch(`/bid-allowance-categories/${catId}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setAllowanceCats(prev => prev.map(c => c.id === catId ? updated : c));
+      }
+    } catch (e) { /* */ }
+  };
+
+  const debounceAllowanceCatSave = useCallback((catId, field, value) => {
+    const key = `cat_${catId}_${field}`;
+    if (allowanceCatSaveTimers.current[key]) clearTimeout(allowanceCatSaveTimers.current[key]);
+    allowanceCatSaveTimers.current[key] = setTimeout(() => {
+      updateAllowanceCat(catId, { [field]: value });
+    }, 600);
+  }, []);
+
+  const handleAllowanceCatChange = useCallback((catId, field, value) => {
+    setAllowanceCatEditState(prev => ({ ...prev, [catId]: { ...prev[catId], [field]: value } }));
+    debounceAllowanceCatSave(catId, field, value);
+  }, [debounceAllowanceCatSave]);
+
   const deleteAllowanceItem = async (itemId, catId) => {
     try {
       const res = await apiFetch(`/bid-allowance-items/${itemId}`, { method: 'DELETE' });
@@ -10010,6 +10038,16 @@ const BidDetailView = ({ project, onProjectUpdate }) => {
           es[li.id] = { name: li.name, quantity: String(li.quantity), price_per_item: String(li.price_per_item) };
         }));
         setEditState(es);
+        // Apply allowance categories from template
+        if (data.allowance_categories) {
+          setAllowanceCats(data.allowance_categories);
+          const aes = {};
+          data.allowance_categories.forEach(cat => (cat.items || []).forEach(item => {
+            aes[item.id] = { name: item.name, quantity: String(item.quantity), price_per: String(item.price_per) };
+          }));
+          setAllowanceEditState(aes);
+          setAllowanceCatEditState({});
+        }
         if (onProjectUpdate) onProjectUpdate({ ...project, bid_lot_overhead: data.lot_overhead, bid_commission: data.commission });
       }
     } catch (e) { Alert.alert('Error', e.message); }
@@ -11017,8 +11055,25 @@ const BidDetailView = ({ project, onProjectUpdate }) => {
               {/* Category header row */}
               <View style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 8, paddingHorizontal: 12, backgroundColor: C.w06 }}>
                 <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 15, fontWeight: '700', color: C.textBold }}>{cat.name}</Text>
-                  {cat.description ? <Text style={{ fontSize: 12, color: C.dm, marginTop: 2 }}>{cat.description}</Text> : null}
+                  <TextInput
+                    value={(allowanceCatEditState[cat.id] || {}).name ?? cat.name}
+                    onChangeText={v => handleAllowanceCatChange(cat.id, 'name', v)}
+                    onFocus={() => setFocusedCell(`allowcat_${cat.id}_name`)}
+                    onBlur={() => setFocusedCell(null)}
+                    placeholder="Category name"
+                    placeholderTextColor={C.dm + '60'}
+                    style={[{ fontSize: 15, fontWeight: '700', color: C.textBold, paddingVertical: 2, paddingHorizontal: 4, borderWidth: 1, borderColor: 'transparent', borderRadius: 4 }, focusedCell === `allowcat_${cat.id}_name` && cellInputFocused]}
+                  />
+                  <TextInput
+                    value={(allowanceCatEditState[cat.id] || {}).description ?? (cat.description || '')}
+                    onChangeText={v => handleAllowanceCatChange(cat.id, 'description', v)}
+                    onFocus={() => setFocusedCell(`allowcat_${cat.id}_desc`)}
+                    onBlur={() => setFocusedCell(null)}
+                    placeholder="Description (optional)"
+                    placeholderTextColor={C.dm + '40'}
+                    multiline
+                    style={[{ fontSize: 12, color: C.dm, marginTop: 2, paddingVertical: 2, paddingHorizontal: 4, borderWidth: 1, borderColor: 'transparent', borderRadius: 4 }, focusedCell === `allowcat_${cat.id}_desc` && cellInputFocused]}
+                  />
                 </View>
                 <Text style={{ fontSize: 14, fontWeight: '600', color: C.bl || '#3b82f6', marginRight: 10 }}>{fmt(cat.total || 0)}</Text>
                 <TouchableOpacity onPress={() => addAllowanceItem(cat.id)} style={{ marginRight: 8 }}>
