@@ -1008,7 +1008,7 @@ export default function ScheduleCalendar({ schedule, onUpdateTask, onEditTask, o
                               <Text style={[st.tfChipName, isComplete && { textDecorationLine: 'line-through', color: C.dm }, (isExc || isOnHold) && { color: '#fff' }]} numberOfLines={1}>{task.task}</Text>
                               {task.predecessor_id && <Feather name="link" size={10} color={(isExc || isOnHold) ? '#fff' : C.dm} />}
                             </View>
-                            <Text style={[st.tfChipDate, (isExc || isOnHold) && { color: 'rgba(255,255,255,0.8)' }]} numberOfLines={1}>→ {shortDate(task.end_date)}</Text>
+                            <Text style={[st.tfChipDate, (isExc || isOnHold) && { color: 'rgba(255,255,255,0.8)' }]} numberOfLines={1}>Completion: {shortDate(task.end_date)}</Text>
                           </View>
                         );
                       })}
