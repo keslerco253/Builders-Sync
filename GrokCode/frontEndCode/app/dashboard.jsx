@@ -43,6 +43,9 @@ export default function Dashboard() {
   const [sdSubsLoading, setSdSubsLoading] = useState(false);
   const [sdTradeAssignments, setSdTradeAssignments] = useState({});  // { trade: contractor_id }
   const [sdOpenTrade, setSdOpenTrade] = useState(null);  // which trade dropdown is open
+  const [sdShowApplyTmpl, setSdShowApplyTmpl] = useState(false);
+  const [sdSubTmpls, setSdSubTmpls] = useState([]);
+  const [sdApplyingTmpl, setSdApplyingTmpl] = useState(false);
   const [sdDocs, setSdDocs] = useState([]);
   const [sdDocsLoading, setSdDocsLoading] = useState(false);
   const [sdDocTemplates, setSdDocTemplates] = useState([]);
@@ -93,6 +96,7 @@ export default function Dashboard() {
   const [newTradeName, setNewTradeName] = useState('');
   const [showFloorPlanManager, setShowFloorPlanManager] = useState(false);
   const [showBidTemplateManager, setShowBidTemplateManager] = useState(false);
+  const [showSubTmplManager, setShowSubTmplManager] = useState(false);
   const [floorPlans, setFloorPlans] = useState([]);
   const [newFloorPlanName, setNewFloorPlanName] = useState('');
   const [clientView, setClientView] = useState(false);
@@ -1218,8 +1222,67 @@ export default function Dashboard() {
             );
           };
 
+          const fetchSubTmpls = async () => {
+            try {
+              const res = await apiFetch(`/subcontractor-templates${user.company_id ? `?company_id=${user.company_id}` : ''}`);
+              const data = await res.json();
+              if (Array.isArray(data)) setSdSubTmpls(data);
+            } catch (e) { console.warn(e.message); }
+          };
+
+          const applySubTmpl = async (tmplId) => {
+            setSdApplyingTmpl(true);
+            try {
+              const res = await apiFetch(`/subdivisions/${selectedSubdivision.id}/apply-subcontractor-template`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ template_id: tmplId }),
+              });
+              if (res.ok) {
+                const data = await res.json();
+                const newAssignments = {};
+                data.forEach(a => { newAssignments[a.trade] = a.contractor_id; });
+                setSdTradeAssignments(newAssignments);
+              }
+            } catch (e) { console.warn('Apply template error:', e); }
+            setSdApplyingTmpl(false);
+            setSdShowApplyTmpl(false);
+          };
+
           return (
             <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20 }}>
+              {/* Apply Template button */}
+              <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginBottom: 12 }}>
+                <View style={{ position: 'relative' }}>
+                  <TouchableOpacity
+                    onPress={() => { if (!sdShowApplyTmpl) fetchSubTmpls(); setSdShowApplyTmpl(p => !p); }}
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderColor: C.gd, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8 }}
+                    activeOpacity={0.7}
+                  >
+                    <Feather name="download" size={14} color={C.gd} />
+                    <Text style={{ fontSize: 13, fontWeight: '600', color: C.gd }}>Apply Template</Text>
+                  </TouchableOpacity>
+                  {sdShowApplyTmpl && (
+                    <View style={{ position: 'absolute', top: '100%', right: 0, marginTop: 4, backgroundColor: C.card, borderRadius: 10, borderWidth: 1, borderColor: C.w12, minWidth: 240, zIndex: 100, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 8, elevation: 5 }}>
+                      {sdSubTmpls.length === 0 ? (
+                        <View style={{ padding: 16, alignItems: 'center' }}>
+                          <Text style={{ fontSize: 14, color: C.dm }}>No templates available</Text>
+                        </View>
+                      ) : (
+                        sdSubTmpls.map(tmpl => (
+                          <TouchableOpacity key={tmpl.id} onPress={() => applySubTmpl(tmpl.id)} disabled={sdApplyingTmpl}
+                            style={{ padding: 12, borderBottomWidth: 1, borderBottomColor: C.w06 }} activeOpacity={0.7}>
+                            <Text style={{ fontSize: 15, fontWeight: '600', color: C.textBold }}>{tmpl.name}</Text>
+                            {tmpl.description ? <Text style={{ fontSize: 13, color: C.dm, marginTop: 2 }} numberOfLines={1}>{tmpl.description}</Text> : null}
+                            <Text style={{ fontSize: 12, color: C.mt, marginTop: 2 }}>{(tmpl.assignments || []).length} trade{(tmpl.assignments || []).length !== 1 ? 's' : ''}</Text>
+                          </TouchableOpacity>
+                        ))
+                      )}
+                    </View>
+                  )}
+                </View>
+              </View>
+
               {sdSubsLoading ? (
                 <View style={{ alignItems: 'center', paddingVertical: 40 }}>
                   <ActivityIndicator color={C.gd} size="large" />
@@ -4272,6 +4335,14 @@ export default function Dashboard() {
         <BidTemplateManagerModal onClose={() => setShowBidTemplateManager(false)} />
       )}
 
+      {/* Subcontractor Template Manager Modal */}
+      {showSubTmplManager && (
+        <SubcontractorTemplateManagerModal
+          onClose={() => setShowSubTmplManager(false)}
+          builderTrades={builderTrades}
+        />
+      )}
+
       {/* Manage Trades Modal */}
       {showTradeManager && (
         <Modal visible animationType="fade" transparent>
@@ -5112,6 +5183,14 @@ export default function Dashboard() {
                     <Feather name="clipboard" size={20} color={C.text} />
                     <Text style={st.settingsItemTxt}>Manage Bid Settings</Text>
                   </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => { setShowSettings(false); setShowSubTmplManager(true); }}
+                    style={st.settingsItem}
+                    activeOpacity={0.7}
+                  >
+                    <Feather name="users" size={20} color={C.text} />
+                    <Text style={st.settingsItemTxt}>Manage Subcontractor Templates</Text>
+                  </TouchableOpacity>
                   {user?.role === 'company_admin' && (
                     <TouchableOpacity
                       onPress={() => { setShowSettings(false); fetchGoLiveStepsDef(); setShowGoLiveManager(true); }}
@@ -5777,6 +5856,275 @@ const ChipSelect = ({ options, value, onChange }) => {
   </View>
   );
 };
+
+// --- Subcontractor Template Manager Modal ---
+const SubcontractorTemplateManagerModal = ({ onClose, builderTrades = [] }) => {
+  const C = React.useContext(ThemeContext);
+  const { user } = React.useContext(AuthContext);
+  const st = React.useMemo(() => getStyles(C), [C]);
+  const [templates, setTemplates] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [subs, setSubs] = useState([]);
+  const [editTmpl, setEditTmpl] = useState(null); // null=list, 'new'=create, {id,...}=edit
+  const [editName, setEditName] = useState('');
+  const [editDesc, setEditDesc] = useState('');
+  const [editAssignments, setEditAssignments] = useState([]); // [{trade, contractor_id}]
+  const [saving, setSaving] = useState(false);
+  const [openTrade, setOpenTrade] = useState(null);
+
+  const fetchTemplates = async () => {
+    setLoading(true);
+    try {
+      const res = await apiFetch(`/subcontractor-templates${user.company_id ? `?company_id=${user.company_id}` : ''}`);
+      const data = await res.json();
+      if (Array.isArray(data)) setTemplates(data);
+    } catch (e) { console.warn(e.message); }
+    finally { setLoading(false); }
+  };
+
+  const fetchSubs = async () => {
+    try {
+      const res = await apiFetch(`/users${user?.company_id ? `?company_id=${user.company_id}` : ''}`);
+      const data = await res.json();
+      if (Array.isArray(data)) setSubs(data.filter(u => u.role === 'contractor' || u.role === 'builder' || u.role === 'company_admin'));
+    } catch (e) { console.warn(e.message); }
+  };
+
+  React.useEffect(() => { fetchTemplates(); fetchSubs(); }, []);
+
+  const openNew = () => {
+    setEditTmpl('new');
+    setEditName('');
+    setEditDesc('');
+    setEditAssignments(builderTrades.map(t => ({ trade: t, contractor_id: null })));
+    setOpenTrade(null);
+  };
+
+  const loadTemplate = (tmpl) => {
+    setEditTmpl(tmpl);
+    setEditName(tmpl.name);
+    setEditDesc(tmpl.description || '');
+    // Merge template assignments with all builder trades
+    const existing = {};
+    (tmpl.assignments || []).forEach(a => { existing[a.trade] = a.contractor_id; });
+    const merged = builderTrades.map(t => ({ trade: t, contractor_id: existing[t] || null }));
+    // Add any trades from template not in builderTrades
+    (tmpl.assignments || []).forEach(a => {
+      if (!builderTrades.includes(a.trade)) merged.push({ trade: a.trade, contractor_id: a.contractor_id });
+    });
+    setEditAssignments(merged);
+    setOpenTrade(null);
+  };
+
+  const handleSave = async () => {
+    if (!editName.trim()) return Alert.alert('Error', 'Template name is required');
+    setSaving(true);
+    try {
+      const assignments = editAssignments.filter(a => a.contractor_id);
+      const isNew = editTmpl === 'new';
+      const path = isNew ? `/subcontractor-templates` : `/subcontractor-templates/${editTmpl.id}`;
+      const method = isNew ? 'POST' : 'PUT';
+      const res = await apiFetch(path, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: editName.trim(),
+          description: editDesc.trim(),
+          assignments,
+          created_by: user.id,
+        }),
+      });
+      if (!res.ok) throw new Error(`Failed to ${isNew ? 'create' : 'update'} template`);
+      Alert.alert('Success', `Template ${isNew ? 'created' : 'updated'}`);
+      setEditTmpl(null);
+      fetchTemplates();
+    } catch (e) { Alert.alert('Error', e.message); }
+    finally { setSaving(false); }
+  };
+
+  const handleDelete = (tmpl) => {
+    const doDelete = async () => {
+      try {
+        const res = await apiFetch(`/subcontractor-templates/${tmpl.id}`, { method: 'DELETE' });
+        if (!res.ok) throw new Error('Failed to delete');
+        if (editTmpl?.id === tmpl.id) setEditTmpl(null);
+        fetchTemplates();
+      } catch (e) { Alert.alert('Error', e.message); }
+    };
+    if (Platform.OS === 'web') {
+      if (window.confirm(`Delete "${tmpl.name}"? This cannot be undone.`)) doDelete();
+    } else {
+      Alert.alert('Delete Template', `Delete "${tmpl.name}"? This cannot be undone.`, [
+        { text: 'Cancel' },
+        { text: 'Delete', style: 'destructive', onPress: doDelete },
+      ]);
+    }
+  };
+
+  const updateAssignment = (trade, contractorId) => {
+    setEditAssignments(prev => prev.map(a => a.trade === trade ? { ...a, contractor_id: contractorId } : a));
+    setOpenTrade(null);
+  };
+
+  const isForm = editTmpl !== null;
+  const formTitle = editTmpl === 'new' ? 'New Subcontractor Template' : 'Edit Template';
+
+  return (
+    <Modal visible animationType="slide" transparent>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+        <View style={st.modalBg}>
+          <View style={[st.modalContent, { maxHeight: '95%' }]}>
+            <View style={st.modalHead}>
+              <Text style={st.modalTitle}>{isForm ? formTitle : 'Subcontractor Templates'}</Text>
+              <TouchableOpacity onPress={isForm ? () => setEditTmpl(null) : onClose}>
+                <Text style={{ color: C.mt, fontSize: 42 }}>{isForm ? '←' : '×'}</Text>
+              </TouchableOpacity>
+            </View>
+
+            {!isForm ? (
+              <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1, minHeight: 0 }}>
+                <TouchableOpacity onPress={openNew}
+                  style={{ backgroundColor: C.gd, paddingVertical: 12, borderRadius: 8, alignItems: 'center', marginBottom: 16 }}
+                  activeOpacity={0.8}>
+                  <Text style={{ fontSize: 21, fontWeight: '700', color: C.textBold }}>+ New Subcontractor Template</Text>
+                </TouchableOpacity>
+
+                {loading ? (
+                  <View style={{ padding: 40, alignItems: 'center' }}>
+                    <ActivityIndicator color={C.gd} size="large" />
+                  </View>
+                ) : templates.length === 0 ? (
+                  <View style={{ padding: 40, alignItems: 'center' }}>
+                    <Feather name="users" size={54} color={C.dm} style={{ marginBottom: 12 }} />
+                    <Text style={{ fontSize: 22, fontWeight: '600', color: C.textBold, marginBottom: 4 }}>No Templates</Text>
+                    <Text style={{ fontSize: 18, color: C.dm, textAlign: 'center' }}>Create a template to quickly assign subcontractors to trades.</Text>
+                  </View>
+                ) : (
+                  templates.map(tmpl => (
+                    <View key={tmpl.id} style={st.tmplRow}>
+                      <TouchableOpacity
+                        style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12 }}
+                        activeOpacity={0.7}
+                        onPress={() => loadTemplate(tmpl)}
+                      >
+                        <Feather name="users" size={39} color={C.dm} />
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ fontSize: 22, fontWeight: '600', color: C.textBold }}>{tmpl.name}</Text>
+                          {tmpl.description ? (
+                            <Text style={{ fontSize: 16, color: C.dm, marginTop: 2 }} numberOfLines={1}>{tmpl.description}</Text>
+                          ) : null}
+                          <Text style={{ fontSize: 16, color: C.mt, marginTop: 3 }}>
+                            {(tmpl.assignments || []).length} trade{(tmpl.assignments || []).length !== 1 ? 's' : ''} assigned
+                          </Text>
+                        </View>
+                        <Text style={{ fontSize: 21, color: C.gd }}>Edit ›</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={() => handleDelete(tmpl)}
+                        style={st.tmplDeleteBtn}
+                        activeOpacity={0.7}
+                      >
+                        <Feather name="trash-2" size={21} color={C.rd} />
+                      </TouchableOpacity>
+                    </View>
+                  ))
+                )}
+                <View style={{ height: 20 }} />
+              </ScrollView>
+            ) : (
+              <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" style={{ flex: 1, minHeight: 0 }}>
+                <View style={{ gap: 12, marginBottom: 14 }}>
+                  <Inp2 label="TEMPLATE NAME *" value={editName} onChange={setEditName} placeholder="e.g., Standard Residential Subs" />
+                  <Inp2 label="DESCRIPTION" value={editDesc} onChange={setEditDesc} placeholder="Default subs for residential builds" />
+                </View>
+
+                <Text style={{ fontSize: 16, color: C.dm, marginBottom: 10 }}>
+                  Assign a subcontractor to each trade below. Only trades with assignments will be saved.
+                </Text>
+
+                {editAssignments.map(({ trade, contractor_id }) => {
+                  const assignedSub = contractor_id ? subs.find(u => u.id === contractor_id) : null;
+                  const matchingSubs = subs.filter(u => {
+                    const userTrades = u.trades ? u.trades.split(',').map(t => t.trim().toLowerCase()) : [];
+                    return userTrades.includes(trade.toLowerCase());
+                  });
+                  const isOpen = openTrade === trade;
+
+                  return (
+                    <View key={trade} style={{ marginBottom: 8 }}>
+                      <TouchableOpacity
+                        activeOpacity={0.7}
+                        onPress={() => setOpenTrade(isOpen ? null : trade)}
+                        style={{
+                          flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+                          padding: 12, backgroundColor: C.card, borderRadius: 10,
+                          borderWidth: 1, borderColor: assignedSub ? C.gd + '40' : (isOpen ? C.gd : C.w08),
+                        }}
+                      >
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ fontSize: 16, fontWeight: '600', color: C.textBold }}>{trade}</Text>
+                          {assignedSub && (
+                            <Text style={{ fontSize: 14, color: C.gd, marginTop: 2 }}>
+                              {assignedSub.company_name || `${assignedSub.first_name} ${assignedSub.last_name}`}
+                            </Text>
+                          )}
+                        </View>
+                        {assignedSub ? (
+                          <TouchableOpacity onPress={() => updateAssignment(trade, null)} style={{ padding: 6 }}>
+                            <Feather name="x" size={18} color={C.dm} />
+                          </TouchableOpacity>
+                        ) : (
+                          <Text style={{ fontSize: 14, color: C.dm }}>{isOpen ? '▲' : '▼'}</Text>
+                        )}
+                      </TouchableOpacity>
+                      {isOpen && (
+                        <View style={{ marginTop: 4, marginLeft: 8, borderLeftWidth: 2, borderLeftColor: C.gd + '30', paddingLeft: 10 }}>
+                          {matchingSubs.length === 0 ? (
+                            <Text style={{ fontSize: 14, color: C.dm, paddingVertical: 10 }}>No users matched for this trade</Text>
+                          ) : (
+                            matchingSubs.map(sub => (
+                              <TouchableOpacity key={sub.id} activeOpacity={0.7} onPress={() => updateAssignment(trade, sub.id)}
+                                style={{ flexDirection: 'row', alignItems: 'center', padding: 10, marginBottom: 4, backgroundColor: contractor_id === sub.id ? C.gd + '15' : C.bg, borderRadius: 8 }}>
+                                <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: C.gd + '20', alignItems: 'center', justifyContent: 'center', marginRight: 10 }}>
+                                  <Text style={{ fontSize: 13, fontWeight: '700', color: C.gd }}>
+                                    {(sub.first_name || '?')[0]}{(sub.last_name || '?')[0]}
+                                  </Text>
+                                </View>
+                                <View style={{ flex: 1 }}>
+                                  <Text style={{ fontSize: 15, fontWeight: '600', color: C.textBold }}>
+                                    {sub.company_name || `${sub.first_name} ${sub.last_name}`}
+                                  </Text>
+                                  {sub.company_name ? (
+                                    <Text style={{ fontSize: 13, color: C.dm }}>{sub.first_name} {sub.last_name}</Text>
+                                  ) : null}
+                                </View>
+                              </TouchableOpacity>
+                            ))
+                          )}
+                        </View>
+                      )}
+                    </View>
+                  );
+                })}
+
+                <TouchableOpacity
+                  onPress={handleSave}
+                  disabled={!editName.trim() || saving}
+                  style={[st.submitBtn, (!editName.trim() || saving) && st.submitBtnOff, { marginTop: 16 }]}
+                  activeOpacity={0.8}
+                >
+                  <Text style={st.submitBtnTxt}>{saving ? 'Saving…' : (editTmpl === 'new' ? 'Create Template' : 'Save Changes')}</Text>
+                </TouchableOpacity>
+                <View style={{ height: 30 }} />
+              </ScrollView>
+            )}
+          </View>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+};
+
 
 const TEMPLATE_ICONS = ['clipboard', 'home', 'coffee', 'droplet', 'tool', 'briefcase', 'tool', 'settings', 'box', 'square', 'maximize', 'log-in', 'zap', 'droplet', 'thermometer', 'home', 'grid'];
 

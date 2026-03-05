@@ -202,6 +202,25 @@ class SubdivisionContractor(db.Model):
         }
 
 
+class SubcontractorTemplate(db.Model):
+    """Reusable template mapping trades to contractors, company-scoped."""
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(200), default='')
+    description = db.Column(db.String(500), default='')
+    assignments_json = db.Column(db.Text, default='[]')  # JSON: [{trade, contractor_id}]
+    created_by = db.Column(db.Integer, db.ForeignKey('login_info.id'), nullable=True)
+    created_at = db.Column(db.String(30), default='')
+    company_id = db.Column(db.Integer, db.ForeignKey('company.id'), nullable=True)
+
+    def to_dict(self):
+        return {
+            'id': self.id, 'name': self.name, 'description': self.description,
+            'assignments': json.loads(self.assignments_json) if self.assignments_json else [],
+            'created_by': self.created_by, 'created_at': self.created_at,
+            'company_id': self.company_id,
+        }
+
+
 class Projects(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100))
@@ -1836,6 +1855,149 @@ def remove_subdivision_contractor(sid, trade):
         db.session.delete(row)
         db.session.commit()
     return jsonify({'deleted': True})
+
+
+# --- Subcontractor Templates CRUD ---
+
+@app.route('/subcontractor-templates', methods=['GET'])
+def get_subcontractor_templates():
+    company_id = request.args.get('company_id', type=int)
+    q = SubcontractorTemplate.query.order_by(SubcontractorTemplate.id.desc())
+    if company_id:
+        q = q.filter_by(company_id=company_id)
+    templates = q.all()
+    result = []
+    for t in templates:
+        d = t.to_dict()
+        # Enrich assignments with contractor details
+        enriched = []
+        for a in d['assignments']:
+            u = LoginInfo.query.get(a.get('contractor_id'))
+            if u:
+                a['contractor'] = u.to_dict()
+            enriched.append(a)
+        d['assignments'] = enriched
+        result.append(d)
+    return jsonify(result)
+
+
+@app.route('/subcontractor-templates', methods=['POST'])
+def create_subcontractor_template():
+    data = request.get_json()
+    tmpl = SubcontractorTemplate(
+        name=data.get('name', 'Untitled Template'),
+        description=data.get('description', ''),
+        assignments_json=json.dumps(data.get('assignments', [])),
+        created_by=data.get('created_by'),
+        created_at=datetime.utcnow().isoformat(),
+    )
+    creator_id = data.get('created_by')
+    if creator_id:
+        creator = LoginInfo.query.get(creator_id)
+        if creator and creator.company_id:
+            tmpl.company_id = creator.company_id
+    db.session.add(tmpl)
+    db.session.commit()
+    return jsonify(tmpl.to_dict()), 201
+
+
+@app.route('/subcontractor-templates/<int:tid>', methods=['PUT'])
+def update_subcontractor_template(tid):
+    tmpl = SubcontractorTemplate.query.get_or_404(tid)
+    data = request.get_json()
+    if 'name' in data: tmpl.name = data['name']
+    if 'description' in data: tmpl.description = data['description']
+    if 'assignments' in data: tmpl.assignments_json = json.dumps(data['assignments'])
+    db.session.commit()
+    return jsonify(tmpl.to_dict())
+
+
+@app.route('/subcontractor-templates/<int:tid>', methods=['DELETE'])
+def delete_subcontractor_template(tid):
+    tmpl = SubcontractorTemplate.query.get_or_404(tid)
+    db.session.delete(tmpl)
+    db.session.commit()
+    return jsonify({'deleted': True})
+
+
+@app.route('/subdivisions/<int:sid>/apply-subcontractor-template', methods=['POST'])
+def apply_subcontractor_template_to_subdivision(sid):
+    """Apply a subcontractor template to a subdivision, setting trade->contractor mappings."""
+    data = request.get_json()
+    tmpl_id = data.get('template_id')
+    if not tmpl_id:
+        return jsonify({'error': 'template_id required'}), 400
+    tmpl = SubcontractorTemplate.query.get_or_404(tmpl_id)
+    assignments = json.loads(tmpl.assignments_json) if tmpl.assignments_json else []
+    for a in assignments:
+        trade = a.get('trade', '').strip()
+        contractor_id = a.get('contractor_id')
+        if not trade or not contractor_id:
+            continue
+        existing = SubdivisionContractor.query.filter_by(
+            subdivision_id=sid, trade=trade).first()
+        if existing:
+            existing.contractor_id = contractor_id
+        else:
+            db.session.add(SubdivisionContractor(
+                subdivision_id=sid, trade=trade, contractor_id=contractor_id))
+    db.session.commit()
+    rows = SubdivisionContractor.query.filter_by(subdivision_id=sid).all()
+    result = []
+    for r in rows:
+        d = r.to_dict()
+        u = LoginInfo.query.get(r.contractor_id)
+        if u:
+            d['contractor'] = u.to_dict()
+        result.append(d)
+    return jsonify(result)
+
+
+@app.route('/projects/<int:pid>/apply-subcontractor-template', methods=['POST'])
+def apply_subcontractor_template_to_project(pid):
+    """Apply a subcontractor template to a project's schedule tasks."""
+    data = request.get_json()
+    tmpl_id = data.get('template_id')
+    if not tmpl_id:
+        return jsonify({'error': 'template_id required'}), 400
+    tmpl = SubcontractorTemplate.query.get_or_404(tmpl_id)
+    assignments = json.loads(tmpl.assignments_json) if tmpl.assignments_json else []
+    # Build trade -> contractor lookup
+    trade_map = {}
+    for a in assignments:
+        trade = a.get('trade', '').strip()
+        cid = a.get('contractor_id')
+        if not trade or not cid:
+            continue
+        u = LoginInfo.query.get(cid)
+        if u:
+            name = u.companyName or f'{u.firstName} {u.lastName}'.strip()
+            trade_map[trade.lower()] = (cid, name)
+    if not trade_map:
+        return jsonify([t.to_dict() for t in Schedule.query.filter_by(job_id=pid).order_by(Schedule.sort_order, Schedule.id).all()])
+    # Update schedule tasks
+    tasks = Schedule.query.filter_by(job_id=pid).all()
+    assigned_ids = set()
+    for t in tasks:
+        if t.progress == 100:
+            continue
+        task_trades = t._get_trades()
+        if not task_trades and t.trade:
+            task_trades = [t.trade]
+        for tt in task_trades:
+            if tt and tt.lower() in trade_map:
+                cid, cname = trade_map[tt.lower()]
+                t.contractor = cname
+                assigned_ids.add(cid)
+                break
+    # Ensure contractors in JobUsers
+    existing_user_ids = {ju.user_id for ju in JobUsers.query.filter_by(job_id=pid).all()}
+    for cid in assigned_ids:
+        if cid not in existing_user_ids:
+            db.session.add(JobUsers(job_id=pid, user_id=cid, role='contractor'))
+    db.session.commit()
+    updated = Schedule.query.filter_by(job_id=pid).order_by(Schedule.sort_order, Schedule.id).all()
+    return jsonify([t.to_dict() for t in updated])
 
 
 def apply_subdivision_contractors(project_id):
