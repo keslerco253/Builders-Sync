@@ -978,6 +978,10 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
         return;
       }
       setChangeOrders(prev => prev.map(c => c.id === coId ? data : c));
+      // Refresh selections if this was a selection change order that just got approved
+      if (data.status === 'approved' && data.selection_project_selection_id) {
+        api(`/projects/${project.id}/selections`).then(d => d && setSelections(d));
+      }
       Alert.alert('Success', 'Change order signed!');
       setModal(null);
     } catch (e) {
@@ -5682,6 +5686,8 @@ const SelectionChangeOrderModal = ({ project, api, selections, onClose, onCreate
         line_items: [{ item_name: coTitle, cost: priceDiff, markup_percent: 0 }],
         initials: getInitials(signerName.trim()),
         signer_name: signerName.trim(),
+        selection_project_selection_id: selectedItem?.project_selection_id || null,
+        selection_new_option: newOption || null,
       };
       const res = await api(`/projects/${project.id}/change-orders`, { method: 'POST', body });
       if (!res) {
