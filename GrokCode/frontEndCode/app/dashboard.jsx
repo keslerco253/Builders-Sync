@@ -9807,6 +9807,9 @@ const BidDetailView = ({ project, onProjectUpdate }) => {
   const [allowanceCats, setAllowanceCats] = useState([]);
   const [showAddAllowanceCat, setShowAddAllowanceCat] = useState(false);
   const [newAllowanceCatName, setNewAllowanceCatName] = useState('');
+  const [newAllowanceCatDesc, setNewAllowanceCatDesc] = useState('');
+  const [overheadPct, setOverheadPct] = useState(project.bid_overhead_pct != null ? project.bid_overhead_pct : 8);
+  const [overheadPctText, setOverheadPctText] = useState(String(project.bid_overhead_pct != null ? project.bid_overhead_pct : 8));
   const [allowanceEditState, setAllowanceEditState] = useState({}); // { [itemId]: { name, price } }
   const [confirmDeleteAllowanceCat, setConfirmDeleteAllowanceCat] = useState(null);
   const [confirmDeleteAllowanceItem, setConfirmDeleteAllowanceItem] = useState(null);
@@ -9867,6 +9870,8 @@ const BidDetailView = ({ project, onProjectUpdate }) => {
     setCommissionText(String(project.bid_commission || 0));
     setPriceToQuote(project.bid_price_to_quote || 0);
     setPriceToQuoteText(String(project.bid_price_to_quote || 0));
+    setOverheadPct(project.bid_overhead_pct != null ? project.bid_overhead_pct : 8);
+    setOverheadPctText(String(project.bid_overhead_pct != null ? project.bid_overhead_pct : 8));
     setInfoFields({
       bid_client_first_name: project.bid_client_first_name || '',
       bid_client_last_name: project.bid_client_last_name || '',
@@ -9907,7 +9912,7 @@ const BidDetailView = ({ project, onProjectUpdate }) => {
     try {
       const res = await apiFetch(`/projects/${project.id}/bid-allowance-categories`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: newAllowanceCatName.trim() }),
+        body: JSON.stringify({ name: newAllowanceCatName.trim(), description: newAllowanceCatDesc.trim() }),
       });
       if (res.ok) {
         const cat = await res.json();
@@ -9915,6 +9920,7 @@ const BidDetailView = ({ project, onProjectUpdate }) => {
       }
     } catch (e) { /* */ }
     setNewAllowanceCatName('');
+    setNewAllowanceCatDesc('');
     setShowAddAllowanceCat(false);
   };
 
@@ -9930,13 +9936,13 @@ const BidDetailView = ({ project, onProjectUpdate }) => {
     try {
       const res = await apiFetch(`/bid-allowance-categories/${catId}/items`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: 'New Item' }),
+        body: JSON.stringify({ name: '' }),
       });
       if (res.ok) {
         const updated = await res.json();
         setAllowanceCats(prev => prev.map(c => c.id === catId ? updated : c));
         const newItem = updated.items[updated.items.length - 1];
-        if (newItem) setAllowanceEditState(prev => ({ ...prev, [newItem.id]: { name: newItem.name, quantity: String(newItem.quantity), price_per: String(newItem.price_per) } }));
+        if (newItem) setAllowanceEditState(prev => ({ ...prev, [newItem.id]: { name: '', quantity: '', price_per: '' } }));
       }
     } catch (e) { /* */ }
   };
@@ -10129,7 +10135,7 @@ const BidDetailView = ({ project, onProjectUpdate }) => {
   // Compute totals (square footage items also count toward total)
   const categorySubtotals = categories.reduce((sum, c) => sum + (c.subtotal || 0), 0);
   const allowancesTotal = allowanceCats.reduce((sum, c) => sum + (c.total || 0), 0);
-  const overhead = Math.round((categorySubtotals + allowancesTotal) * 0.08 * 100) / 100;
+  const overhead = Math.round((categorySubtotals + allowancesTotal) * (overheadPct / 100) * 100) / 100;
   const totalCost = categorySubtotals + overhead + lotOverhead + commission + allowancesTotal;
 
   // Square footage computed values
@@ -10195,7 +10201,7 @@ const BidDetailView = ({ project, onProjectUpdate }) => {
     try {
       const res = await apiFetch(`/bid-categories/${catId}/line-items`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: 'New Item' }),
+        body: JSON.stringify({ name: '' }),
       });
       if (res.ok) {
         const updated = await res.json();
@@ -10203,7 +10209,7 @@ const BidDetailView = ({ project, onProjectUpdate }) => {
         // Init edit state for new line item and focus its name
         const newLi = updated.line_items[updated.line_items.length - 1];
         if (newLi) {
-          setEditState(prev => ({ ...prev, [newLi.id]: { name: newLi.name, quantity: String(newLi.quantity), price_per_item: String(newLi.price_per_item) } }));
+          setEditState(prev => ({ ...prev, [newLi.id]: { name: '', quantity: '', price_per_item: '' } }));
           setTimeout(() => focusCell(`line_${newLi.id}_name`), 100);
         }
       }
@@ -10262,6 +10268,14 @@ const BidDetailView = ({ project, onProjectUpdate }) => {
     const num = parseFloat(n) || 0;
     return num.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
   };
+
+  // Format a string as currency display (e.g. "$1,000.00") for display in text fields
+  const fmtInput = (n) => {
+    const num = parseFloat(String(n).replace(/[^0-9.-]/g, '')) || 0;
+    return '$' + num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  };
+  // Strip formatting back to raw number string
+  const stripFmt = (s) => String(s).replace(/[^0-9.-]/g, '');
 
   // Track focus state per cell for styling
   const [focusedCell, setFocusedCell] = useState(null);
@@ -10354,15 +10368,16 @@ const BidDetailView = ({ project, onProjectUpdate }) => {
       return '$ ' + num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     };
 
-    // Build line items rows - separate regular from allowance
+    // Build line items rows - show ALL items in main table (including allowances)
+    // Also collect allowance items for the separate allowances box
     let rowIdx = 0;
     let regularRows = '';
     let allowanceRows = '';
-    let currentCatTitle = '';
 
     // Square footage category first
     if (sqftCategory && (sqftCategory.line_items || []).length > 0) {
-      regularRows += `<tr class="cat-row"><td colspan="2"><b>Square Footage</b></td></tr>`;
+      const bg = rowIdx % 2 === 0 ? '#f5f5f5' : '#ffffff';
+      regularRows += `<tr style="background:${bg}"><td colspan="2" style="padding:8px 12px;"><b>Square Footage</b></td></tr>`;
       rowIdx++;
       (sqftCategory.line_items || []).forEach(li => {
         const es = editState[li.id] || { name: li.name, quantity: String(li.quantity), price_per_item: String(li.price_per_item) };
@@ -10372,40 +10387,42 @@ const BidDetailView = ({ project, onProjectUpdate }) => {
       });
     }
 
-    // Normal categories
+    // Normal categories - show ALL items including allowance-marked ones
     normalCategories.forEach(cat => {
       const catItems = cat.line_items || [];
-      const nonAllowanceItems = catItems.filter(li => !li.is_allowance);
-      const allowanceItems = catItems.filter(li => li.is_allowance);
-
-      if (nonAllowanceItems.length > 0) {
-        regularRows += `<tr class="cat-row"><td colspan="2"><b>${cat.title}</b></td></tr>`;
+      if (catItems.length > 0) {
+        const bg = rowIdx % 2 === 0 ? '#f5f5f5' : '#ffffff';
+        regularRows += `<tr style="background:${bg}"><td colspan="2" style="padding:8px 12px;"><b>${cat.title}</b></td></tr>`;
         rowIdx++;
-        nonAllowanceItems.forEach(li => {
+        catItems.forEach(li => {
           const es = editState[li.id] || { name: li.name, quantity: String(li.quantity), price_per_item: String(li.price_per_item) };
           const total = (parseFloat(es.quantity) || 0) * (parseFloat(es.price_per_item) || 0);
           const bg = rowIdx % 2 === 0 ? '#f5f5f5' : '#ffffff';
+          const label = li.is_allowance ? `${es.name || ''} - Allowance` : (es.name || '');
           const priceCell = li.included ? 'Included' : fmtMoney(total);
-          regularRows += `<tr style="background:${bg}"><td style="padding:6px 12px;">${es.name || ''}</td><td style="padding:6px 12px;text-align:right;">${priceCell}</td></tr>`;
+          regularRows += `<tr style="background:${bg}"><td style="padding:6px 12px;">${label}</td><td style="padding:6px 12px;text-align:right;">${priceCell}</td></tr>`;
           rowIdx++;
-        });
-      }
 
-      if (allowanceItems.length > 0) {
-        allowanceItems.forEach(li => {
-          const es = editState[li.id] || { name: li.name, quantity: String(li.quantity), price_per_item: String(li.price_per_item) };
-          const total = (parseFloat(es.quantity) || 0) * (parseFloat(es.price_per_item) || 0);
-          allowanceRows += `<tr style="background:#ffffff"><td style="padding:6px 12px;">${es.name || ''} - Allowance</td><td style="padding:6px 12px;text-align:right;">${fmtMoney(total)}</td></tr>`;
+          // Also add to allowance box if marked as allowance
+          if (li.is_allowance) {
+            allowanceRows += `<tr style="background:#ffffff"><td style="padding:6px 12px;">${es.name || ''} - Allowance</td><td style="padding:6px 12px;text-align:right;">${fmtMoney(total)}</td></tr>`;
+          }
         });
       }
     });
 
     // Allowance categories from the breakdown section
+    let allowRowIdx = 0;
     allowanceCats.forEach(cat => {
+      const bg = allowRowIdx % 2 === 0 ? '#f5f5f5' : '#ffffff';
+      allowanceRows += `<tr style="background:${bg}"><td colspan="2" style="padding:8px 12px;"><b>${cat.name}</b>${cat.description ? `<br/><span style="font-size:12px;color:#666;font-weight:normal;">${cat.description}</span>` : ''}</td></tr>`;
+      allowRowIdx++;
       (cat.items || []).forEach(item => {
         const es = allowanceEditState[item.id] || { name: item.name, quantity: String(item.quantity), price_per: String(item.price_per) };
         const total = (parseFloat(es.quantity) || 0) * (parseFloat(es.price_per) || 0);
-        allowanceRows += `<tr style="background:#ffffff"><td style="padding:6px 12px;">${es.name || ''} - Allowance</td><td style="padding:6px 12px;text-align:right;">${fmtMoney(total)}</td></tr>`;
+        const bg = allowRowIdx % 2 === 0 ? '#f5f5f5' : '#ffffff';
+        allowanceRows += `<tr style="background:${bg}"><td style="padding:6px 12px;">${es.name || ''}</td><td style="padding:6px 12px;text-align:right;">${fmtMoney(total)}</td></tr>`;
+        allowRowIdx++;
       });
     });
 
@@ -10435,10 +10452,15 @@ const BidDetailView = ({ project, onProjectUpdate }) => {
   body { font-family: Arial, Helvetica, sans-serif; font-size: 13px; color: #222; margin: 0; padding: 0; }
   .page-break { page-break-before: always; }
   table { width: 100%; border-collapse: collapse; }
-  .cat-row td { padding: 8px 12px; background: #e8e8e8; }
+  /* Close table box with bottom border at page breaks */
+  table.bid-table { border: 1px solid #ccc; }
+  table.bid-table tr { break-inside: avoid; }
+  table.bid-table tbody tr:last-child td { border-bottom: 1px solid #ccc; }
   @media print {
     body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     .no-print { display: none; }
+    table.bid-table { border-bottom: 1px solid #ccc; }
+    table.bid-table tr { page-break-inside: avoid; }
   }
 </style>
 </head>
@@ -10482,7 +10504,7 @@ const BidDetailView = ({ project, onProjectUpdate }) => {
     </div>
 
     <!-- Items Table -->
-    <table style="border:1px solid #ccc;margin-bottom:4px;">
+    <table class="bid-table" style="margin-bottom:4px;">
       <thead>
         <tr style="background:#d0d0d0;">
           <th style="text-align:left;padding:8px 12px;font-size:13px;">Description</th>
@@ -10497,7 +10519,7 @@ const BidDetailView = ({ project, onProjectUpdate }) => {
     <!-- Allowances -->
     ${allowanceRows ? `
     <div style="margin-top:16px;">
-      <table style="border:1px solid #ccc;">
+      <table class="bid-table">
         <thead>
           <tr style="background:#d0d0d0;">
             <th style="text-align:left;padding:8px 12px;font-size:13px;" colspan="2"><b>Allowances</b></th>
@@ -10643,11 +10665,21 @@ const BidDetailView = ({ project, onProjectUpdate }) => {
             <Text style={[headerTxt, { flex: 2 }]}>Item</Text>
             <Text style={[headerTxt, { flex: 1, textAlign: 'right' }]}>Amount</Text>
           </View>
-          {/* Overhead (auto-calculated, not editable) */}
+          {/* Overhead (editable percentage) */}
           <View style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 12, borderTopWidth: 1, borderTopColor: C.w06 }}>
-            <View style={{ flex: 2 }}>
-              <Text style={[cellTxt, { fontWeight: '600' }]}>Overhead (8%)</Text>
-              <Text style={{ fontSize: 11, color: C.dm }}>Auto-calculated from category totals</Text>
+            <View style={{ flex: 2, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Text style={[cellTxt, { fontWeight: '600' }]}>Overhead (</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <TextInput
+                  value={overheadPctText}
+                  onChangeText={setOverheadPctText}
+                  onFocus={() => setFocusedCell('top_overheadPct')}
+                  onBlur={() => { setFocusedCell(null); const v = parseFloat(overheadPctText) || 0; setOverheadPct(v); setOverheadPctText(String(v)); saveBidField('bid_overhead_pct', v); }}
+                  keyboardType="decimal-pad"
+                  style={[cellInputStyle, { textAlign: 'center', width: 50 }, focusedCell === 'top_overheadPct' && cellInputFocused]}
+                />
+                <Text style={[cellTxt, { fontWeight: '600' }]}>%)</Text>
+              </View>
             </View>
             <Text style={[cellTxt, { flex: 1, textAlign: 'right', fontWeight: '600' }]}>{fmt(overhead)}</Text>
           </View>
@@ -10657,10 +10689,10 @@ const BidDetailView = ({ project, onProjectUpdate }) => {
             <View style={{ flex: 1, alignItems: 'flex-end' }}>
               <TextInput
                 ref={r => setCellRef('top_lotOverhead', r)}
-                value={lotOverheadText}
+                value={focusedCell === 'top_lotOverhead' ? lotOverheadText : fmtInput(lotOverheadText)}
                 onChangeText={setLotOverheadText}
-                onFocus={() => setFocusedCell('top_lotOverhead')}
-                onBlur={() => { setFocusedCell(null); const v = parseFloat(lotOverheadText) || 0; setLotOverhead(v); setLotOverheadText(String(v)); saveBidField('bid_lot_overhead', v); }}
+                onFocus={() => { setFocusedCell('top_lotOverhead'); setLotOverheadText(stripFmt(lotOverheadText)); }}
+                onBlur={() => { setFocusedCell(null); const v = parseFloat(stripFmt(lotOverheadText)) || 0; setLotOverhead(v); setLotOverheadText(String(v)); saveBidField('bid_lot_overhead', v); }}
                 keyboardType="decimal-pad"
                 style={[cellInputStyle, { textAlign: 'right', width: 130 }, focusedCell === 'top_lotOverhead' && cellInputFocused]}
               />
@@ -10672,10 +10704,10 @@ const BidDetailView = ({ project, onProjectUpdate }) => {
             <View style={{ flex: 1, alignItems: 'flex-end' }}>
               <TextInput
                 ref={r => setCellRef('top_commission', r)}
-                value={commissionText}
+                value={focusedCell === 'top_commission' ? commissionText : fmtInput(commissionText)}
                 onChangeText={setCommissionText}
-                onFocus={() => setFocusedCell('top_commission')}
-                onBlur={() => { setFocusedCell(null); const v = parseFloat(commissionText) || 0; setCommission(v); setCommissionText(String(v)); saveBidField('bid_commission', v); }}
+                onFocus={() => { setFocusedCell('top_commission'); setCommissionText(stripFmt(commissionText)); }}
+                onBlur={() => { setFocusedCell(null); const v = parseFloat(stripFmt(commissionText)) || 0; setCommission(v); setCommissionText(String(v)); saveBidField('bid_commission', v); }}
                 keyboardType="decimal-pad"
                 style={[cellInputStyle, { textAlign: 'right', width: 130 }, focusedCell === 'top_commission' && cellInputFocused]}
               />
@@ -10713,6 +10745,7 @@ const BidDetailView = ({ project, onProjectUpdate }) => {
                       <TextInput ref={r => setCellRef(nameKey, r)} value={es.name}
                         onChangeText={v => handleCellChange(li.id, sqftCategory.id, 'name', v)}
                         onFocus={() => setFocusedCell(nameKey)} onBlur={() => setFocusedCell(null)}
+                        placeholder="e.g. Main Floor, Garage..." placeholderTextColor={C.dm + '60'}
                         multiline scrollEnabled={false}
                         style={[cellInputStyle, focusedCell === nameKey && cellInputFocused]} />
                     </View>
@@ -10720,13 +10753,15 @@ const BidDetailView = ({ project, onProjectUpdate }) => {
                       <TextInput ref={r => setCellRef(qtyKey, r)} value={es.quantity}
                         onChangeText={v => handleCellChange(li.id, sqftCategory.id, 'quantity', v)}
                         onFocus={() => setFocusedCell(qtyKey)} onBlur={() => setFocusedCell(null)}
+                        placeholder="0" placeholderTextColor={C.dm + '60'}
                         keyboardType="decimal-pad"
                         style={[cellInputStyle, { textAlign: 'right' }, focusedCell === qtyKey && cellInputFocused]} />
                     </View>
                     <View style={{ flex: 1.5, paddingHorizontal: 2 }}>
-                      <TextInput ref={r => setCellRef(priceKey, r)} value={es.price_per_item}
+                      <TextInput ref={r => setCellRef(priceKey, r)} value={focusedCell === priceKey ? es.price_per_item : fmtInput(es.price_per_item)}
                         onChangeText={v => handleCellChange(li.id, sqftCategory.id, 'price_per_item', v)}
-                        onFocus={() => setFocusedCell(priceKey)} onBlur={() => setFocusedCell(null)}
+                        onFocus={() => { setFocusedCell(priceKey); handleCellChange(li.id, sqftCategory.id, 'price_per_item', stripFmt(es.price_per_item)); }}
+                        onBlur={() => setFocusedCell(null)}
                         keyboardType="decimal-pad"
                         style={[cellInputStyle, { textAlign: 'right' }, focusedCell === priceKey && cellInputFocused]} />
                     </View>
@@ -10801,6 +10836,7 @@ const BidDetailView = ({ project, onProjectUpdate }) => {
                       onChangeText={v => handleCellChange(li.id, cat.id, 'name', v)}
                       onFocus={() => setFocusedCell(nameKey)}
                       onBlur={() => setFocusedCell(null)}
+                      placeholder="e.g. Item Name" placeholderTextColor={C.dm + '60'}
                       multiline scrollEnabled={false}
                       style={[cellInputStyle, focusedCell === nameKey && cellInputFocused]}
                     />
@@ -10813,6 +10849,7 @@ const BidDetailView = ({ project, onProjectUpdate }) => {
                       onChangeText={v => handleCellChange(li.id, cat.id, 'quantity', v)}
                       onFocus={() => setFocusedCell(qtyKey)}
                       onBlur={() => setFocusedCell(null)}
+                      placeholder="0" placeholderTextColor={C.dm + '60'}
                       keyboardType="decimal-pad"
                       style={[cellInputStyle, { textAlign: 'right' }, focusedCell === qtyKey && cellInputFocused]}
                     />
@@ -10821,9 +10858,9 @@ const BidDetailView = ({ project, onProjectUpdate }) => {
                   <View style={{ flex: 1.5, paddingHorizontal: 2 }}>
                     <TextInput
                       ref={r => setCellRef(priceKey, r)}
-                      value={es.price_per_item}
+                      value={focusedCell === priceKey ? es.price_per_item : fmtInput(es.price_per_item)}
                       onChangeText={v => handleCellChange(li.id, cat.id, 'price_per_item', v)}
-                      onFocus={() => setFocusedCell(priceKey)}
+                      onFocus={() => { setFocusedCell(priceKey); handleCellChange(li.id, cat.id, 'price_per_item', stripFmt(es.price_per_item)); }}
                       onBlur={() => setFocusedCell(null)}
                       keyboardType="decimal-pad"
                       style={[cellInputStyle, { textAlign: 'right' }, focusedCell === priceKey && cellInputFocused]}
@@ -10901,10 +10938,10 @@ const BidDetailView = ({ project, onProjectUpdate }) => {
           <View style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 16, backgroundColor: (C.bl || '#3b82f6') + '15' }}>
             <Text style={{ flex: 1, fontSize: 18, fontWeight: '700', color: C.textBold }}>Price to Quote</Text>
             <TextInput
-              value={priceToQuoteText}
+              value={focusedCell === 'top_priceToQuote' ? priceToQuoteText : fmtInput(priceToQuoteText)}
               onChangeText={setPriceToQuoteText}
-              onFocus={() => setFocusedCell('top_priceToQuote')}
-              onBlur={() => { setFocusedCell(null); const v = parseFloat(priceToQuoteText) || 0; setPriceToQuote(v); setPriceToQuoteText(String(v)); saveBidField('bid_price_to_quote', v); }}
+              onFocus={() => { setFocusedCell('top_priceToQuote'); setPriceToQuoteText(stripFmt(priceToQuoteText)); }}
+              onBlur={() => { setFocusedCell(null); const v = parseFloat(stripFmt(priceToQuoteText)) || 0; setPriceToQuote(v); setPriceToQuoteText(String(v)); saveBidField('bid_price_to_quote', v); }}
               keyboardType="decimal-pad"
               style={[cellInputStyle, { textAlign: 'right', width: 160, fontSize: 18, fontWeight: '700', color: C.bl || '#3b82f6' }, focusedCell === 'top_priceToQuote' && cellInputFocused]}
             />
@@ -10979,7 +11016,10 @@ const BidDetailView = ({ project, onProjectUpdate }) => {
             <View key={cat.id} style={{ borderTopWidth: 1, borderTopColor: C.w08 }}>
               {/* Category header row */}
               <View style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 8, paddingHorizontal: 12, backgroundColor: C.w06 }}>
-                <Text style={{ flex: 1, fontSize: 15, fontWeight: '700', color: C.textBold }}>{cat.name}</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 15, fontWeight: '700', color: C.textBold }}>{cat.name}</Text>
+                  {cat.description ? <Text style={{ fontSize: 12, color: C.dm, marginTop: 2 }}>{cat.description}</Text> : null}
+                </View>
                 <Text style={{ fontSize: 14, fontWeight: '600', color: C.bl || '#3b82f6', marginRight: 10 }}>{fmt(cat.total || 0)}</Text>
                 <TouchableOpacity onPress={() => addAllowanceItem(cat.id)} style={{ marginRight: 8 }}>
                   <Feather name="plus-circle" size={18} color={C.gd} />
@@ -11008,6 +11048,7 @@ const BidDetailView = ({ project, onProjectUpdate }) => {
                             onChangeText={v => handleAllowanceItemChange(item.id, cat.id, 'name', v)}
                             onFocus={() => setFocusedCell(`allow_${item.id}_name`)}
                             onBlur={() => setFocusedCell(null)}
+                            placeholder="e.g. Item Name" placeholderTextColor={C.dm + '60'}
                             multiline scrollEnabled={false}
                             style={[cellInputStyle, focusedCell === `allow_${item.id}_name` && cellInputFocused]} />
                         </View>
@@ -11016,13 +11057,14 @@ const BidDetailView = ({ project, onProjectUpdate }) => {
                             onChangeText={v => handleAllowanceItemChange(item.id, cat.id, 'quantity', v)}
                             onFocus={() => setFocusedCell(`allow_${item.id}_qty`)}
                             onBlur={() => setFocusedCell(null)}
+                            placeholder="0" placeholderTextColor={C.dm + '60'}
                             keyboardType="decimal-pad"
                             style={[cellInputStyle, { textAlign: 'right' }, focusedCell === `allow_${item.id}_qty` && cellInputFocused]} />
                         </View>
                         <View style={{ flex: 1.5, paddingHorizontal: 2 }}>
-                          <TextInput ref={r => setCellRef(`allow_${item.id}_price`, r)} value={es.price_per}
+                          <TextInput ref={r => setCellRef(`allow_${item.id}_price`, r)} value={focusedCell === `allow_${item.id}_price` ? es.price_per : fmtInput(es.price_per)}
                             onChangeText={v => handleAllowanceItemChange(item.id, cat.id, 'price_per', v)}
-                            onFocus={() => setFocusedCell(`allow_${item.id}_price`)}
+                            onFocus={() => { setFocusedCell(`allow_${item.id}_price`); handleAllowanceItemChange(item.id, cat.id, 'price_per', stripFmt(es.price_per)); }}
                             onBlur={() => setFocusedCell(null)}
                             keyboardType="decimal-pad"
                             style={[cellInputStyle, { textAlign: 'right' }, focusedCell === `allow_${item.id}_price` && cellInputFocused]} />
@@ -11063,10 +11105,13 @@ const BidDetailView = ({ project, onProjectUpdate }) => {
             <View style={{ padding: 16, gap: 12 }}>
               <Text style={{ fontSize: 13, fontWeight: '600', color: C.dm, textTransform: 'uppercase', letterSpacing: 0.5 }}>Category Name</Text>
               <TextInput value={newAllowanceCatName} onChangeText={setNewAllowanceCatName} placeholder="e.g. Flooring, Lighting..."
-                placeholderTextColor={C.dm + '80'} style={inputStyle} autoFocus onSubmitEditing={addAllowanceCat} />
+                placeholderTextColor={C.dm + '80'} style={inputStyle} autoFocus />
+              <Text style={{ fontSize: 13, fontWeight: '600', color: C.dm, textTransform: 'uppercase', letterSpacing: 0.5 }}>Description (optional)</Text>
+              <TextInput value={newAllowanceCatDesc} onChangeText={setNewAllowanceCatDesc} placeholder="Brief description of this category..."
+                placeholderTextColor={C.dm + '80'} style={inputStyle} multiline onSubmitEditing={addAllowanceCat} />
             </View>
             <View style={{ flexDirection: 'row', gap: 10, padding: 16, borderTopWidth: 1, borderTopColor: C.w06 }}>
-              <TouchableOpacity onPress={() => setShowAddAllowanceCat(false)}
+              <TouchableOpacity onPress={() => { setShowAddAllowanceCat(false); setNewAllowanceCatDesc(''); }}
                 style={{ flex: 1, paddingVertical: 10, borderRadius: 8, borderWidth: 1, borderColor: C.w12, alignItems: 'center' }}>
                 <Text style={{ fontSize: 15, fontWeight: '600', color: C.dm }}>Cancel</Text>
               </TouchableOpacity>
