@@ -310,6 +310,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
     start_date: '', sqft: '', bedrooms: '', bathrooms: '',
     garage: '', garage_sqft: '', lot_size: '', stories: '', story_details: [], original_price: '0', reconciliation: '0',
     subdivision_id: null, permit_number: '', plan_name: '', selection_template_id: null,
+    project_manager_id: null, superintendent_id: null,
   };
   const [showHomeowner2, setShowHomeowner2] = useState(false);
   const [editInfo, setEditInfo] = useState(INFO_DEFAULTS);
@@ -319,6 +320,9 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
   const [showSubdivPicker, setShowSubdivPicker] = useState(false);
   const [selectionTemplates, setSelectionTemplates] = useState([]);
   const [showSelTmplPicker, setShowSelTmplPicker] = useState(false);
+  const [companyBuilders, setCompanyBuilders] = useState([]);
+  const [showPmPicker, setShowPmPicker] = useState(false);
+  const [showSuperPicker, setShowSuperPicker] = useState(false);
 
   // Company logo for printable Job Spec
   const [companyLogo, setCompanyLogo] = useState(null);
@@ -444,6 +448,8 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
         permit_number: project.permit_number || '',
         plan_name: project.plan_name || '',
         selection_template_id: project.selection_template_id || null,
+        project_manager_id: project.project_manager_id || null,
+        superintendent_id: project.superintendent_id || null,
       });
       setInfoDirty(false);
       if (project.homeowner2_first_name || project.homeowner2_last_name || project.homeowner2_phone || project.homeowner2_email) {
@@ -496,6 +502,8 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
         permit_number: editInfo.permit_number.trim(),
         plan_name: editInfo.plan_name || '',
         selection_template_id: editInfo.selection_template_id || null,
+        project_manager_id: editInfo.project_manager_id || null,
+        superintendent_id: editInfo.superintendent_id || null,
       };
       const res = await apiFetch(`/projects/${project.id}`, {
         method: 'PUT',
@@ -854,6 +862,17 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
     })();
   }, [user?.company_id, isB]);
 
+  // Fetch company builders for PM/superintendent pickers
+  useEffect(() => {
+    if (!isB || !user?.company_id) return;
+    (async () => {
+      try {
+        const res = await apiFetch(`/company/${user.company_id}/builders`);
+        if (res.ok) setCompanyBuilders(await res.json());
+      } catch (e) { console.warn(e); }
+    })();
+  }, [user?.company_id, isB]);
+
   // Re-fetch schedule when sub calendar makes changes (scheduleVersion bumps)
   const schedVerRef = React.useRef(scheduleVersion);
   useEffect(() => {
@@ -1203,22 +1222,82 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
                   <Text style={s.infoLbl}>PROJECT NUMBER</Text>
                   <Text style={s.infoVal}>{editInfo.number || '—'}</Text>
                 </View>
-                {(project.project_manager_name || project.superintendent_name) ? (
-                  <View style={{ flexDirection: 'row', gap: 12, marginBottom: 14 }}>
-                    {project.project_manager_name ? (
+                {(() => {
+                  const pmName = editInfo.project_manager_id
+                    ? (companyBuilders.find(b => b.id === editInfo.project_manager_id)
+                        ? `${companyBuilders.find(b => b.id === editInfo.project_manager_id).first_name || ''} ${companyBuilders.find(b => b.id === editInfo.project_manager_id).last_name || ''}`.trim()
+                        : project.project_manager_name || 'Unknown')
+                    : null;
+                  const superName = editInfo.superintendent_id
+                    ? (companyBuilders.find(b => b.id === editInfo.superintendent_id)
+                        ? `${companyBuilders.find(b => b.id === editInfo.superintendent_id).first_name || ''} ${companyBuilders.find(b => b.id === editInfo.superintendent_id).last_name || ''}`.trim()
+                        : project.superintendent_name || 'Unknown')
+                    : null;
+
+                  const pickerModal = (visible, setVisible, label, field) => (
+                    <Modal visible={visible} transparent animationType="fade">
+                      <TouchableOpacity style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', alignItems: 'center' }} activeOpacity={1} onPress={() => setVisible(false)}>
+                        <TouchableOpacity activeOpacity={1} onPress={e => e.stopPropagation()}>
+                          <View style={{ width: 300, maxHeight: 400, backgroundColor: C.cardBg || C.card, borderRadius: 12, borderWidth: 1, borderColor: C.w10, overflow: 'hidden', ...(Platform.OS === 'web' ? { boxShadow: '0 10px 30px rgba(0,0,0,0.5)' } : { elevation: 20 }) }}>
+                            <View style={{ padding: 14, borderBottomWidth: 1, borderBottomColor: C.w06 }}>
+                              <Text style={{ fontSize: 22, fontWeight: '700', color: C.textBold }}>{label}</Text>
+                            </View>
+                            <ScrollView style={{ maxHeight: 340 }} nestedScrollEnabled keyboardShouldPersistTaps="handled">
+                              <TouchableOpacity onPress={() => { setField(field, null); setVisible(false); }}
+                                style={{ paddingVertical: 10, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: C.w06, backgroundColor: !editInfo[field] ? C.gd + '22' : 'transparent' }}>
+                                <Text style={{ fontSize: 21, color: !editInfo[field] ? C.gd : C.text }}>None</Text>
+                              </TouchableOpacity>
+                              {companyBuilders.map(b => {
+                                const bName = `${b.first_name || ''} ${b.last_name || ''}`.trim() || b.username;
+                                return (
+                                  <TouchableOpacity key={b.id} onPress={() => { setField(field, b.id); setVisible(false); }}
+                                    style={{ paddingVertical: 10, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: C.w06, backgroundColor: editInfo[field] === b.id ? C.gd + '22' : 'transparent' }}>
+                                    <Text style={{ fontSize: 21, color: editInfo[field] === b.id ? C.gd : C.text }}>{bName}</Text>
+                                  </TouchableOpacity>
+                                );
+                              })}
+                            </ScrollView>
+                          </View>
+                        </TouchableOpacity>
+                      </TouchableOpacity>
+                    </Modal>
+                  );
+
+                  return (
+                    <View style={{ flexDirection: 'row', gap: 12, marginBottom: 14 }}>
                       <View style={{ flex: 1 }}>
                         <Text style={s.infoLbl}>PROJECT MANAGER</Text>
-                        <Text style={s.infoVal}>{project.project_manager_name}</Text>
+                        {isB ? (
+                          <>
+                            <TouchableOpacity onPress={() => setShowPmPicker(true)}
+                              style={{ backgroundColor: C.inputBg, borderWidth: 1, borderColor: C.w10, borderRadius: 8, padding: 10, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <Text style={{ fontSize: 22, color: pmName ? C.text : C.ph }}>{pmName || 'Select PM...'}</Text>
+                              <Text style={{ fontSize: 15, color: C.dm }}>▼</Text>
+                            </TouchableOpacity>
+                            {pickerModal(showPmPicker, setShowPmPicker, 'Project Manager', 'project_manager_id')}
+                          </>
+                        ) : (
+                          <Text style={s.infoVal}>{pmName || '—'}</Text>
+                        )}
                       </View>
-                    ) : null}
-                    {project.superintendent_name ? (
                       <View style={{ flex: 1 }}>
                         <Text style={s.infoLbl}>SUPERINTENDENT</Text>
-                        <Text style={s.infoVal}>{project.superintendent_name}</Text>
+                        {isB ? (
+                          <>
+                            <TouchableOpacity onPress={() => setShowSuperPicker(true)}
+                              style={{ backgroundColor: C.inputBg, borderWidth: 1, borderColor: C.w10, borderRadius: 8, padding: 10, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <Text style={{ fontSize: 22, color: superName ? C.text : C.ph }}>{superName || 'Select Super...'}</Text>
+                              <Text style={{ fontSize: 15, color: C.dm }}>▼</Text>
+                            </TouchableOpacity>
+                            {pickerModal(showSuperPicker, setShowSuperPicker, 'Superintendent', 'superintendent_id')}
+                          </>
+                        ) : (
+                          <Text style={s.infoVal}>{superName || '—'}</Text>
+                        )}
                       </View>
-                    ) : null}
-                  </View>
-                ) : null}
+                    </View>
+                  );
+                })()}
                 <View style={{ flexDirection: 'row', gap: 12 }}>
                   <View style={{ flex: 1 }}>{infoField("FIRST NAME", "customer_first_name", undefined, "Jane")}</View>
                   <View style={{ flex: 1 }}>{infoField("LAST NAME", "customer_last_name", undefined, "Parker")}</View>
