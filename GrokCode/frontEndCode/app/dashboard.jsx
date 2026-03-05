@@ -763,7 +763,7 @@ export default function Dashboard() {
         <View style={[st.jobIndicator, active && st.jobIndicatorActive]} />
         <View style={{ flex: 1, paddingVertical: 12, paddingLeft: 12, paddingRight: 4 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-            <Text style={[st.jobName, active && st.jobNameActive, { flex: 1 }]} numberOfLines={1}>
+            <Text style={[st.jobName, active && st.jobNameActive, project.on_hold && { color: C.rd }, { flex: 1 }]} numberOfLines={1}>
               {project.name}
             </Text>
             {project.is_bid && (
@@ -777,7 +777,7 @@ export default function Dashboard() {
               </View>
             )}
           </View>
-          <Text style={st.jobMeta} numberOfLines={1}>
+          <Text style={[st.jobMeta, project.on_hold && { color: C.rd + 'B0' }]} numberOfLines={1}>
             {[project.status, project.phase].filter(Boolean).join(' · ')}
           </Text>
           {project.progress !== undefined && project.progress !== null && (
@@ -3152,6 +3152,13 @@ export default function Dashboard() {
                             {...(Platform.OS === 'web' && isBuilder && !subView ? {
                               onPointerDown: (e) => subHandleDragStart(task, e),
                             } : {})}
+                            {...(Platform.OS === 'web' ? {
+                              onContextMenu: (e) => {
+                                e.preventDefault(); e.stopPropagation();
+                                const proj = projects.find(pr => pr.id === task.job_id);
+                                if (proj) { setTaskActionPopup({ task, project: proj }); setTaskActionDate(''); }
+                              },
+                            } : {})}
                           >
                             <View style={{ flex: 1, justifyContent: 'center' }}>
                               <Text style={[st.subCalTaskTxt, isHighlight && { color: '#fff' }]} numberOfLines={1}>{task.task || 'Untitled'}</Text>
@@ -3227,6 +3234,13 @@ export default function Dashboard() {
                                 {...(Platform.OS === 'web' && isBuilder && !subView ? {
                                   onPointerDown: (e) => subHandleDragStart(task, e),
                                 } : {})}
+                                {...(Platform.OS === 'web' ? {
+                                  onContextMenu: (e) => {
+                                    e.preventDefault(); e.stopPropagation();
+                                    const proj = projects.find(pr => pr.id === task.job_id);
+                                    if (proj) { setTaskActionPopup({ task, project: proj }); setTaskActionDate(''); }
+                                  },
+                                } : {})}
                               >
                                 <Text style={{ fontSize: 14, fontWeight: '700', color: isHighlight ? '#fff' : C.text, textDecorationLine: isComplete ? 'line-through' : 'none' }} numberOfLines={1}>
                                   {task.task || 'Untitled'}
@@ -3234,7 +3248,7 @@ export default function Dashboard() {
                                 <Text style={{ fontSize: 16, fontWeight: '600', color: isHighlight ? 'rgba(255,255,255,0.9)' : C.text, lineHeight: 22 }} numberOfLines={1}>
                                   {task.project_name || 'Unknown'}
                                 </Text>
-                                <Text style={{ fontSize: 13, color: isHighlight ? 'rgba(255,255,255,0.7)' : C.dm, fontWeight: '500' }}>→ {subShortDate(task.end_date)}</Text>
+                                <Text style={{ fontSize: 13, color: isHighlight ? 'rgba(255,255,255,0.7)' : C.dm, fontWeight: '500' }}>Completion: {subShortDate(task.end_date)}</Text>
                               </TouchableOpacity>
                             );
                           })}
@@ -4100,13 +4114,13 @@ export default function Dashboard() {
                       style={{ fontSize: 16, color: C.text, borderWidth: 1, borderColor: C.w12, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, backgroundColor: C.w04, ...(Platform.OS === 'web' ? { outlineStyle: 'none' } : {}) }} />
                   </View>
 
-                  {/* Date */}
+                  {/* Date — auto-filled from selected task */}
                   <View>
-                    <Text style={{ fontSize: 14, fontWeight: '600', color: C.text, marginBottom: 4 }}>Date *</Text>
-                    <TextInput value={excDate} onChangeText={setExcDate} placeholder="YYYY-MM-DD"
-                      placeholderTextColor={C.dm + '80'}
-                      style={{ fontSize: 16, color: C.text, borderWidth: 1, borderColor: C.w12, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, backgroundColor: C.w04, ...(Platform.OS === 'web' ? { outlineStyle: 'none' } : {}) }}
-                      {...(Platform.OS === 'web' ? { type: 'date' } : {})} />
+                    <Text style={{ fontSize: 14, fontWeight: '600', color: C.text, marginBottom: 4 }}>Date {excTaskId ? '(from task)' : '*'}</Text>
+                    <View style={{ fontSize: 16, borderWidth: 1, borderColor: C.w12, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, backgroundColor: excTaskId ? C.w06 : C.w04, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <Text style={{ fontSize: 16, color: excDate ? C.text : (C.dm + '80') }}>{excDate || 'Select a task to set date'}</Text>
+                      {excTaskId && <Text style={{ fontSize: 12, color: C.gn, fontWeight: '600' }}>Auto-filled</Text>}
+                    </View>
                   </View>
 
                   {/* Duration */}
@@ -4127,7 +4141,7 @@ export default function Dashboard() {
                         ) : excTasks.map(t => {
                           const selected = excTaskId === t.id;
                           return (
-                            <TouchableOpacity key={t.id} onPress={() => setExcTaskId(t.id)}
+                            <TouchableOpacity key={t.id} onPress={() => { setExcTaskId(t.id); if (t.start_date) setExcDate(t.start_date); }}
                               style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 10, paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: C.w06, backgroundColor: selected ? C.rd + '15' : 'transparent' }} activeOpacity={0.7}>
                               <View style={{ width: 18, height: 18, borderRadius: 9, borderWidth: 2, borderColor: selected ? C.rd : C.w15, backgroundColor: selected ? C.rd : 'transparent', alignItems: 'center', justifyContent: 'center' }}>
                                 {selected && <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#fff' }} />}
@@ -4277,6 +4291,7 @@ export default function Dashboard() {
           builderTrades={builderTrades}
           companyBuilders={companyBuilders}
           currentUser={user}
+          existingAddresses={projects.map(p => p.street_address).filter(Boolean)}
           onCreated={(newProj) => {
             setProjects(prev => [newProj, ...prev]);
             setSelectedProject(newProj);
@@ -4294,6 +4309,7 @@ export default function Dashboard() {
           companyBuilders={companyBuilders}
           currentUser={user}
           initialData={convertBidData}
+          existingAddresses={projects.map(p => p.street_address).filter(Boolean)}
           onCreated={(newProj) => {
             setProjects(prev => [newProj, ...prev]);
             setSelectedProject(newProj);
@@ -6052,6 +6068,64 @@ export default function Dashboard() {
 const STATUSES = ['Pre-Construction', 'In Progress', 'Punch List', 'Complete'];
 const PHASES = ['Planning', 'Permitting', 'Foundation', 'Framing', 'Roofing', 'MEP Rough-In', 'Insulation', 'Drywall', 'Trim', 'Cabinets', 'Paint', 'Flooring', 'Final Punch'];
 
+const AddressAutofill = ({ value, onChange, placeholder, existingAddresses = [], style: ss }) => {
+  const C = React.useContext(ThemeContext);
+  const st = React.useMemo(() => getStyles(C), [C]);
+  const [suggestions, setSuggestions] = useState([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+
+  const handleChange = (text) => {
+    onChange(text);
+    if (text.trim().length >= 2) {
+      const q = text.trim().toLowerCase();
+      const matches = [...new Set(existingAddresses)]
+        .filter(addr => addr && addr.toLowerCase().includes(q))
+        .slice(0, 5);
+      setSuggestions(matches);
+      setShowSuggestions(matches.length > 0);
+    } else {
+      setSuggestions([]);
+      setShowSuggestions(false);
+    }
+  };
+
+  return (
+    <View style={[{ marginBottom: 14, zIndex: 100 }, ss]}>
+      <Text style={st.formLbl}>STREET ADDRESS</Text>
+      <TextInput
+        value={value}
+        onChangeText={handleChange}
+        placeholder={placeholder || '1245 Oakwood Dr'}
+        placeholderTextColor={C.ph}
+        style={st.formInp}
+        onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+        onFocus={() => {
+          if (value && value.trim().length >= 2 && suggestions.length > 0) setShowSuggestions(true);
+        }}
+      />
+      {showSuggestions && (
+        <View style={{
+          position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 200,
+          backgroundColor: C.cardBg || C.card, borderWidth: 1, borderColor: C.w12,
+          borderRadius: 8, marginTop: 2, overflow: 'hidden',
+          ...(Platform.OS === 'web' ? { boxShadow: '0 4px 12px rgba(0,0,0,0.3)' } : { elevation: 8 }),
+        }}>
+          {suggestions.map((addr, i) => (
+            <TouchableOpacity
+              key={i}
+              onPress={() => { onChange(addr); setShowSuggestions(false); }}
+              style={{ paddingVertical: 10, paddingHorizontal: 12, borderBottomWidth: i < suggestions.length - 1 ? 1 : 0, borderBottomColor: C.w06 }}
+              activeOpacity={0.7}
+            >
+              <Text style={{ fontSize: 15, color: C.text }}>{addr}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
+    </View>
+  );
+};
+
 const Inp2 = ({ label, value, onChange, placeholder, type, style: ss }) => {
   const C = React.useContext(ThemeContext);
   const st = React.useMemo(() => getStyles(C), [C]);
@@ -6605,7 +6679,7 @@ const TemplateManagerModal = ({ onClose, builderTrades = [] }) => {
   );
 };
 
-const NewProjectModal = ({ onClose, onCreated, subdivisions = [], builderTrades = [], companyBuilders = [], currentUser, initialData = null }) => {
+const NewProjectModal = ({ onClose, onCreated, subdivisions = [], builderTrades = [], companyBuilders = [], currentUser, initialData = null, existingAddresses = [] }) => {
   const C = React.useContext(ThemeContext);
   const { user } = React.useContext(AuthContext);
   const st = React.useMemo(() => getStyles(C), [C]);
@@ -6851,7 +6925,7 @@ const NewProjectModal = ({ onClose, onCreated, subdivisions = [], builderTrades 
                 </View>
               )}
 
-              <Inp2 label="STREET ADDRESS" value={f.street_address} onChange={v => set('street_address', v)} placeholder="1245 Oakwood Dr" />
+              <AddressAutofill value={f.street_address} onChange={v => set('street_address', v)} placeholder="1245 Oakwood Dr" existingAddresses={existingAddresses} />
               <View style={{ flexDirection: 'row', gap: 12, zIndex: 10 }}>
                 <Inp2 label="CITY" value={f.city} onChange={v => set('city', v)} placeholder="Eagle" style={{ flex: 2 }} />
                 <View style={{ flex: 1, marginBottom: 16 }}>
