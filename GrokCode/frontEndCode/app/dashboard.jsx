@@ -97,6 +97,10 @@ export default function Dashboard() {
   const [showFloorPlanManager, setShowFloorPlanManager] = useState(false);
   const [showBidTemplateManager, setShowBidTemplateManager] = useState(false);
   const [showSubTmplManager, setShowSubTmplManager] = useState(false);
+  const [showEscrowHolderManager, setShowEscrowHolderManager] = useState(false);
+  const [escrowHolders, setEscrowHolders] = useState([]);
+  const [newEscrowHolderName, setNewEscrowHolderName] = useState('');
+  const [escrowHoldersLoading, setEscrowHoldersLoading] = useState(false);
   const [floorPlans, setFloorPlans] = useState([]);
   const [newFloorPlanName, setNewFloorPlanName] = useState('');
   const [clientView, setClientView] = useState(false);
@@ -566,6 +570,35 @@ export default function Dashboard() {
         setPmBuilders(prev => prev.map(b => b.id === uid ? { ...b, is_project_manager: updated.is_project_manager } : b));
       }
     } catch (e) { console.warn('Toggle PM:', e); }
+  };
+
+  const fetchEscrowHolders = async () => {
+    if (!user?.company_id) return;
+    setEscrowHoldersLoading(true);
+    try {
+      const res = await apiFetch(`/escrow-holders?company_id=${user.company_id}`);
+      if (res.ok) { const data = await res.json(); setEscrowHolders(Array.isArray(data) ? data : []); }
+    } catch (e) { console.warn('Fetch escrow holders:', e); }
+    setEscrowHoldersLoading(false);
+  };
+
+  const addEscrowHolder = async () => {
+    const name = newEscrowHolderName.trim();
+    if (!name || !user?.company_id) return;
+    try {
+      const res = await apiFetch('/escrow-holders', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, company_id: user.company_id }),
+      });
+      if (res.ok) { setNewEscrowHolderName(''); fetchEscrowHolders(); }
+    } catch (e) { console.warn('Add escrow holder:', e); }
+  };
+
+  const deleteEscrowHolder = async (hid) => {
+    try {
+      const res = await apiFetch(`/escrow-holders/${hid}`, { method: 'DELETE' });
+      if (res.ok) fetchEscrowHolders();
+    } catch (e) { console.warn('Delete escrow holder:', e); }
   };
 
   const fetchCompanyBuilders = async () => {
@@ -4682,6 +4715,80 @@ export default function Dashboard() {
         </Modal>
       )}
 
+      {/* Escrow Holder Manager Modal */}
+      {showEscrowHolderManager && (
+        <Modal visible animationType="fade" transparent>
+          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }}>
+            <View style={{ width: isWide ? 500 : '92%', maxHeight: '80%', backgroundColor: C.bg, borderRadius: 16, overflow: 'hidden' }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 18, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: C.bd }}>
+                <Text style={{ fontSize: 20, fontWeight: '700', color: C.textBold }}>Manage Escrow Holders</Text>
+                <TouchableOpacity onPress={() => setShowEscrowHolderManager(false)} activeOpacity={0.7}>
+                  <Text style={{ fontSize: 28, color: C.dm, fontWeight: '300' }}>×</Text>
+                </TouchableOpacity>
+              </View>
+              <View style={{ paddingHorizontal: 18, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: C.bd }}>
+                <Text style={{ fontSize: 13, color: C.dm }}>
+                  Add escrow holders that can be assigned to project escrows.
+                </Text>
+              </View>
+              {/* Add new holder */}
+              <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 18, paddingVertical: 12, gap: 10, borderBottomWidth: 1, borderBottomColor: C.bd }}>
+                <TextInput
+                  value={newEscrowHolderName}
+                  onChangeText={setNewEscrowHolderName}
+                  placeholder="New escrow holder name..."
+                  placeholderTextColor={C.dm}
+                  style={{ flex: 1, backgroundColor: C.inputBg || C.w04, borderWidth: 1, borderColor: C.w12 || C.bd, borderRadius: 8, padding: 10, fontSize: 15, color: C.text }}
+                />
+                <TouchableOpacity
+                  onPress={addEscrowHolder}
+                  disabled={!newEscrowHolderName.trim()}
+                  style={{ backgroundColor: C.gd, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 8, opacity: newEscrowHolderName.trim() ? 1 : 0.4 }}
+                  activeOpacity={0.7}
+                >
+                  <Text style={{ fontSize: 15, fontWeight: '700', color: '#fff' }}>Add</Text>
+                </TouchableOpacity>
+              </View>
+              <ScrollView style={{ maxHeight: 400 }} contentContainerStyle={{ paddingVertical: 4 }}>
+                {escrowHoldersLoading ? (
+                  <ActivityIndicator color={C.gd} style={{ marginVertical: 30 }} />
+                ) : escrowHolders.length === 0 ? (
+                  <View style={{ padding: 24, alignItems: 'center' }}>
+                    <Text style={{ fontSize: 16, color: C.dm }}>No escrow holders yet</Text>
+                  </View>
+                ) : (
+                  escrowHolders.map((h, idx) => (
+                    <View key={h.id} style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 18, paddingVertical: 14,
+                      borderBottomWidth: idx < escrowHolders.length - 1 ? 1 : 0, borderBottomColor: C.w04 }}>
+                      <View style={{
+                        width: 38, height: 38, borderRadius: 19,
+                        backgroundColor: C.gd + '20',
+                        alignItems: 'center', justifyContent: 'center', marginRight: 12,
+                      }}>
+                        <Feather name="shield" size={18} color={C.gd} />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 17, fontWeight: '600', color: C.textBold }}>{h.name}</Text>
+                      </View>
+                      <TouchableOpacity
+                        onPress={() => {
+                          if (Platform.OS === 'web') { if (confirm(`Delete "${h.name}"?`)) deleteEscrowHolder(h.id); }
+                          else Alert.alert('Delete Holder', `Delete "${h.name}"?`, [{ text: 'Cancel' }, { text: 'Delete', style: 'destructive', onPress: () => deleteEscrowHolder(h.id) }]);
+                        }}
+                        style={{ padding: 6 }}
+                        activeOpacity={0.7}
+                      >
+                        <Feather name="trash-2" size={18} color="#ef4444" />
+                      </TouchableOpacity>
+                    </View>
+                  ))
+                )}
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
+      )}
+
       {/* Builder Calendar Modal */}
       {showBuilderCal && (
         <Modal visible animationType="fade" transparent>
@@ -5190,6 +5297,14 @@ export default function Dashboard() {
                   >
                     <Feather name="users" size={20} color={C.text} />
                     <Text style={st.settingsItemTxt}>Manage Subcontractor Templates</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => { setShowSettings(false); fetchEscrowHolders(); setShowEscrowHolderManager(true); }}
+                    style={st.settingsItem}
+                    activeOpacity={0.7}
+                  >
+                    <Feather name="shield" size={20} color={C.text} />
+                    <Text style={st.settingsItemTxt}>Manage Escrow</Text>
                   </TouchableOpacity>
                   {user?.role === 'company_admin' && (
                     <TouchableOpacity

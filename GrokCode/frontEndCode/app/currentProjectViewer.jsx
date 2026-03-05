@@ -754,10 +754,11 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
   const tabs = isB
     ? [
         { id: 'schedule', label: 'Schedule', subs: scheduleSubs },
-        { id: 'info', label: 'Info', subs: ['jobinfo', 'price', 'specifications', 'assignments'] },
+        { id: 'info', label: 'Info', subs: ['jobinfo', 'price', 'specifications'] },
         { id: 'changeorders', label: 'Change Orders', subs: ['co', 'allowances'] },
         { id: 'selections', label: 'Selections' },
         { id: 'docs', label: 'Docs', subs: ['documents', 'photos', 'videos'] },
+        { id: 'more', label: 'More', subs: ['assignments', 'escrow'] },
       ]
     : isC
     ? [
@@ -784,6 +785,7 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
     calendar: 'Calendar', baseline: 'Baseline', progress: 'Job Progress',
     co: 'Change Orders', allowances: 'Allowances', selections: 'Selections',
     documents: 'Documents', photos: 'Photos', videos: 'Videos',
+    escrow: 'Escrow',
   };
 
   // Calendar sub-view: Gantt vs List
@@ -1746,8 +1748,8 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
       );
     }
 
-    // --- INFO: ASSIGNMENTS ---
-    if (tab === 'info' && sub === 'assignments') {
+    // --- MORE: ASSIGNMENTS ---
+    if (tab === 'more' && sub === 'assignments') {
       // Build trade→tasks mapping from schedule data
       const tradeMap = {};
       schedule.forEach(task => {
@@ -2059,6 +2061,21 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
             </View>
           )}
         </ScrollView>
+      );
+    }
+
+    // --- MORE: ESCROW ---
+    if (tab === 'more' && sub === 'escrow') {
+      return (
+        <EscrowSubTab
+          project={project}
+          user={user}
+          C={C}
+          s={s}
+          api={api}
+          apiFetch={apiFetch}
+          API_BASE={API_BASE}
+        />
       );
     }
 
@@ -4788,6 +4805,242 @@ ${sectionsHtml}
         </Modal>
       )}
     </View>
+  );
+};
+
+// ============================================================
+// ESCROW SUB-TAB COMPONENT
+// ============================================================
+
+const EscrowSubTab = ({ project, user, C, s, api, apiFetch, API_BASE }) => {
+  const [escrows, setEscrows] = useState([]);
+  const [holders, setHolders] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showAdd, setShowAdd] = useState(false);
+  const [newTitle, setNewTitle] = useState('');
+  const [newAmount, setNewAmount] = useState('');
+  const [newHolderId, setNewHolderId] = useState(null);
+  const [showHolderPicker, setShowHolderPicker] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const fetchEscrows = useCallback(async () => {
+    if (!project?.id) return;
+    try {
+      const res = await apiFetch(`/projects/${project.id}/escrows`);
+      const data = await res.json();
+      if (Array.isArray(data)) setEscrows(data);
+    } catch (e) { console.warn('fetch escrows error:', e); }
+  }, [project?.id]);
+
+  const fetchHolders = useCallback(async () => {
+    if (!user?.company_id) return;
+    try {
+      const res = await apiFetch(`/escrow-holders?company_id=${user.company_id}`);
+      const data = await res.json();
+      if (Array.isArray(data)) setHolders(data);
+    } catch (e) { console.warn('fetch holders error:', e); }
+  }, [user?.company_id]);
+
+  useEffect(() => {
+    Promise.all([fetchEscrows(), fetchHolders()]).then(() => setLoading(false));
+  }, [fetchEscrows, fetchHolders]);
+
+  const handleAdd = async () => {
+    if (!newTitle.trim()) return;
+    setSaving(true);
+    try {
+      const res = await apiFetch(`/projects/${project.id}/escrows`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: newTitle.trim(),
+          amount: parseFloat(newAmount) || 0,
+          escrow_holder_id: newHolderId,
+          company_id: user?.company_id,
+        }),
+      });
+      if (res.ok) {
+        await fetchEscrows();
+        setNewTitle('');
+        setNewAmount('');
+        setNewHolderId(null);
+        setShowAdd(false);
+      }
+    } catch (e) { console.warn('create escrow error:', e); }
+    setSaving(false);
+  };
+
+  const toggleCompleted = async (escrow) => {
+    try {
+      const res = await apiFetch(`/escrows/${escrow.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ completed: !escrow.completed }),
+      });
+      if (res.ok) fetchEscrows();
+    } catch (e) { console.warn('toggle escrow error:', e); }
+  };
+
+  const deleteEscrow = async (eid) => {
+    try {
+      const res = await apiFetch(`/escrows/${eid}`, { method: 'DELETE' });
+      if (res.ok) fetchEscrows();
+    } catch (e) { console.warn('delete escrow error:', e); }
+  };
+
+  const selectedHolder = holders.find(h => h.id === newHolderId);
+
+  if (loading) return <ActivityIndicator color={C.gd} style={{ marginTop: 40 }} />;
+
+  return (
+    <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
+      {/* Header with + button */}
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+        <Text style={{ fontSize: 22, fontWeight: '700', color: C.textBold }}>Escrow</Text>
+        <TouchableOpacity
+          onPress={() => setShowAdd(true)}
+          style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: C.gd, alignItems: 'center', justifyContent: 'center' }}
+          activeOpacity={0.7}
+        >
+          <Feather name="plus" size={20} color="#fff" />
+        </TouchableOpacity>
+      </View>
+
+      {/* Add Escrow Modal */}
+      {showAdd && (
+        <Modal visible animationType="fade" transparent>
+          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+            <View style={{
+              backgroundColor: C.modalBg, borderRadius: 16, width: '90%', maxWidth: 460,
+              borderWidth: 1, borderColor: C.w10,
+              ...(Platform.OS === 'web' ? { boxShadow: '0 20px 60px rgba(0,0,0,0.4)' } : { elevation: 20 }),
+            }}>
+              <View style={{ padding: 20, borderBottomWidth: 1, borderBottomColor: C.w06, flexDirection: 'row', alignItems: 'center' }}>
+                <Text style={{ flex: 1, fontSize: 22, fontWeight: '700', color: C.textBold }}>New Escrow</Text>
+                <TouchableOpacity onPress={() => setShowAdd(false)} style={{ padding: 6 }}>
+                  <Feather name="x" size={22} color={C.dm} />
+                </TouchableOpacity>
+              </View>
+              <View style={{ padding: 20, gap: 14 }}>
+                <View>
+                  <Text style={{ fontSize: 14, fontWeight: '600', color: C.dm, marginBottom: 4 }}>Title</Text>
+                  <TextInput
+                    value={newTitle}
+                    onChangeText={setNewTitle}
+                    placeholder="Escrow title"
+                    placeholderTextColor={C.dm}
+                    style={{ backgroundColor: C.inputBg, borderWidth: 1, borderColor: C.w12, borderRadius: 8, padding: 12, fontSize: 16, color: C.text }}
+                  />
+                </View>
+                <View>
+                  <Text style={{ fontSize: 14, fontWeight: '600', color: C.dm, marginBottom: 4 }}>Amount</Text>
+                  <TextInput
+                    value={newAmount}
+                    onChangeText={setNewAmount}
+                    placeholder="0.00"
+                    placeholderTextColor={C.dm}
+                    keyboardType="decimal-pad"
+                    style={{ backgroundColor: C.inputBg, borderWidth: 1, borderColor: C.w12, borderRadius: 8, padding: 12, fontSize: 16, color: C.text }}
+                  />
+                </View>
+                <View>
+                  <Text style={{ fontSize: 14, fontWeight: '600', color: C.dm, marginBottom: 4 }}>Escrow Holder</Text>
+                  <TouchableOpacity
+                    onPress={() => setShowHolderPicker(p => !p)}
+                    style={{ backgroundColor: C.inputBg, borderWidth: 1, borderColor: C.w12, borderRadius: 8, padding: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={{ fontSize: 16, color: selectedHolder ? C.text : C.dm }}>
+                      {selectedHolder ? selectedHolder.name : 'Select holder...'}
+                    </Text>
+                    <Feather name="chevron-down" size={18} color={C.dm} />
+                  </TouchableOpacity>
+                  {showHolderPicker && (
+                    <View style={{ marginTop: 4, borderRadius: 8, borderWidth: 1, borderColor: C.w12, overflow: 'hidden', maxHeight: 180, backgroundColor: C.card }}>
+                      <ScrollView nestedScrollEnabled keyboardShouldPersistTaps="handled">
+                        <TouchableOpacity
+                          onPress={() => { setNewHolderId(null); setShowHolderPicker(false); }}
+                          style={{ paddingVertical: 10, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: C.w04 }}
+                          activeOpacity={0.7}
+                        >
+                          <Text style={{ fontSize: 15, color: C.dm, fontStyle: 'italic' }}>None</Text>
+                        </TouchableOpacity>
+                        {holders.map(h => (
+                          <TouchableOpacity
+                            key={h.id}
+                            onPress={() => { setNewHolderId(h.id); setShowHolderPicker(false); }}
+                            style={{ paddingVertical: 10, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: C.w04, backgroundColor: newHolderId === h.id ? C.gd + '15' : 'transparent' }}
+                            activeOpacity={0.7}
+                          >
+                            <Text style={{ fontSize: 15, fontWeight: newHolderId === h.id ? '700' : '500', color: newHolderId === h.id ? C.gd : C.text }}>{h.name}</Text>
+                          </TouchableOpacity>
+                        ))}
+                        {holders.length === 0 && (
+                          <View style={{ padding: 14, alignItems: 'center' }}>
+                            <Text style={{ fontSize: 14, color: C.dm }}>No holders — add them in Settings → Manage Escrow</Text>
+                          </View>
+                        )}
+                      </ScrollView>
+                    </View>
+                  )}
+                </View>
+                <TouchableOpacity
+                  onPress={handleAdd}
+                  disabled={saving || !newTitle.trim()}
+                  style={{ backgroundColor: C.gd, paddingVertical: 14, borderRadius: 10, alignItems: 'center', opacity: saving || !newTitle.trim() ? 0.5 : 1 }}
+                  activeOpacity={0.8}
+                >
+                  <Text style={{ fontSize: 18, fontWeight: '700', color: '#fff' }}>{saving ? 'Saving...' : 'Add Escrow'}</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+      )}
+
+      {/* Escrow list */}
+      {escrows.length === 0 ? (
+        <View style={{ alignItems: 'center', paddingVertical: 40 }}>
+          <Feather name="shield" size={40} color={C.dm} style={{ marginBottom: 10 }} />
+          <Text style={{ fontSize: 18, fontWeight: '600', color: C.text }}>No Escrows</Text>
+          <Text style={{ fontSize: 14, color: C.dm, marginTop: 4, textAlign: 'center' }}>
+            Tap the + button to add an escrow item.
+          </Text>
+        </View>
+      ) : (
+        escrows.map(esc => (
+          <View key={esc.id} style={{
+            marginBottom: 10, padding: 14, backgroundColor: C.card, borderRadius: 10,
+            borderWidth: 1, borderColor: esc.completed ? (C.gn || '#10b981') + '40' : C.w08,
+          }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+              <TouchableOpacity onPress={() => toggleCompleted(esc)} activeOpacity={0.7}>
+                <Feather name={esc.completed ? 'check-circle' : 'circle'} size={22} color={esc.completed ? (C.gn || '#10b981') : C.dm} />
+              </TouchableOpacity>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 17, fontWeight: '700', color: C.textBold, textDecorationLine: esc.completed ? 'line-through' : 'none' }}>{esc.title}</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 4 }}>
+                  <Text style={{ fontSize: 15, fontWeight: '600', color: C.gd }}>{f$(esc.amount)}</Text>
+                  {esc.escrow_holder_name ? (
+                    <Text style={{ fontSize: 13, color: C.dm }}>Holder: {esc.escrow_holder_name}</Text>
+                  ) : null}
+                </View>
+              </View>
+              <TouchableOpacity
+                onPress={() => {
+                  if (Platform.OS === 'web') { if (confirm('Delete this escrow?')) deleteEscrow(esc.id); }
+                  else Alert.alert('Delete Escrow', 'Are you sure?', [{ text: 'Cancel' }, { text: 'Delete', style: 'destructive', onPress: () => deleteEscrow(esc.id) }]);
+                }}
+                style={{ padding: 6 }}
+                activeOpacity={0.7}
+              >
+                <Feather name="trash-2" size={18} color="#ef4444" />
+              </TouchableOpacity>
+            </View>
+          </View>
+        ))
+      )}
+    </ScrollView>
   );
 };
 

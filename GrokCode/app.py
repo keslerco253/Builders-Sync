@@ -975,6 +975,38 @@ class DocumentTemplate(db.Model):
         }
 
 
+class EscrowHolder(db.Model):
+    __tablename__ = 'escrow_holder'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(200), nullable=False)
+    company_id = db.Column(db.Integer, db.ForeignKey('company.id'), nullable=False)
+
+    def to_dict(self):
+        return {'id': self.id, 'name': self.name, 'company_id': self.company_id}
+
+
+class Escrow(db.Model):
+    __tablename__ = 'escrow'
+    id = db.Column(db.Integer, primary_key=True)
+    job_id = db.Column(db.Integer, db.ForeignKey('projects.id'), nullable=False)
+    title = db.Column(db.String(255), nullable=False)
+    amount = db.Column(db.Float, default=0)
+    escrow_holder_id = db.Column(db.Integer, db.ForeignKey('escrow_holder.id'), nullable=True)
+    completed = db.Column(db.Boolean, default=False)
+    company_id = db.Column(db.Integer, db.ForeignKey('company.id'), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def to_dict(self):
+        holder = EscrowHolder.query.get(self.escrow_holder_id) if self.escrow_holder_id else None
+        return {
+            'id': self.id, 'job_id': self.job_id, 'title': self.title,
+            'amount': self.amount, 'escrow_holder_id': self.escrow_holder_id,
+            'escrow_holder_name': holder.name if holder else '',
+            'completed': self.completed, 'company_id': self.company_id,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+        }
+
+
 # ============================================================
 # DATE HELPER FUNCTIONS (for server-side cascade)
 # ============================================================
@@ -5102,6 +5134,104 @@ def create_document_template():
 def delete_document_template(tid):
     t = DocumentTemplate.query.get_or_404(tid)
     db.session.delete(t)
+    db.session.commit()
+    return jsonify({'ok': True})
+
+
+# ============================================================
+# ESCROW HOLDER ROUTES
+# ============================================================
+
+@app.route('/escrow-holders', methods=['GET'])
+def list_escrow_holders():
+    cid = request.args.get('company_id', type=int)
+    if not cid:
+        return jsonify([])
+    holders = EscrowHolder.query.filter_by(company_id=cid).order_by(EscrowHolder.name).all()
+    return jsonify([h.to_dict() for h in holders])
+
+
+@app.route('/escrow-holders', methods=['POST'])
+def create_escrow_holder():
+    data = request.get_json() or {}
+    name = (data.get('name') or '').strip()
+    cid = data.get('company_id')
+    if not name or not cid:
+        return jsonify({'error': 'name and company_id required'}), 400
+    h = EscrowHolder(name=name, company_id=cid)
+    db.session.add(h)
+    db.session.commit()
+    return jsonify(h.to_dict()), 201
+
+
+@app.route('/escrow-holders/<int:hid>', methods=['PUT'])
+def update_escrow_holder(hid):
+    h = EscrowHolder.query.get_or_404(hid)
+    data = request.get_json() or {}
+    name = (data.get('name') or '').strip()
+    if name:
+        h.name = name
+    db.session.commit()
+    return jsonify(h.to_dict())
+
+
+@app.route('/escrow-holders/<int:hid>', methods=['DELETE'])
+def delete_escrow_holder(hid):
+    h = EscrowHolder.query.get_or_404(hid)
+    db.session.delete(h)
+    db.session.commit()
+    return jsonify({'ok': True})
+
+
+# ============================================================
+# ESCROW ROUTES
+# ============================================================
+
+@app.route('/projects/<int:pid>/escrows', methods=['GET'])
+def list_escrows(pid):
+    escrows = Escrow.query.filter_by(job_id=pid).order_by(Escrow.created_at.desc()).all()
+    return jsonify([e.to_dict() for e in escrows])
+
+
+@app.route('/projects/<int:pid>/escrows', methods=['POST'])
+def create_escrow(pid):
+    data = request.get_json() or {}
+    title = (data.get('title') or '').strip()
+    if not title:
+        return jsonify({'error': 'title required'}), 400
+    e = Escrow(
+        job_id=pid,
+        title=title,
+        amount=data.get('amount', 0),
+        escrow_holder_id=data.get('escrow_holder_id'),
+        completed=False,
+        company_id=data.get('company_id', 0),
+    )
+    db.session.add(e)
+    db.session.commit()
+    return jsonify(e.to_dict()), 201
+
+
+@app.route('/escrows/<int:eid>', methods=['PUT'])
+def update_escrow(eid):
+    e = Escrow.query.get_or_404(eid)
+    data = request.get_json() or {}
+    if 'title' in data:
+        e.title = (data['title'] or '').strip()
+    if 'amount' in data:
+        e.amount = data['amount']
+    if 'escrow_holder_id' in data:
+        e.escrow_holder_id = data['escrow_holder_id']
+    if 'completed' in data:
+        e.completed = bool(data['completed'])
+    db.session.commit()
+    return jsonify(e.to_dict())
+
+
+@app.route('/escrows/<int:eid>', methods=['DELETE'])
+def delete_escrow(eid):
+    e = Escrow.query.get_or_404(eid)
+    db.session.delete(e)
     db.session.commit()
     return jsonify({'ok': True})
 
