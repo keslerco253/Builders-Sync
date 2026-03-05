@@ -323,6 +323,9 @@ export default function Dashboard() {
   const [pendingTaskEdit, setPendingTaskEdit] = useState(null); // task object to open in project viewer edit modal
   const [taskActionDate, setTaskActionDate] = useState('');
   const [taskActionSaving, setTaskActionSaving] = useState(false);
+  const [subProjectPopup, setSubProjectPopup] = useState(null); // { project, tab, sub, taskEdit }
+  const [subPopupTab, setSubPopupTab] = useState('schedule');
+  const [subPopupSub, setSubPopupSub] = useState('calendar');
   const [subTaskFilter, setSubTaskFilter] = useState(null); // task name string or null
   const [subTaskFilterOpen, setSubTaskFilterOpen] = useState(false);
   const [subChangeOrders, setSubChangeOrders] = useState([]);
@@ -1871,10 +1874,9 @@ export default function Dashboard() {
   const closeTaskActionPopup = () => { setTaskActionPopup(null); setTaskActionDate(''); setTaskActionSaving(false); };
   const taskActionNav = (proj, tab, sub) => {
     closeTaskActionPopup();
-    if (isContractor) { setContractorProject(proj); setSubTab('projects'); }
-    else { setDashView('projects'); setSelectedProject(proj); }
-    if (tab) setActiveTab(tab);
-    if (sub) setActiveSub(sub);
+    setSubProjectPopup({ project: proj });
+    setSubPopupTab(tab || 'schedule');
+    setSubPopupSub(sub || 'calendar');
   };
   const handleMoveTaskDate = async () => {
     if (!taskActionPopup || !taskActionDate) return;
@@ -3157,12 +3159,7 @@ export default function Dashboard() {
                               onContextMenu: (e) => {
                                 e.preventDefault(); e.stopPropagation();
                                 const proj = projects.find(pr => pr.id === task.job_id);
-                                if (proj) {
-                                  setPendingTaskEdit(task);
-                                  if (isContractor) { setContractorProject(proj); setSubTab('projects'); }
-                                  else { setDashView('projects'); setSelectedProject(proj); }
-                                  setActiveTab('schedule'); setActiveSub('calendar');
-                                }
+                                if (proj) { setTaskActionPopup({ task, project: proj }); setTaskActionDate(''); }
                               },
                             } : {})}
                           >
@@ -3244,12 +3241,7 @@ export default function Dashboard() {
                                   onContextMenu: (e) => {
                                     e.preventDefault(); e.stopPropagation();
                                     const proj = projects.find(pr => pr.id === task.job_id);
-                                    if (proj) {
-                                      setPendingTaskEdit(task);
-                                      if (isContractor) { setContractorProject(proj); setSubTab('projects'); }
-                                      else { setDashView('projects'); setSelectedProject(proj); }
-                                      setActiveTab('schedule'); setActiveSub('calendar');
-                                    }
+                                    if (proj) { setTaskActionPopup({ task, project: proj }); setTaskActionDate(''); }
                                   },
                                 } : {})}
                               >
@@ -3435,6 +3427,49 @@ export default function Dashboard() {
                       </TouchableOpacity>
                     </View>
                   )}
+                </View>
+              </View>
+            )}
+
+            {/* Sub Project Popup Modal */}
+            {subProjectPopup && (
+              <View style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 1050, alignItems: 'center', justifyContent: 'center' }}>
+                <TouchableOpacity style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)' }} activeOpacity={1} onPress={() => setSubProjectPopup(null)} />
+                <View style={{ width: '90%', maxWidth: 1100, height: '90%', zIndex: 1051, backgroundColor: C.modalBg, borderRadius: 12, borderWidth: 1, borderColor: C.w12, overflow: 'hidden',
+                  ...(Platform.OS === 'web' ? { boxShadow: '0 12px 40px rgba(0,0,0,0.3)' } : { elevation: 20 }) }}>
+                  {/* Close button */}
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: C.w08, backgroundColor: C.w03 }}>
+                    <Text style={{ fontSize: 21, fontWeight: '700', color: C.textBold }} numberOfLines={1}>{subProjectPopup.project.name}</Text>
+                    <TouchableOpacity onPress={() => setSubProjectPopup(null)} style={{ width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center', backgroundColor: C.w06 }}>
+                      <Text style={{ fontSize: 27, color: C.mt, marginTop: -1 }}>×</Text>
+                    </TouchableOpacity>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <CurrentProjectViewer
+                      embedded
+                      project={subProjectPopup.project}
+                      clientView={isContractor}
+                      activeTab={subPopupTab}
+                      activeSub={subPopupSub}
+                      onTabChange={setSubPopupTab}
+                      onSubChange={setSubPopupSub}
+                      onProjectUpdate={(updatedFields) => {
+                        const updated = { ...subProjectPopup.project, ...updatedFields };
+                        setSubProjectPopup(prev => prev ? { ...prev, project: updated } : null);
+                        setProjects(prev => prev.map(p => p.id === updated.id ? { ...p, ...updatedFields } : p));
+                      }}
+                      onProjectDeleted={() => { setSubProjectPopup(null); }}
+                      scheduleVersion={scheduleVersion}
+                      onScheduleChange={handleScheduleChange}
+                      syncRef={syncRef}
+                      subdivisions={subdivisions}
+                      builderTrades={builderTrades}
+                      floorPlans={floorPlans}
+                      calYear={globalCalMonth.getFullYear()}
+                      calMonth={globalCalMonth.getMonth()}
+                      onMonthChange={(y, m) => setGlobalCalMonth(new Date(y, m, 1))}
+                    />
+                  </View>
                 </View>
               </View>
             )}
