@@ -7287,7 +7287,8 @@ const SelectionManagerModal = ({ onClose, builderTrades = [] }) => {
   const [trade, setTrade] = useState('');
   const [itemName, setItemName] = useState('');
   const [allowMultiple, setAllowMultiple] = useState(false);
-  const [options, setOptions] = useState([{ name: '', description: '', image_b64: '', image_path: '', price: '', comes_standard: false, price_tbd: false }]);
+  const [hasNested, setHasNested] = useState(false);
+  const [options, setOptions] = useState([{ name: '', description: '', image_b64: '', image_path: '', price: '', comes_standard: false, price_tbd: false, nested_options: [] }]);
   const [saving, setSaving] = useState(false);
   const [editingId, setEditingId] = useState(null);
 
@@ -7386,7 +7387,7 @@ const SelectionManagerModal = ({ onClose, builderTrades = [] }) => {
     return '';
   };
 
-  const addOption = () => setOptions(prev => [...prev, { name: '', description: '', image_b64: '', image_path: '', price: '', comes_standard: false, price_tbd: false }]);
+  const addOption = () => setOptions(prev => [...prev, { name: '', description: '', image_b64: '', image_path: '', price: '', comes_standard: false, price_tbd: false, nested_options: [] }]);
   const removeOption = (idx) => setOptions(prev => prev.filter((_, i) => i !== idx));
   const updateOption = (idx, field, val) => {
     setOptions(prev => prev.map((o, i) => {
@@ -7398,9 +7399,44 @@ const SelectionManagerModal = ({ onClose, builderTrades = [] }) => {
     }));
   };
 
+  // Nested option helpers
+  const emptyNestedOpt = { name: '', description: '', image_b64: '', image_path: '', price: '', comes_standard: false, price_tbd: false };
+  const addNestedOption = (optIdx) => setOptions(prev => prev.map((o, i) => i === optIdx ? { ...o, nested_options: [...(o.nested_options || []), { ...emptyNestedOpt }] } : o));
+  const removeNestedOption = (optIdx, nIdx) => setOptions(prev => prev.map((o, i) => i === optIdx ? { ...o, nested_options: (o.nested_options || []).filter((_, ni) => ni !== nIdx) } : o));
+  const updateNestedOption = (optIdx, nIdx, field, val) => {
+    setOptions(prev => prev.map((o, i) => {
+      if (i !== optIdx) return o;
+      const nested = (o.nested_options || []).map((n, ni) => {
+        if (ni !== nIdx) return n;
+        const updated = { ...n, [field]: val };
+        if (field === 'comes_standard' && val) { updated.price = '0'; updated.price_tbd = false; }
+        if (field === 'price_tbd' && val) { updated.price = '0'; updated.comes_standard = false; }
+        return updated;
+      });
+      return { ...o, nested_options: nested };
+    }));
+  };
+  const pickNestedImage = (optIdx, nIdx) => {
+    if (Platform.OS !== 'web') return;
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.onchange = (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        updateNestedOption(optIdx, nIdx, 'image_b64', reader.result);
+        updateNestedOption(optIdx, nIdx, 'image_path', '');
+      };
+      reader.readAsDataURL(file);
+    };
+    input.click();
+  };
+
   const resetForm = () => {
-    setTrade(''); setItemName(''); setAllowMultiple(false);
-    setOptions([{ name: '', description: '', image_b64: '', image_path: '', price: '', comes_standard: false, price_tbd: false }]);
+    setTrade(''); setItemName(''); setAllowMultiple(false); setHasNested(false);
+    setOptions([{ name: '', description: '', image_b64: '', image_path: '', price: '', comes_standard: false, price_tbd: false, nested_options: [] }]);
     setEditingId(null);
   };
 
@@ -7417,15 +7453,35 @@ const SelectionManagerModal = ({ onClose, builderTrades = [] }) => {
         if (o.image_b64 && !o.image_path) {
           imgPath = await uploadImage(o.image_b64);
         }
-        cleanOptions.push({
+        const cleanOpt = {
           name: o.name, description: o.description || '',
           image_path: imgPath,
           price: (o.comes_standard || o.price_tbd) ? 0 : parseFloat(o.price) || 0,
           comes_standard: !!o.comes_standard,
           price_tbd: !!o.price_tbd,
-        });
+        };
+        // Process nested options if has_nested is enabled
+        if (hasNested && o.nested_options && o.nested_options.length > 0) {
+          const cleanNested = [];
+          for (const n of o.nested_options) {
+            if (!n.name) continue;
+            let nImgPath = n.image_path || '';
+            if (n.image_b64 && !n.image_path) {
+              nImgPath = await uploadImage(n.image_b64);
+            }
+            cleanNested.push({
+              name: n.name, description: n.description || '',
+              image_path: nImgPath,
+              price: (n.comes_standard || n.price_tbd) ? 0 : parseFloat(n.price) || 0,
+              comes_standard: !!n.comes_standard,
+              price_tbd: !!n.price_tbd,
+            });
+          }
+          if (cleanNested.length > 0) cleanOpt.nested_options = cleanNested;
+        }
+        cleanOptions.push(cleanOpt);
       }
-      const body = { category: trade, item: itemName, options: cleanOptions, user_id: user.id, allow_multiple: allowMultiple };
+      const body = { category: trade, item: itemName, options: cleanOptions, user_id: user.id, allow_multiple: allowMultiple, has_nested: hasNested };
       const path = editingId ? `/selection-items/${editingId}` : `/selection-items`;
       const method = editingId ? 'PUT' : 'POST';
       const res = await apiFetch(path, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
@@ -7453,9 +7509,14 @@ const SelectionManagerModal = ({ onClose, builderTrades = [] }) => {
     setTrade(item.category || '');
     setItemName(item.item);
     setAllowMultiple(!!item.allow_multiple);
+    setHasNested(!!item.has_nested);
     setOptions((item.options || []).map(o => ({
       name: o.name || '', description: o.description || '', image_b64: '', image_path: o.image_path || '',
       price: String(o.price || ''), comes_standard: !!o.comes_standard, price_tbd: !!o.price_tbd,
+      nested_options: (o.nested_options || []).map(n => ({
+        name: n.name || '', description: n.description || '', image_b64: '', image_path: n.image_path || '',
+        price: String(n.price || ''), comes_standard: !!n.comes_standard, price_tbd: !!n.price_tbd,
+      })),
     })));
     setView('create');
   };
@@ -7620,6 +7681,20 @@ const SelectionManagerModal = ({ onClose, builderTrades = [] }) => {
                 </TouchableOpacity>
               </View>
 
+              {/* Has Nested Options */}
+              <TouchableOpacity onPress={() => setHasNested(!hasNested)}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 14 }} activeOpacity={0.7}>
+                <View style={{
+                  width: 28, height: 28, borderRadius: 7, borderWidth: 2,
+                  borderColor: hasNested ? '#f59e0b' : C.w15,
+                  backgroundColor: hasNested ? '#f59e0b' : 'transparent',
+                  alignItems: 'center', justifyContent: 'center',
+                }}>
+                  {hasNested && <Feather name="check" size={16} color="#fff" />}
+                </View>
+                <Text style={{ fontSize: 18, color: C.text }}>Has Nested Options</Text>
+              </TouchableOpacity>
+
               {/* Options */}
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
                 <Text style={st.formLbl}>OPTIONS</Text>
@@ -7698,6 +7773,78 @@ const SelectionManagerModal = ({ onClose, builderTrades = [] }) => {
 
                   {!opt.comes_standard && !opt.price_tbd && (
                     <Inp2 label="UPGRADE PRICE ($)" value={opt.price} onChange={v => updateOption(idx, 'price', v)} type="number" placeholder="0" />
+                  )}
+
+                  {/* Nested Options */}
+                  {hasNested && (
+                    <View style={{ marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: C.w10 }}>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                        <Text style={{ fontSize: 16, fontWeight: '700', color: '#f59e0b', letterSpacing: 0.5 }}>NESTED OPTIONS</Text>
+                        <TouchableOpacity onPress={() => addNestedOption(idx)} activeOpacity={0.7}>
+                          <Text style={{ fontSize: 16, fontWeight: '600', color: '#f59e0b' }}>+ Add</Text>
+                        </TouchableOpacity>
+                      </View>
+                      {(opt.nested_options || []).map((nOpt, nIdx) => (
+                        <View key={nIdx} style={{
+                          backgroundColor: C.mode === 'dark' ? 'rgba(245,158,11,0.06)' : 'rgba(245,158,11,0.04)',
+                          borderWidth: 1, borderColor: 'rgba(245,158,11,0.2)', borderRadius: 8,
+                          padding: 12, marginBottom: 10,
+                        }}>
+                          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                            <Text style={{ fontSize: 16, fontWeight: '600', color: '#f59e0b' }}>Nested {nIdx + 1}</Text>
+                            <TouchableOpacity onPress={() => removeNestedOption(idx, nIdx)}>
+                              <Text style={{ fontSize: 16, color: C.rd }}>Remove</Text>
+                            </TouchableOpacity>
+                          </View>
+                          <Inp2 label="NAME" value={nOpt.name} onChange={v => updateNestedOption(idx, nIdx, 'name', v)} placeholder="e.g., Arctic White" />
+                          <Inp2 label="DESCRIPTION" value={nOpt.description} onChange={v => updateNestedOption(idx, nIdx, 'description', v)} placeholder="Description" />
+                          <Text style={st.formLbl}>IMAGE</Text>
+                          {nOpt.image_b64 || nOpt.image_path ? (
+                            <TouchableOpacity onPress={() => pickNestedImage(idx, nIdx)} activeOpacity={0.7}
+                              style={{ height: 80, borderRadius: 8, borderWidth: 1, borderColor: C.w10, backgroundColor: C.w03, marginBottom: 10, overflow: 'hidden' }}>
+                              <Image source={{ uri: nOpt.image_b64 || `${API_BASE}${nOpt.image_path}` }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                            </TouchableOpacity>
+                          ) : (
+                            <TouchableOpacity onPress={() => pickNestedImage(idx, nIdx)} activeOpacity={0.7}
+                              style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: C.w10, alignItems: 'center', justifyContent: 'center', marginBottom: 10 }}>
+                              <Text style={{ fontSize: 20, color: C.text, fontWeight: '300' }}>+</Text>
+                            </TouchableOpacity>
+                          )}
+                          <TouchableOpacity onPress={() => updateNestedOption(idx, nIdx, 'comes_standard', !nOpt.comes_standard)}
+                            style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }} activeOpacity={0.7}>
+                            <View style={{
+                              width: 26, height: 26, borderRadius: 7, borderWidth: 2,
+                              borderColor: nOpt.comes_standard ? C.gd : C.w15,
+                              backgroundColor: nOpt.comes_standard ? C.gd : 'transparent',
+                              alignItems: 'center', justifyContent: 'center',
+                            }}>
+                              {nOpt.comes_standard && <Feather name="check" size={14} color="#fff" />}
+                            </View>
+                            <Text style={{ fontSize: 17, color: C.text }}>Comes Standard</Text>
+                          </TouchableOpacity>
+                          {!nOpt.comes_standard && (
+                            <TouchableOpacity onPress={() => updateNestedOption(idx, nIdx, 'price_tbd', !nOpt.price_tbd)}
+                              style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }} activeOpacity={0.7}>
+                              <View style={{
+                                width: 26, height: 26, borderRadius: 7, borderWidth: 2,
+                                borderColor: nOpt.price_tbd ? '#f59e0b' : C.w15,
+                                backgroundColor: nOpt.price_tbd ? '#f59e0b' : 'transparent',
+                                alignItems: 'center', justifyContent: 'center',
+                              }}>
+                                {nOpt.price_tbd && <Feather name="check" size={14} color="#fff" />}
+                              </View>
+                              <Text style={{ fontSize: 17, color: C.text }}>Price TBD</Text>
+                            </TouchableOpacity>
+                          )}
+                          {!nOpt.comes_standard && !nOpt.price_tbd && (
+                            <Inp2 label="UPGRADE PRICE ($)" value={nOpt.price} onChange={v => updateNestedOption(idx, nIdx, 'price', v)} type="number" placeholder="0" />
+                          )}
+                        </View>
+                      ))}
+                      {(opt.nested_options || []).length === 0 && (
+                        <Text style={{ fontSize: 14, color: C.dm, fontStyle: 'italic', marginBottom: 6 }}>No nested options yet. Tap "+ Add" to create one.</Text>
+                      )}
+                    </View>
                   )}
                 </View>
               ))}

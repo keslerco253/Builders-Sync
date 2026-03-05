@@ -469,15 +469,17 @@ class SelectionItem(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     category = db.Column(db.String(100), default='')
     item = db.Column(db.String(200), default='')
-    options = db.Column(db.Text, default='[]')  # JSON: [{name, image_path, price, comes_standard, price_tbd}]
+    options = db.Column(db.Text, default='[]')  # JSON: [{name, image_path, price, comes_standard, price_tbd, nested_options?}]
     company_id = db.Column(db.Integer, db.ForeignKey('company.id'), nullable=True)
     allow_multiple = db.Column(db.Boolean, default=False)
+    has_nested = db.Column(db.Boolean, default=False)
 
     def to_dict(self):
         return {
             'id': self.id, 'category': self.category, 'item': self.item,
             'options': json.loads(self.options) if self.options else [],
             'allow_multiple': bool(self.allow_multiple),
+            'has_nested': bool(self.has_nested),
         }
 
 
@@ -490,10 +492,11 @@ class ProjectSelection(db.Model):
     status = db.Column(db.String(30), default='pending')  # pending | confirmed
     price_override = db.Column(db.Float, nullable=True)  # builder sets this for Price TBD options
     customer_comment = db.Column(db.Text, nullable=True)  # customer note visible to builder
+    nested_selected = db.Column(db.Text, nullable=True)  # JSON: {"parentOptionName": "nestedChoice"}
 
     def to_dict(self):
         item = SelectionItem.query.get(self.selection_item_id)
-        d = item.to_dict() if item else {'id': self.selection_item_id, 'category': '', 'item': '', 'options': [], 'allow_multiple': False}
+        d = item.to_dict() if item else {'id': self.selection_item_id, 'category': '', 'item': '', 'options': [], 'allow_multiple': False, 'has_nested': False}
         d['project_selection_id'] = self.id
         d['job_id'] = self.job_id
         # Parse selected: try JSON array first, fall back to plain string
@@ -508,6 +511,14 @@ class ProjectSelection(db.Model):
         d['selection_item_id'] = self.selection_item_id
         d['price_override'] = self.price_override
         d['customer_comment'] = self.customer_comment
+        # Parse nested_selected JSON
+        ns = self.nested_selected
+        if ns:
+            try:
+                ns = json.loads(ns)
+            except (json.JSONDecodeError, ValueError):
+                ns = None
+        d['nested_selected'] = ns
         return d
 
 
@@ -3114,6 +3125,7 @@ def create_selection_item():
         item=data.get('item', ''),
         options=json.dumps(data.get('options', [])),
         allow_multiple=bool(data.get('allow_multiple', False)),
+        has_nested=bool(data.get('has_nested', False)),
     )
     user_id = data.get('user_id')
     if user_id:
@@ -3133,6 +3145,7 @@ def update_selection_item(sid):
     if 'item' in data: item.item = data['item']
     if 'options' in data: item.options = json.dumps(data['options'])
     if 'allow_multiple' in data: item.allow_multiple = bool(data['allow_multiple'])
+    if 'has_nested' in data: item.has_nested = bool(data['has_nested'])
     db.session.commit()
     return jsonify(item.to_dict())
 
@@ -3283,6 +3296,9 @@ def update_project_selection(psid):
             ps.selected = sel_val
         if ps.status not in ('confirmed', 'awaiting_price'):
             ps.status = 'selected' if ps.selected else 'pending'
+        # Clear nested selections when parent selection changes (unless explicitly provided)
+        if 'nested_selected' not in data:
+            ps.nested_selected = None
     if 'other_text' in data:
         # Customer chose "Other" — store the custom text, mark as awaiting_price
         ps.selected = data['other_text'] or ''
@@ -3290,6 +3306,9 @@ def update_project_selection(psid):
         ps.price_override = None  # reset any previous price
     if 'price_override' in data:
         ps.price_override = float(data['price_override']) if data['price_override'] is not None else None
+    if 'nested_selected' in data:
+        ns_val = data['nested_selected']
+        ps.nested_selected = json.dumps(ns_val) if ns_val is not None else None
     if 'customer_comment' in data:
         ps.customer_comment = data['customer_comment'] or None
     if data.get('confirm'):
@@ -3317,6 +3336,20 @@ def update_project_selection(psid):
                 if matching and matching[0].get('price_tbd'):
                     has_tbd = True
                     break
+            # Also check nested selected options for price_tbd
+            if not has_tbd and item.has_nested and ps.nested_selected:
+                try:
+                    ns_map = json.loads(ps.nested_selected) if isinstance(ps.nested_selected, str) else ps.nested_selected
+                except (json.JSONDecodeError, ValueError):
+                    ns_map = {}
+                if isinstance(ns_map, dict):
+                    for parent_name, nested_name in ns_map.items():
+                        parent_opt = next((o for o in opts if isinstance(o, dict) and o.get('name') == parent_name), None)
+                        if parent_opt and parent_opt.get('nested_options'):
+                            nested_match = next((n for n in parent_opt['nested_options'] if isinstance(n, dict) and n.get('name') == nested_name), None)
+                            if nested_match and nested_match.get('price_tbd'):
+                                has_tbd = True
+                                break
         if has_tbd and ps.price_override is None:
             ps.status = 'awaiting_price'
         else:
@@ -3329,6 +3362,7 @@ def update_project_selection(psid):
         ps.selected = None
         ps.status = 'pending'
         ps.price_override = None
+        ps.nested_selected = None
     db.session.commit()
     return jsonify(ps.to_dict())
 
