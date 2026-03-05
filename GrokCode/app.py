@@ -278,6 +278,7 @@ class Projects(db.Model):
     bid_lot_overhead = db.Column(db.Float, default=0)
     bid_commission = db.Column(db.Float, default=0)
     bid_price_to_quote = db.Column(db.Float, default=0)
+    bid_overhead_pct = db.Column(db.Float, default=8)
     date = db.Column(db.DateTime, default=datetime.utcnow)
 
     def to_dict(self):
@@ -337,6 +338,7 @@ class Projects(db.Model):
             'bid_lot_overhead': self.bid_lot_overhead or 0,
             'bid_commission': self.bid_commission or 0,
             'bid_price_to_quote': self.bid_price_to_quote or 0,
+            'bid_overhead_pct': self.bid_overhead_pct if self.bid_overhead_pct is not None else 8,
             'date': self.date.isoformat() if self.date else None,
         }
 
@@ -822,7 +824,7 @@ class BidLineItem(db.Model):
     __tablename__ = 'bid_line_item'
     id = db.Column(db.Integer, primary_key=True)
     category_id = db.Column(db.Integer, db.ForeignKey('bid_category.id'), nullable=False)
-    name = db.Column(db.String(255), nullable=False)
+    name = db.Column(db.String(255), default='')
     quantity = db.Column(db.Float, default=1)
     price_per_item = db.Column(db.Float, default=0)
     included = db.Column(db.Boolean, default=False)
@@ -883,6 +885,7 @@ class BidAllowanceCategory(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     job_id = db.Column(db.Integer, db.ForeignKey('projects.id'), nullable=False)
     name = db.Column(db.String(255), nullable=False)
+    description = db.Column(db.Text, default='')
     sort_order = db.Column(db.Integer, default=0)
     items = db.relationship('BidAllowanceItem', backref='allowance_category', cascade='all, delete-orphan', lazy=True)
 
@@ -891,6 +894,7 @@ class BidAllowanceCategory(db.Model):
         total = sum(i.get('price', 0) for i in item_list)
         return {
             'id': self.id, 'job_id': self.job_id, 'name': self.name,
+            'description': self.description or '',
             'sort_order': self.sort_order, 'items': item_list, 'total': total,
         }
 
@@ -899,7 +903,7 @@ class BidAllowanceItem(db.Model):
     __tablename__ = 'bid_allowance_item'
     id = db.Column(db.Integer, primary_key=True)
     category_id = db.Column(db.Integer, db.ForeignKey('bid_allowance_category.id'), nullable=False)
-    name = db.Column(db.String(255), nullable=False)
+    name = db.Column(db.String(255), default='')
     quantity = db.Column(db.Float, default=1)
     price_per = db.Column(db.Float, default=0)
 
@@ -4745,8 +4749,6 @@ def add_bid_line_item(cid):
         return jsonify({'error': 'Category not found'}), 404
     data = request.get_json()
     name = (data.get('name') or '').strip()
-    if not name:
-        return jsonify({'error': 'Name is required'}), 400
     li = BidLineItem(
         category_id=cid, name=name,
         quantity=float(data.get('quantity', 1) or 1),
@@ -5009,7 +5011,8 @@ def create_bid_allowance_category(pid):
     if not name:
         return jsonify({'error': 'Name is required'}), 400
     max_order = db.session.query(db.func.max(BidAllowanceCategory.sort_order)).filter_by(job_id=pid).scalar() or 0
-    cat = BidAllowanceCategory(job_id=pid, name=name, sort_order=max_order + 1)
+    description = (data.get('description') or '').strip()
+    cat = BidAllowanceCategory(job_id=pid, name=name, description=description, sort_order=max_order + 1)
     db.session.add(cat)
     db.session.commit()
     return jsonify(cat.to_dict()), 201
@@ -5023,6 +5026,8 @@ def update_bid_allowance_category(cid):
     data = request.get_json()
     if 'name' in data:
         cat.name = data['name']
+    if 'description' in data:
+        cat.description = data['description']
     if 'sort_order' in data:
         cat.sort_order = data['sort_order']
     db.session.commit()
@@ -5047,7 +5052,7 @@ def create_bid_allowance_item(cid):
     if not cat:
         return jsonify({'error': 'Category not found'}), 404
     data = request.get_json()
-    item = BidAllowanceItem(category_id=cid, name=data.get('name', 'New Item'), quantity=data.get('quantity', 1), price_per=data.get('price_per', 0))
+    item = BidAllowanceItem(category_id=cid, name=data.get('name', ''), quantity=data.get('quantity', 1), price_per=data.get('price_per', 0))
     db.session.add(item)
     db.session.commit()
     return jsonify(cat.to_dict()), 201
