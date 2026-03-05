@@ -324,6 +324,16 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
   const [showPmPicker, setShowPmPicker] = useState(false);
   const [showSuperPicker, setShowSuperPicker] = useState(false);
 
+  // Subdivision contractor assignments (trade -> contractor)
+  const [subdivContractors, setSubdivContractors] = useState([]);
+  useEffect(() => {
+    const sid = project?.subdivision_id;
+    if (!sid) { setSubdivContractors([]); return; }
+    apiFetch(`/subdivisions/${sid}/contractors`).then(r => r.json()).then(data => {
+      if (Array.isArray(data)) setSubdivContractors(data);
+    }).catch(() => {});
+  }, [project?.subdivision_id]);
+
   // Company logo for printable Job Spec
   const [companyLogo, setCompanyLogo] = useState(null);
   useEffect(() => {
@@ -2139,8 +2149,10 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
 
         let sectionsHtml = '';
         specCategories.forEach(([cat, sels]) => {
+          const sc = subdivContractors.find(c => (c.trade || '').toLowerCase() === cat.toLowerCase());
+          const subName = sc?.contractor ? `${sc.contractor.first_name || ''} ${sc.contractor.last_name || ''}`.trim() : '';
           sectionsHtml += `<div class="spec-section">`;
-          sectionsHtml += `<div class="section-header">${esc(cat)}</div>`;
+          sectionsHtml += `<div class="section-header">${esc(cat)}${subName ? ` <span class="section-sub">${esc(subName)}</span>` : ''}</div>`;
           sels.forEach(sel => {
             const selectedArr = Array.isArray(sel.selected) ? sel.selected : (sel.selected ? [sel.selected] : []);
             const selectedStr = esc(selectedArr.join(', ') || '—');
@@ -2166,7 +2178,8 @@ const CurrentProjectViewer = ({ embedded, project: projectProp, clientView, onCl
   .report-title { font-size: 16pt; font-weight: 700; margin-bottom: 4px; }
   .report-subtitle { font-size: 10pt; color: #444; margin-bottom: 16px; }
   .spec-section { margin-bottom: 16px; }
-  .section-header { font-size: 13pt; font-weight: 700; background: #f0f0f0; padding: 6px 10px; border-left: 4px solid #333; margin-bottom: 6px; }
+  .section-header { font-size: 13pt; font-weight: 700; background: #f0f0f0; padding: 6px 10px; border-left: 4px solid #333; margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center; }
+  .section-sub { font-size: 10pt; font-weight: 400; color: #666; }
   .spec-item { padding: 4px 0 4px 14px; font-size: 10.5pt; border-bottom: 1px solid #eee; }
   .item-name { font-weight: 600; }
   .item-value { color: #333; }
@@ -2231,12 +2244,18 @@ ${sectionsHtml}
           {/* Confirmed selections by category — two sections per row */}
           {specCategories.length > 0 ? (
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
-              {specCategories.map(([cat, sels]) => (
+              {specCategories.map(([cat, sels]) => {
+                const sc = subdivContractors.find(c => (c.trade || '').toLowerCase() === cat.toLowerCase());
+                const subName = sc?.contractor ? `${sc.contractor.first_name || ''} ${sc.contractor.last_name || ''}`.trim() : '';
+                return (
                 <View key={cat} style={{ width: '48%', minWidth: 260, flexGrow: 1, marginBottom: 8 }}>
                   <Card style={{ flex: 1 }}>
                     {/* Section header */}
                     <View style={{ backgroundColor: C.gd + '18', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 6, marginBottom: 10 }}>
-                      <Text style={{ fontSize: 18, fontWeight: '700', color: C.gd }}>{cat}</Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <Text style={{ fontSize: 18, fontWeight: '700', color: C.gd }}>{cat}</Text>
+                        {subName ? <Text style={{ fontSize: 14, color: C.dm, fontWeight: '500' }}>{subName}</Text> : null}
+                      </View>
                     </View>
                     {/* Items in this category */}
                     {sels.map((sel, si) => {
@@ -2256,7 +2275,7 @@ ${sectionsHtml}
                     })}
                   </Card>
                 </View>
-              ))}
+                ); })}
             </View>
           ) : (
             <View style={{ alignItems: 'center', padding: 40 }}>
