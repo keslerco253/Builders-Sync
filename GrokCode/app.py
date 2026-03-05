@@ -845,7 +845,8 @@ class BidTemplate(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(255), nullable=False)
     description = db.Column(db.String(500), default='')
-    categories_json = db.Column(db.Text, default='[]')  # JSON: [{title, line_items: [{name, quantity, price_per_item, included, is_allowance}]}]
+    categories_json = db.Column(db.Text, default='[]')  # JSON: [{title, is_square_footage, line_items: [{name, quantity, price_per_item, included, is_allowance}]}]
+    allowance_categories_json = db.Column(db.Text, default='[]')  # JSON: [{name, description, items: [{name, quantity, price_per}]}]
     lot_overhead = db.Column(db.Float, default=0)
     commission = db.Column(db.Float, default=0)
     company_id = db.Column(db.Integer, db.ForeignKey('company.id'), nullable=True)
@@ -856,6 +857,7 @@ class BidTemplate(db.Model):
         return {
             'id': self.id, 'name': self.name, 'description': self.description,
             'categories': json.loads(self.categories_json) if self.categories_json else [],
+            'allowance_categories': json.loads(self.allowance_categories_json) if self.allowance_categories_json else [],
             'lot_overhead': self.lot_overhead or 0,
             'commission': self.commission or 0,
             'company_id': self.company_id, 'created_by': self.created_by,
@@ -4819,6 +4821,7 @@ def create_bid_template():
         name=name,
         description=(data.get('description') or '').strip(),
         categories_json=json.dumps(data.get('categories', [])),
+        allowance_categories_json=json.dumps(data.get('allowance_categories', [])),
         lot_overhead=float(data.get('lot_overhead', 0) or 0),
         commission=float(data.get('commission', 0) or 0),
         company_id=u.company_id if u else None,
@@ -4842,6 +4845,8 @@ def update_bid_template(tid):
         tmpl.description = (data['description'] or '').strip()
     if 'categories' in data:
         tmpl.categories_json = json.dumps(data['categories'])
+    if 'allowance_categories' in data:
+        tmpl.allowance_categories_json = json.dumps(data['allowance_categories'])
     if 'lot_overhead' in data:
         tmpl.lot_overhead = float(data['lot_overhead'] or 0)
     if 'commission' in data:
@@ -4873,7 +4878,8 @@ def apply_bid_template(pid):
     categories = json.loads(tmpl.categories_json) if tmpl.categories_json else []
     max_order = db.session.query(db.func.max(BidCategory.sort_order)).filter_by(job_id=pid).scalar() or 0
     for i, cat_data in enumerate(categories):
-        cat = BidCategory(job_id=pid, title=cat_data.get('title', ''), sort_order=max_order + i + 1)
+        cat = BidCategory(job_id=pid, title=cat_data.get('title', ''), sort_order=max_order + i + 1,
+                          is_square_footage=bool(cat_data.get('is_square_footage', False)))
         db.session.add(cat)
         db.session.flush()
         for li_data in cat_data.get('line_items', []):
@@ -4886,6 +4892,16 @@ def apply_bid_template(pid):
                 is_allowance=bool(li_data.get('is_allowance', False)),
             )
             db.session.add(li)
+    # Apply allowance categories from template
+    allowance_cats_data = json.loads(tmpl.allowance_categories_json) if tmpl.allowance_categories_json else []
+    ac_max_order = db.session.query(db.func.max(BidAllowanceCategory.sort_order)).filter_by(job_id=pid).scalar() or 0
+    for j, ac_data in enumerate(allowance_cats_data):
+        ac = BidAllowanceCategory(job_id=pid, name=ac_data.get('name', ''), description=ac_data.get('description', ''), sort_order=ac_max_order + j + 1)
+        db.session.add(ac)
+        db.session.flush()
+        for ai_data in ac_data.get('items', []):
+            ai = BidAllowanceItem(category_id=ac.id, name=ai_data.get('name', ''), quantity=float(ai_data.get('quantity', 1) or 1), price_per=float(ai_data.get('price_per', 0) or 0))
+            db.session.add(ai)
     # Apply lot_overhead and commission if template has them
     if tmpl.lot_overhead:
         proj.bid_lot_overhead = tmpl.lot_overhead
@@ -4893,7 +4909,8 @@ def apply_bid_template(pid):
         proj.bid_commission = tmpl.commission
     db.session.commit()
     cats = BidCategory.query.filter_by(job_id=pid).order_by(BidCategory.sort_order).all()
-    return jsonify({'categories': [c.to_dict() for c in cats], 'lot_overhead': proj.bid_lot_overhead or 0, 'commission': proj.bid_commission or 0})
+    ac_cats = BidAllowanceCategory.query.filter_by(job_id=pid).order_by(BidAllowanceCategory.sort_order).all()
+    return jsonify({'categories': [c.to_dict() for c in cats], 'allowance_categories': [ac.to_dict() for ac in ac_cats], 'lot_overhead': proj.bid_lot_overhead or 0, 'commission': proj.bid_commission or 0})
 
 
 @app.route('/projects/<int:pid>/save-as-bid-template', methods=['POST'])
@@ -4918,12 +4935,19 @@ def save_as_bid_template(pid):
                 'price_per_item': li.price_per_item,
                 'included': bool(li.included), 'is_allowance': bool(li.is_allowance),
             })
-        categories_data.append({'title': cat.title, 'line_items': items})
+        categories_data.append({'title': cat.title, 'is_square_footage': bool(cat.is_square_footage), 'line_items': items})
+    # Save allowance breakdown categories
+    allowance_cats = BidAllowanceCategory.query.filter_by(job_id=pid).order_by(BidAllowanceCategory.sort_order).all()
+    allowance_data = []
+    for ac in allowance_cats:
+        ac_items = [{'name': i.name, 'quantity': i.quantity, 'price_per': i.price_per} for i in (ac.items or [])]
+        allowance_data.append({'name': ac.name, 'description': ac.description or '', 'items': ac_items})
     from datetime import datetime
     tmpl = BidTemplate(
         name=name,
         description=(data.get('description') or '').strip(),
         categories_json=json.dumps(categories_data),
+        allowance_categories_json=json.dumps(allowance_data),
         lot_overhead=proj.bid_lot_overhead or 0,
         commission=proj.bid_commission or 0,
         company_id=u.company_id if u else None,
